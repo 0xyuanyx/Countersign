@@ -4,6 +4,8 @@ import type { SignerResponse } from "@countersign/signer";
 import {
   checkOrder,
   checkSignature,
+  describeChecks,
+  parseTypedData,
   formatAmount,
   issueTicket,
   normalizeOrder,
@@ -19,6 +21,7 @@ import {
   type Rejection,
   type SpendLedger,
   type Ticket,
+  type TwaTypedData,
 } from "@countersign/wallet-core";
 import type { Address, Hex } from "viem";
 import { z } from "zod";
@@ -163,6 +166,7 @@ export class WalletService {
     }
     const { order_ref: orderRef, intent } = parsedInput.data;
     const intentInfo = intentFields(intent);
+    const ctx: CheckCtx = { intent };
 
     // 0. 주인의 정지 스위치
     const pause = this.d.pause();
@@ -170,6 +174,7 @@ export class WalletService {
 
     const agent = await this.account();
     if (typeof agent !== "string") return this.rejected(id, orderRef, agent, intentInfo);
+    ctx.agent = agent;
 
     // 1. 주문을 HSP에서 직접 다시 가져온다 (에이전트·판매자가 말한 금액·주소는 쓰지 않는다)
     let order: Order;
@@ -179,12 +184,13 @@ export class WalletService {
       return this.rejected(id, orderRef, hspRejection("get_order", e), intentInfo);
     }
     if (order.orderRef !== orderRef) {
-      return this.rejected(id, orderRef, reject("TYPED_DATA_MISMATCH", "hsp", "HSP가 다른 주문을 돌려줌"), intentInfo, order);
+      return this.rejected(id, orderRef, reject("TYPED_DATA_MISMATCH", "hsp", "HSP가 다른 주문을 돌려줌"), intentInfo, order, ctx);
     }
+    ctx.order = order;
 
     // 2. 정책·의도 검사 (prepare 전에 한 번: 나쁜 주문이면 HSP에 서명 대상을 만들게 하지도 않는다)
     const pre = checkOrder(order, intent, this.d.policy, this.d.ledger, this.now());
-    if (!pre.ok) return this.rejected(id, orderRef, pre, intentInfo, order);
+    if (!pre.ok) return this.rejected(id, orderRef, pre, intentInfo, order, ctx);
 
     // 3. 서명 대상 받기 → 주문과 필드별 대조
     let typedData: unknown;
@@ -194,11 +200,13 @@ export class WalletService {
       typedData = p.typed_data;
       payload = p.payment_payload;
     } catch (e) {
-      return this.rejected(id, orderRef, hspRejection("prepare_payment", e), intentInfo, order);
+      return this.rejected(id, orderRef, hspRejection("prepare_payment", e), intentInfo, order, ctx);
     }
     const t = this.now();
+    const parsedTd = parseTypedData(typedData);
+    if (parsedTd.ok) ctx.td = parsedTd.td;
     const v = verifyPayment({ order, intent, policy: this.d.policy, ledger: this.d.ledger, typedData, agent, now: t });
-    if (!v.ok) return this.rejected(id, orderRef, v, intentInfo, order);
+    if (!v.ok) return this.rejected(id, orderRef, v, intentInfo, order, ctx);
 
     // 4. 검증 티켓과 함께 signer에 서명 요청 (signer는 같은 검사를 처음부터 다시 한다)
     const ticket = issueTicket(this.d.ticketSecret, { typedDataHash: v.typedDataHash, order, intent: v.intent, now: t });
@@ -206,14 +214,14 @@ export class WalletService {
     try {
       signed = await this.d.signer.signPayment(ticket, typedData);
     } catch {
-      return this.rejected(id, orderRef, reject("SIGNER_UNAVAILABLE", "signature", "signer 프로세스에 연결할 수 없음"), intentInfo, order);
+      return this.rejected(id, orderRef, reject("SIGNER_UNAVAILABLE", "signature", "signer 프로세스에 연결할 수 없음"), intentInfo, order, ctx);
     }
-    if (!signed.ok) return this.rejected(id, orderRef, signed, intentInfo, order);
+    if (!signed.ok) return this.rejected(id, orderRef, signed, intentInfo, order, ctx);
     if (signed.op !== "sign_payment" || signed.typedDataHash.toLowerCase() !== v.typedDataHash.toLowerCase()) {
-      return this.rejected(id, orderRef, reject("SIGNATURE_INVALID", "signature", "signer 응답이 요청과 다름"), intentInfo, order);
+      return this.rejected(id, orderRef, reject("SIGNATURE_INVALID", "signature", "signer 응답이 요청과 다름"), intentInfo, order, ctx);
     }
     const sigCheck = await checkSignature(v.td, signed.signature, agent);
-    if (!sigCheck.ok) return this.rejected(id, orderRef, sigCheck, intentInfo, order);
+    if (!sigCheck.ok) return this.rejected(id, orderRef, sigCheck, intentInfo, order, ctx);
 
     // 서명이 나간 순간부터 지출로 센다 (HSP 단계가 실패해도 같은 주문을 다시 서명하지 않는다, 오류 30043)
     this.d.ledger.record(order.orderRef, order.amount, t);
@@ -225,14 +233,18 @@ export class WalletService {
       chain_id: order.chainId,
       order_hash: v.orderHash,
       typed_data_hash: v.typedDataHash,
+      checks: this.checks(ctx),
     };
+    const events: { stage: string; at: number }[] = [{ stage: "signed", at: t }];
 
     // 5. HSP에 제출하고 완료까지 기다린다
     let paymentId: string | undefined;
     try {
       paymentId = (await this.d.hsp.finalizePayment(orderRef, signed.signature, payload)).payment_id;
+      events.push({ stage: "finalized", at: this.now() });
       const sub = await this.d.hsp.submitPayment(paymentId);
-      const q = await this.waitFinal(paymentId);
+      events.push({ stage: "submitted", at: this.now() });
+      const q = await this.waitFinal(paymentId, events);
       if (q.status === "failed") throw new HspError("query_payment", "FAILED", "HSP가 결제 실패를 알림");
       const txHash = q.tx_hash ?? sub.tx_hash;
       const entry: HistoryEntry = {
@@ -244,6 +256,7 @@ export class WalletService {
         payment_id: paymentId,
         hsp_status: q.status,
         ...(txHash && { tx_hash: txHash }),
+        events,
       };
       this.d.history.append(entry);
       return {
@@ -273,6 +286,7 @@ export class WalletService {
         status: "failed",
         ...base,
         ...(paymentId && { payment_id: paymentId }),
+        events,
         code: r.code,
         step: r.step,
         reason: r.reason,
@@ -282,15 +296,24 @@ export class WalletService {
     }
   }
 
-  private async waitFinal(paymentId: string): Promise<QueryResult> {
+  private async waitFinal(paymentId: string, events: { stage: string; at: number }[]): Promise<QueryResult> {
     const interval = this.d.pollIntervalMs ?? 2000;
     const deadline = Date.now() + (this.d.pollTimeoutMs ?? 120_000);
+    const seen = (status: string) => {
+      if (!events.some((e) => e.stage === status)) events.push({ stage: status, at: this.now() });
+    };
     let q = await this.d.hsp.queryPayment(paymentId);
+    seen(q.status);
     while (q.status !== "payment-finalized" && q.status !== "failed" && Date.now() < deadline) {
       if (interval > 0) await new Promise((r) => setTimeout(r, interval));
       q = await this.d.hsp.queryPayment(paymentId);
+      seen(q.status);
     }
     return q;
+  }
+
+  private checks(ctx: CheckCtx) {
+    return describeChecks({ policy: this.d.policy, now: this.now(), ...ctx });
   }
 
   private rejected(
@@ -299,6 +322,7 @@ export class WalletService {
     r: Rejection,
     intent: { seller?: string; purpose?: string } = {},
     order?: Order,
+    ctx?: CheckCtx,
   ): Rejection {
     this.d.history.append({
       id,
@@ -311,9 +335,17 @@ export class WalletService {
       step: r.step,
       reason: r.reason,
       next_action: r.next_action,
+      ...(ctx?.order && { checks: this.checks(ctx) }),
     });
     return r;
   }
+}
+
+interface CheckCtx {
+  intent: unknown;
+  agent?: Address;
+  order?: Order;
+  td?: TwaTypedData;
 }
 
 function intentFields(intent: unknown): { seller?: string; purpose?: string } {

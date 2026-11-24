@@ -22,6 +22,7 @@ beforeAll(async () => {
     ownerToken: TOKEN,
     account: async () => "0x0000000000000000000000000000000000000001",
     allowedOrigins: ["http://localhost:5173"],
+    balances: async () => ({ account: "0x0000000000000000000000000000000000000001", balances: [{ chain_id: 133, balance: "1.5" }] }),
     now: () => NOW,
   });
   base = await listenOwnerApi(server, 0);
@@ -42,6 +43,10 @@ describe("주인 API", () => {
       remaining_24h: "0.7",
       paused: false,
     });
+  });
+
+  it("잔액", async () => {
+    expect(await (await req("/api/balance")).json()).toMatchObject({ balances: [{ chain_id: 133, balance: "1.5" }] });
   });
 
   it("내역은 최신순", async () => {

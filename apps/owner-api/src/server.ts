@@ -24,6 +24,7 @@ import { z } from "zod";
  * 엔드포인트 (응답은 모두 JSON):
  *   GET  /api/policy           정책 요약 + 최근 24시간 사용액 + 정지 여부
  *   GET  /api/history?limit=20 결제·거부 내역 (최신순)
+ *   GET  /api/balance          에이전트 계정 주소와 체인별 USDC 잔액 (입금 화면)
  *   GET  /api/pause            정지 상태
  *   POST /api/pause  {reason?} 결제 정지 (지갑 MCP와 signer가 다음 결제부터 거부)
  *   POST /api/resume           결제 재개 (토큰 필요)
@@ -36,6 +37,8 @@ export interface OwnerApiDeps {
   account?: () => Promise<string | undefined>;
   allowedOrigins?: string[];
   now?: () => number;
+  /** 에이전트 계정의 체인별 USDC 잔액 (사람이 읽는 문자열). 홈 화면·입금 화면용 */
+  balances?: () => Promise<{ account?: string; balances: { chain_id: number; balance?: string; error?: string }[] }>;
 }
 
 const PauseBodySchema = z.object({ reason: z.string().max(200).optional() }).strict();
@@ -71,6 +74,9 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
         const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 20) || 20, 1), 200);
         return send(res, 200, { entries: new HistoryStore(d.paths.history).list(limit) });
       }
+      case "GET /api/balance":
+        if (!d.balances) return send(res, 503, { ok: false, error: "잔액 조회기가 없음" });
+        return send(res, 200, await d.balances());
       case "GET /api/pause":
         return send(res, 200, readPause(d.paths.pause));
       case "POST /api/pause": {

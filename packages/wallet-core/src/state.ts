@@ -126,6 +126,19 @@ export const HistoryEntrySchema = z.object({
   tx_hash: z.string().optional(),
   order_hash: z.string().optional(),
   typed_data_hash: z.string().optional(),
+  /** 필드 6개(payee·amount·chain·token·expiry·signer) 대조표 (checks.ts) */
+  checks: z
+    .array(
+      z.object({
+        field: z.string(),
+        result: z.enum(["match", "mismatch", "unchecked"]),
+        expected: z.string().optional(),
+        actual: z.string().optional(),
+      }),
+    )
+    .optional(),
+  /** HSP 단계별 시각 (unix초): signed, finalized(payment_id 받음), submitted, 그리고 query_payment 상태가 처음 보인 시각 */
+  events: z.array(z.object({ stage: z.string(), at: z.number().int() })).optional(),
 });
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 

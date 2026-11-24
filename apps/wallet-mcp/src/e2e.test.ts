@@ -206,6 +206,19 @@ describe("E2E: 구매 → 결제 → 납품", () => {
     expect(statuses).toEqual(
       expect.arrayContaining(["paid", "PAYEE_MISMATCH", "AMOUNT_OVER_INTENT", "CHAIN_OR_TOKEN_NOT_ALLOWED", "OVER_LIMIT", "DUPLICATE"]),
     );
+    const paid = h.json.entries.find((e: { status: string }) => e.status === "paid");
+    expect(paid.checks.map((c: { result: string }) => c.result)).toEqual(Array(6).fill("match"));
+    expect(paid.events.map((e: { stage: string }) => e.stage)).toEqual(
+      expect.arrayContaining(["signed", "finalized", "submitted", "payment-finalized"]),
+    );
+    const payee = h.json.entries.find((e: { code?: string }) => e.code === "PAYEE_MISMATCH");
+    expect(payee.checks.find((c: { field: string }) => c.field === "payee")).toMatchObject({
+      result: "mismatch",
+      expected: SELLER,
+      actual: ATTACKER,
+    });
+    const chain = h.json.entries.find((e: { code?: string }) => e.code === "CHAIN_OR_TOKEN_NOT_ALLOWED");
+    expect(chain.checks.find((c: { field: string }) => c.field === "chain")).toMatchObject({ result: "mismatch", actual: "84532" });
     const p = await callTool("get_policy");
     expect(p.json).toMatchObject({
       agent: "buyer-1",

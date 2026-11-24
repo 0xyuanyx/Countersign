@@ -2,6 +2,8 @@
 import { readFileSync } from "node:fs";
 import { SignerClient } from "@countersign/signer/client";
 import { parsePolicy, readOrCreateSharedSecret, statePaths } from "@countersign/wallet-core";
+import { rpcBalanceReader } from "@countersign/wallet-mcp";
+import { formatAmount } from "@countersign/wallet-core";
 import { createOwnerApi, listenOwnerApi } from "./server.js";
 
 /**
@@ -18,13 +20,29 @@ const policy = parsePolicy(JSON.parse(readFileSync(policyPath, "utf8")));
 const paths = statePaths();
 const ownerToken = process.env.COUNTERSIGN_OWNER_TOKEN || readOrCreateSharedSecret(paths.ownerToken, true)!;
 const signer = new SignerClient(paths.signerSocket, 3000);
+const reader = rpcBalanceReader();
+const accountOf = async () => {
+  const r = await signer.address().catch(() => undefined);
+  return r?.ok && r.op === "address" ? r.address : undefined;
+};
 const server = createOwnerApi({
   policy,
   paths,
   ownerToken,
-  account: async () => {
-    const r = await signer.address();
-    return r.ok && r.op === "address" ? r.address : undefined;
+  account: accountOf,
+  balances: async () => {
+    const account = await accountOf();
+    if (!account) return { balances: [...policy.tokens.keys()].map((c) => ({ chain_id: c, error: "signer가 꺼져 있어 주소를 모름" })) };
+    const balances = await Promise.all(
+      [...policy.tokens].map(async ([chainId, token]) => {
+        try {
+          return { chain_id: chainId, balance: formatAmount(await reader.usdcBalance(chainId, token, account)) };
+        } catch {
+          return { chain_id: chainId, error: "RPC 조회 실패" };
+        }
+      }),
+    );
+    return { account, balances };
   },
   allowedOrigins: (process.env.COUNTERSIGN_APP_ORIGIN || "http://localhost:5173").split(",").map((s) => s.trim()),
 });
