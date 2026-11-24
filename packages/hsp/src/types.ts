@@ -79,6 +79,8 @@ export const FinalizeResultSchema = z.object({ payment_id: z.string().min(1) });
 export const SubmitResultSchema = z.object({ payment_id: z.string(), tx_hash: hex.optional() });
 export const QueryResultSchema = z.object({
   payment_id: z.string(),
+  /** ⚠️ ASSUMED (§9 #8): 판매자가 "이 결제가 내 주문 것인지" 확인하려면 필요. 실제 응답에 없으면 adapter에서 get_order로 채운다 */
+  order_ref: z.string().optional(),
   status: PaymentStatusSchema,
   tx_hash: hex.optional(),
   chain_id: z.number().int().positive().optional(),

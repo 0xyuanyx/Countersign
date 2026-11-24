@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { z } from "zod";
+import { isAllowedHspUrl } from "./config.js";
 import {
   ChainConfigSchema,
   FinalizeResultSchema,
@@ -28,7 +29,9 @@ import {
 export class McpHspClient implements HspClient {
   private client: Client | undefined;
 
-  constructor(private readonly url: string) {}
+  constructor(private readonly url: string) {
+    if (!isAllowedHspUrl(url)) throw new Error("HSP MCP 주소는 https만 (로컬 mock만 http://127.0.0.1)");
+  }
 
   async connect(): Promise<void> {
     const client = new Client({ name: "countersign", version: "0.0.0" });

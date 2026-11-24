@@ -8,6 +8,11 @@ export const HspConfigSchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("mock"),
     payChainId: z.number().int().positive().default(133),
+    /**
+     * 비우면 프로세스 안 mock. 판매 서버와 지갑이 같은 mock을 써야 하면
+     * HSP mock 서버(pnpm --filter @countersign/hsp mock) 주소 http://127.0.0.1:7410/mcp 를 넣는다.
+     */
+    mcpUrl: z.url().refine(isLoopbackHttp, "mock 서버 주소는 http://127.0.0.1 만").optional(),
   }),
   z.object({
     mode: z.literal("mcp"),
@@ -29,3 +34,17 @@ export const KNOWN_USDC: Readonly<Record<number, `0x${string}`>> = {
   177: "0x054ed45810DbBAb8B27668922D110669c9D88D0a",
   133: "0x8FE3cB719Ee4410E236Cd6b72ab1fCDC06eF53c6",
 };
+
+/** 실서버는 https만. 같은 컴퓨터의 HSP mock 서버(serveMockHsp)만 http 루프백을 허용한다. */
+export function isAllowedHspUrl(u: string): boolean {
+  return u.startsWith("https://") || isLoopbackHttp(u);
+}
+
+export function isLoopbackHttp(u: string): boolean {
+  try {
+    const url = new URL(u);
+    return url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}

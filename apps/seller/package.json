@@ -1,0 +1,21 @@
+{
+  "name": "@countersign/seller",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "bin": {
+    "countersign-seller": "./src/main.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@countersign/hsp": "workspace:*",
+    "@countersign/wallet-core": "workspace:*",
+    "viem": "^2.58.6",
+    "zod": "^4.6.7"
+  }
+}

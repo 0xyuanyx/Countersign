@@ -171,7 +171,13 @@ export class MockHsp implements HspClient {
       p.polls++;
       status = p.polls === 1 ? "submitted" : p.polls === 2 ? "payment-safe" : "payment-finalized";
     }
-    return { payment_id: p.id, status, tx_hash: p.submitted ? p.txHash : undefined, chain_id: this.opts.chainId };
+    return {
+      payment_id: p.id,
+      order_ref: p.orderRef,
+      status,
+      tx_hash: p.submitted ? p.txHash : undefined,
+      chain_id: this.opts.chainId,
+    };
   }
 
   private mustPayment(tool: "submit_payment" | "query_payment", id: string): Payment {

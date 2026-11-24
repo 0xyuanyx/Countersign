@@ -14,10 +14,14 @@ export const REJECTION_CODES = {
   SIGNATURE_INVALID: "결제를 중단하고 사람(주인)에게 보고한다",
   INVALID_INPUT: "입력 형식을 고쳐 다시 호출한다",
   TICKET_INVALID: "지갑의 pay 도구로 처음부터 다시 결제한다 (signer에 직접 서명을 요청할 수 없다)",
+  // 11/24 지갑 MCP 서버와 함께 추가
+  PAUSED: "주인이 결제를 정지했다. 정지가 풀릴 때까지 결제하지 말고 사람(주인)에게 알린다",
+  HSP_ERROR: "잠시 후 같은 주문으로 다시 시도하고, 계속 실패하면 판매자에게 새 주문을 요청한다",
+  SIGNER_UNAVAILABLE: "서명 프로세스가 꺼져 있다. 사람(주인)에게 signer 실행을 요청한다",
 } as const;
 
 export type RejectionCode = keyof typeof REJECTION_CODES;
-export type Step = "input" | "policy" | "typed_data" | "ticket" | "signature";
+export type Step = "input" | "pause" | "policy" | "hsp" | "typed_data" | "ticket" | "signature";
 
 export interface Rejection {
   ok: false;

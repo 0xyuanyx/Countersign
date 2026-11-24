@@ -4,11 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mock-server": "./src/mock-server.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "viem": "^2.58.6",
     "zod": "^4.6.7"
+  },
+  "scripts": {
+    "mock": "tsx src/mock-main.ts"
+  },
+  "bin": {
+    "countersign-hsp-mock": "./src/mock-main.ts"
   }
 }

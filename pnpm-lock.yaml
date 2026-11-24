@@ -21,6 +21,64 @@ importers:
         specifier: ^5.1.1
         version: 5.1.1(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
 
+  apps/demo:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.2
+        version: 1.32.2(zod@4.6.7)
+
+  apps/owner-api:
+    dependencies:
+      '@countersign/signer':
+        specifier: workspace:*
+        version: link:../../packages/signer
+      '@countersign/wallet-core':
+        specifier: workspace:*
+        version: link:../../packages/wallet-core
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  apps/seller:
+    dependencies:
+      '@countersign/hsp':
+        specifier: workspace:*
+        version: link:../../packages/hsp
+      '@countersign/wallet-core':
+        specifier: workspace:*
+        version: link:../../packages/wallet-core
+      viem:
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  apps/wallet-mcp:
+    dependencies:
+      '@countersign/hsp':
+        specifier: workspace:*
+        version: link:../../packages/hsp
+      '@countersign/signer':
+        specifier: workspace:*
+        version: link:../../packages/signer
+      '@countersign/wallet-core':
+        specifier: workspace:*
+        version: link:../../packages/wallet-core
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.2
+        version: 1.32.2(zod@4.6.7)
+      viem:
+        specifier: ^2.58.6
+        version: 2.58.6(typescript@7.0.2)(zod@4.6.7)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@countersign/seller':
+        specifier: workspace:*
+        version: link:../seller
+
   packages/hsp:
     dependencies:
       '@modelcontextprotocol/sdk':

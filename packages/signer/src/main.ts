@@ -1,14 +1,21 @@
 #!/usr/bin/env -S npx tsx
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { deriveAccount, parsePolicy, parseTicketSecret } from "@countersign/wallet-core";
+import {
+  FileSpendLedger,
+  deriveAccount,
+  parsePolicy,
+  parseTicketSecret,
+  readOrCreateSharedSecret,
+  readPause,
+  statePaths,
+} from "@countersign/wallet-core";
 import { loadSecret } from "./keysource.js";
 import { listen } from "./server.js";
 import { createSigner } from "./signer.js";
 
 /**
- * signer 실행: COUNTERSIGN_POLICY=정책.json COUNTERSIGN_TICKET_SECRET=... pnpm --filter @countersign/signer start
+ * signer 실행: COUNTERSIGN_POLICY=정책.json pnpm --filter @countersign/signer start
+ * 상태 폴더(~/.countersign, COUNTERSIGN_HOME)에 소켓·지출 기록·티켓 키 파일을 둔다.
  * 개발 니모닉(OURYN_DEV_MNEMONIC)의 정책 accountIndex번 계정으로만 서명한다.
  * 메인넷 배포 키(OURYN_DEPLOYER_KEY)는 읽지 않는다 (메인넷 키로 테스트하지 않음).
  */
@@ -16,11 +23,22 @@ async function main() {
   const policyPath = process.env.COUNTERSIGN_POLICY;
   if (!policyPath) throw new Error("COUNTERSIGN_POLICY(정책 파일 경로)가 필요함");
   const policy = parsePolicy(JSON.parse(readFileSync(policyPath, "utf8")));
-  const ticketSecret = parseTicketSecret(loadSecret("COUNTERSIGN_TICKET_SECRET"));
+  const paths = statePaths();
+  // 검증 티켓 HMAC 키: 환경변수가 없으면 signer가 만들어 0600 파일로 둔다 (지갑 MCP가 같은 파일을 읽는다)
+  const ticketSecret = parseTicketSecret(
+    process.env.COUNTERSIGN_TICKET_SECRET || readOrCreateSharedSecret(paths.ticketSecret, true),
+  );
   const account = deriveAccount(loadSecret("OURYN_DEV_MNEMONIC"), policy.accountIndex);
-  const socketPath = process.env.COUNTERSIGN_SIGNER_SOCKET || join(homedir(), ".countersign", "signer.sock");
+  const socketPath = paths.signerSocket;
 
-  const server = await listen(createSigner({ account, policy, ticketSecret }), socketPath);
+  const signer = createSigner({
+    account,
+    policy,
+    ticketSecret,
+    ledger: new FileSpendLedger(paths.signerLedger),
+    pause: () => readPause(paths.pause),
+  });
+  const server = await listen(signer, socketPath);
   // 주소와 소켓 경로만 출력한다 (공개값)
   console.log(`countersign-signer: ${policy.agent} 계정 #${policy.accountIndex} ${account.address}`);
   console.log(`countersign-signer: ${socketPath} 에서 대기`);

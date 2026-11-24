@@ -6,6 +6,7 @@ import {
   reject,
   verifyPayment,
   verifyTicket,
+  type PauseState,
   type Policy,
   type Rejection,
   type SpendLedger,
@@ -37,6 +38,8 @@ export interface SignerDeps {
   ticketSecret: Buffer;
   ledger?: SpendLedger;
   now?: () => number;
+  /** 주인의 정지 스위치. 서명할 때마다 다시 읽는다 (지갑 MCP가 뚫려도 signer가 멈춘다) */
+  pause?: () => PauseState;
 }
 
 export interface Signer {
@@ -55,6 +58,8 @@ export function createSigner(deps: SignerDeps): Signer {
 
   async function signPayment(ticketInput: unknown, typedData: unknown): Promise<SignerResponse> {
     const t = now();
+    const pause = deps.pause?.();
+    if (pause?.paused) return reject("PAUSED", "pause", "주인이 결제를 정지함");
     const ticket = verifyTicket(ticketSecret, ticketInput, t);
     if (!ticket.ok) return reject("TICKET_INVALID", "ticket", ticket.reason);
     if (usedTickets.has(ticket.id)) return reject("TICKET_INVALID", "ticket", "이미 쓴 티켓");

@@ -107,8 +107,8 @@
 - [ ] 정책 엔진(최소): 건당 상한, 일일 상한, 허용 판매자(`pay_to`) 목록, 허용 토큰/체인, 만료
 - [ ] Evidence 검증기: `prepare_payment` 결과의 EIP-712를 디코드해 `get_order`로 재조회한 주문·정책과 필드별 대조, 서명 후 서명자 복원
 - [ ] HSP 공식 MCP 클라이언트 (8개 도구, §4.1) + 문서 형태를 따른 로컬 목(mock)
-- [ ] 지갑 MCP 서버 (§5.3): 구매 도구 + 판매 도구(주문 요청, 입금 확인)
-- [ ] 데모 에이전트: 구매 에이전트(실제 LLM), 정상 판매 에이전트, 악성 판매 에이전트
+- [x] 지갑 MCP 서버 (§5.3): 구매 도구 4개 (11/24). 판매 쪽은 MCP 도구 대신 판매 서버가 HSP를 직접 부른다 (`apps/seller`)
+- [ ] 데모 에이전트: 구매 에이전트(실제 LLM) — Claude Code `claude -p`로 정상·인젝션 1회씩 확인(11/24), 레드팀 수치는 아직 / [x] 정상 판매 서버, 악성 판매 서버 4종 (11/24)
 - [ ] 레드팀 하니스: 공격 시나리오 × LLM 2종 × (지갑 없음/있음), 정상 시나리오 오탐 확인
 - [ ] `EvidenceRegistry` 컨트랙트: HSK 메인넷 배포 + 블록스카우트 검증
 - [ ] Evidence 뷰어 (웹 한 페이지, 읽기 전용): 결제별 3칸 대조 카드(에이전트 요청 / 주문 / 서명 바이트)와 탐색기 링크
@@ -227,14 +227,17 @@
 
 ### 5.3 지갑 MCP 도구 (에이전트가 보는 인터페이스)
 
-| 도구 | 쪽 | 입력 | 출력 |
-|---|---|---|---|
-| `wallet_info` | 공통 | — | 주소, 잔액, 남은 일일 한도 |
-| `inspect_order` | 구매 | `order_ref` | 주문 내용 + 정책 검사 결과 (서명 없음, 미리보기) |
-| `pay` | 구매 | `order_ref`, `intent` | 성공: 상태·tx·증거 링크 / 실패: `code`, `step`, `reason`, `next_action` |
-| `request_payment` | 판매 | 금액, 설명 | HSP 주문 정보 (구매자에게 넘길 것) |
-| `confirm_payment` | 판매 | `order_ref` | HSP 상태 + 체인 Transfer 확인 결과 (확인 전엔 납품하지 않음) |
-| `history` | 공통 | `limit` | 최근 승인·거부 내역 |
+11/24 구현 (`apps/wallet-mcp`, stdio). 처음 설계의 `wallet_info`·`inspect_order`·판매 도구 대신 아래 4개로 정했다.
+판매 쪽은 키가 필요 없어서 MCP 도구 없이 판매 서버(`apps/seller`)가 HSP를 직접 부른다.
+
+| 도구 | 입력 | 출력 |
+|---|---|---|
+| `pay_order` | `order_ref`, `intent{purpose, max_amount, seller}` | 성공: `payment_id`, `hsp_status`, `tx_hash`, 금액·수취인·체인, 증거 해시, `next_action`(판매자에게 납품 요청) / 실패: `code`, `step`, `reason`, `next_action` (MCP `isError`) |
+| `get_balance` | — | 허용 체인별 USDC 잔액(RPC 읽기), 남은 24시간 한도 |
+| `get_policy` | — | 허용 판매자·주소, 체인, 건당·일일 한도, 24시간 사용액, 정지 여부 (읽기 전용) |
+| `get_history` | `limit` | 최근 승인·거부·실패 내역 |
+
+주인(사람)용 기능(정책·내역 보기, 정지·재개)은 MCP가 아니라 별도 로컬 HTTP **주인 API**(`apps/owner-api`, PWA 앱용)로 연다. 정지는 토큰 없이, 재개는 주인 토큰이 있어야 한다. 정지 스위치는 지갑 MCP와 **signer가 둘 다** 서명할 때마다 다시 읽는다.
 
 정책 변경, 키 내보내기, 임의 서명(`sign_raw`)은 **MCP에 열지 않는다.** 에이전트가 자기 한도를 올리거나 키를 빼낼 방법이 없어야 한다.
 
@@ -251,6 +254,9 @@
 | `SIGNATURE_INVALID` | 서명 후 복원한 서명자가 에이전트 계정이 아님 | 결제 중단, 사람에게 보고 (11/24 추가) |
 | `TICKET_INVALID` | signer에 검증 티켓 없이/위조·만료·재사용 티켓으로 요청 | 지갑 `pay`로 처음부터 다시 (11/24 추가) |
 | `INVALID_INPUT` | intent 등 입력 형식 오류 | 형식 고쳐 재호출 (11/24 추가) |
+| `PAUSED` | 주인이 결제를 정지함 | 결제하지 말고 주인에게 알림 (11/24 추가) |
+| `HSP_ERROR` | HSP 호출 실패·없는 주문·응답 형식 다름 | 잠시 후 재시도, 계속되면 새 주문 요청 (11/24 추가) |
+| `SIGNER_UNAVAILABLE` | signer 프로세스가 꺼져 있음 | 주인에게 signer 실행 요청 (11/24 추가) |
 
 ### 5.5 정책 파일 (최소)
 
@@ -303,8 +309,10 @@ countersign-agent/          (로컬 폴더: ~/Developer/Countersign)
 │  └─ hsp/                 canonical · config · types · mcp-client.ts(공식 MCP 8개 도구) · mock.ts
 │                          (hsp는 가장 아래층: wallet-core가 hsp를 import한다. payer·seller 흐름은 순환 의존을 피하려고 apps/wallet-mcp에 둔다)
 ├─ apps/
-│  ├─ wallet-mcp/          지갑 MCP 서버 (npx 실행)
-│  ├─ agents/              buyer(LLM) · seller · evil-seller
+│  ├─ wallet-mcp/          지갑 MCP 서버 (stdio, 도구 4개) + 끝에서 끝 테스트
+│  ├─ owner-api/           주인 API (PWA용: 정책·내역·정지/재개, 127.0.0.1:7420)
+│  ├─ seller/              판매 서버 (AI 없음) + 악성 모드 4종
+│  ├─ demo/                demo.sh(HSP mock·signer·판매자·주인 API 한 번에) · 스크립트 구매자 · 정책 예시
 │  ├─ redteam/             공격 시나리오 하니스 + 결과 표
 │  └─ web/                 Evidence 뷰어 (한 페이지, 읽기 전용)
 └─ contracts/              EvidenceRegistry (Foundry)
@@ -343,6 +351,7 @@ countersign-agent/          (로컬 폴더: ~/Developer/Countersign)
 | 6 | 메인넷 HSK 가스 확보 | 컨트랙트 배포, 증거 기록 | 거래소 출금 |
 | 8 | HSP MCP 도구별 **입력 인자 이름과 응답 형태** (`get_order`의 금액이 최소 단위 정수인지 "0.10" 같은 소수인지, `prepare_payment`가 typed data를 어떤 키로 주는지, `finalize_payment`에 무엇을 넘기는지) | 지금은 `packages/hsp/src/types.ts`에 내부 표준 형태를 정해 두고 mock이 그걸 따른다. 실제 형식은 `mcp-client.ts`의 `args`·`adapt` 두 곳만 고치면 된다 | HSP 가이드 원문 |
 | 9 | USDC EIP-712 domain의 `name`/`version`이 체인별로 무엇인지 (HSK 177·133, Sepolia 계열) | 틀리면 서명이 체인에서 무효가 될 뿐 돈이 새지는 않는다. 지금은 HSP가 준 값을 그대로 쓰고 검사하지 않는다 | 토큰 컨트랙트 `name()`/`version()` 조회 |
+| 10 | `query_payment` 응답에 `order_ref`가 있는지, 판매자가 "이 결제가 내 주문 것"임을 어떻게 확인하는지 (지금은 구매자가 `payment_id`를 판매자에게 넘기고, 판매자가 `query_payment`의 `order_ref`로 대조한다고 가정. mock은 그렇게 동작) | 판매 서버 납품 조건 | HSP 가이드 원문 |
 | 7 | ~~Merchant REST 판매자 등록이 필요한지~~ → 불필요. 공식 MCP 서버가 판매자 키를 대신 들고 EIP-712 데이터를 돌려준다 (hsk-meter `hsp_qa/README.md`) | 일 줄이기 | 해결 |
 
 ---

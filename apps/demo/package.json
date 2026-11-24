@@ -1,0 +1,14 @@
+{
+  "name": "@countersign/demo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "up": "./demo.sh up",
+    "down": "./demo.sh down",
+    "buyer": "tsx src/scripted-buyer.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  }
+}
