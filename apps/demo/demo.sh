@@ -40,11 +40,12 @@ case "${1:-}" in
         start "evil-$m" "$tsx" "$root/apps/seller/src/main.ts"
       port=$((port + 1))
     done
+    start wallet-http "$tsx" "$root/apps/wallet-mcp/src/main-http.ts"
     start owner-api "$tsx" "$root/apps/owner-api/src/main.ts"
-    for p in 7430 7431 7432 7433 7434 7420; do wait_port $p demo; done
+    for p in 7430 7431 7432 7433 7434 7420 7440; do wait_port $p demo; done
     cat "$logs/signer.log"
     echo "판매자: 정상 http://127.0.0.1:7430  악성 payee 7431 · amount 7432 · chain 7433 · inject 7434"
-    echo "주인 API: http://127.0.0.1:7420/api/policy"
+    echo "주인 API: http://127.0.0.1:7420/api/policy   원격 지갑 MCP: http://127.0.0.1:7440/mcp/<토큰> (토큰은 POST /api/agents)"
     ;;
   down)
     [ -f "$pids" ] && while read -r pid name; do kill "$pid" 2>/dev/null && echo "끔: $name"; done <"$pids"

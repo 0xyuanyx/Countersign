@@ -65,5 +65,6 @@ export const PolicyPatchSchema = z
     sellers: PolicyFileSchema.shape.sellers.optional(),
     tokenAddresses: PolicyFileSchema.shape.tokenAddresses.unwrap().nullable().optional(),
     maxAuthorizationSeconds: PolicyFileSchema.shape.maxAuthorizationSeconds.unwrap().nullable().optional(),
+    approvalMode: PolicyFileSchema.shape.approvalMode.optional(),
   })
   .strict();

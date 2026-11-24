@@ -1,6 +1,8 @@
 #!/usr/bin/env -S npx tsx
 import {
+  ApprovalStore,
   FileSpendLedger,
+  TaskStore,
   PolicyFile,
   deriveAccount,
   parseTicketSecret,
@@ -31,12 +33,18 @@ async function main() {
   const account = deriveAccount(loadSecret("OURYN_DEV_MNEMONIC"), policy.accountIndex);
   const socketPath = paths.signerSocket;
 
+  const approvals = new ApprovalStore(paths.approvals);
+  const tasks = new TaskStore(paths.tasks);
   const signer = createSigner({
     account,
     policy: () => policyFile.get(),
     ticketSecret,
     ledger: new FileSpendLedger(paths.signerLedger),
     pause: () => readPause(paths.pause),
+    extras: (orderRef, intent) => ({
+      approval: approvals.approvalFor(orderRef),
+      task: tasks.extraFor(taskIdOf(intent)),
+    }),
   });
   const server = await listen(signer, socketPath);
   // 주소와 소켓 경로만 출력한다 (공개값)
@@ -45,6 +53,11 @@ async function main() {
   const stop = () => server.close(() => process.exit(0));
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
+}
+
+function taskIdOf(intent: unknown): string | undefined {
+  const v = intent && typeof intent === "object" ? (intent as Record<string, unknown>).task_id : undefined;
+  return typeof v === "string" ? v : undefined;
 }
 
 main().catch((e: unknown) => {

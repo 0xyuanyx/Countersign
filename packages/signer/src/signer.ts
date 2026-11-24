@@ -7,6 +7,7 @@ import {
   verifyPayment,
   verifyTicket,
   type PauseState,
+  type CheckExtras,
   type PolicyInput,
   resolvePolicy,
   type Rejection,
@@ -42,6 +43,8 @@ export interface SignerDeps {
   now?: () => number;
   /** 주인의 정지 스위치. 서명할 때마다 다시 읽는다 (지갑 MCP가 뚫려도 signer가 멈춘다) */
   pause?: () => PauseState;
+  /** 주인 결정(구매 승인, 맡긴 일 상한)을 상태 파일에서 읽는다. 티켓에 실린 값은 쓰지 않는다 */
+  extras?: (orderRef: string, intent: unknown) => CheckExtras;
 }
 
 export interface Signer {
@@ -62,7 +65,7 @@ export function createSigner(deps: SignerDeps): Signer {
   async function signPayment(ticketInput: unknown, typedData: unknown): Promise<SignerResponse> {
     const t = now();
     const pause = deps.pause?.();
-    if (pause?.paused) return reject("PAUSED", "pause", "주인이 결제를 정지함");
+    if (pause?.paused) return reject("WALLET_PAUSED", "pause", "주인이 결제를 정지함");
     let policy;
     try {
       policy = resolvePolicy(deps.policy);
@@ -86,6 +89,7 @@ export function createSigner(deps: SignerDeps): Signer {
       typedData,
       agent: account.address,
       now: t,
+      ...(deps.extras && { extras: deps.extras(ticket.order.orderRef, ticket.intent) }),
     });
     if (!v.ok) return v;
     if (v.typedDataHash.toLowerCase() !== ticket.typedDataHash) {

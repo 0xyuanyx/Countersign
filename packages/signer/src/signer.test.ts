@@ -92,7 +92,7 @@ describe("signer", () => {
     const s = createSigner({ account: agent, policy: () => current, ticketSecret: secret, now: () => NOW });
     const w = await walletSide();
     current = { ...policy, sellers: new Map() };
-    expect(await s.handle({ op: "sign_payment", ticket: w.ticket, typedData: w.typedData })).toMatchObject({ code: "PAYEE_MISMATCH" });
+    expect(await s.handle({ op: "sign_payment", ticket: w.ticket, typedData: w.typedData })).toMatchObject({ code: "NEEDS_OWNER_APPROVAL" });
     const w2 = await walletSide();
     current = { ...policy, accountIndex: 2 };
     expect(await s.handle({ op: "sign_payment", ticket: w2.ticket, typedData: w2.typedData })).toMatchObject({ code: "POLICY_INVALID" });

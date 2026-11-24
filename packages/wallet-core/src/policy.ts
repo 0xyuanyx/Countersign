@@ -25,6 +25,13 @@ export const PolicyFileSchema = z
     tokenAddresses: z.record(z.string().regex(/^\d+$/), addressSchema).optional(),
     /** EIP-3009 서명 유효 시간 상한 (초). 기본 3600 */
     maxAuthorizationSeconds: z.number().int().min(30).max(86400).optional(),
+    /**
+     * 주인 승인을 언제 받나 (기본 unknown_seller).
+     * unknown_seller: 등록 판매자는 바로 결제, 처음 보는 판매자 이름은 주인 승인 대기
+     * every_payment : 검증을 통과한 모든 결제를 주인 승인 대기 (HSP 가이드의 "서명 전 사람 확인")
+     * 어느 쪽이든 등록 판매자 이름 + 다른 주소는 묻지 않고 PAYEE_MISMATCH.
+     */
+    approvalMode: z.enum(["unknown_seller", "every_payment"]).optional(),
   })
   .strict();
 
@@ -38,6 +45,7 @@ export interface Policy {
   dailyMax: bigint;
   sellers: ReadonlyMap<string, Address>;
   maxAuthorizationSeconds: number;
+  approvalMode: "unknown_seller" | "every_payment";
 }
 
 export function parsePolicy(json: unknown): Policy {
@@ -61,6 +69,7 @@ export function parsePolicy(json: unknown): Policy {
     dailyMax,
     sellers: new Map(Object.entries(p.sellers).map(([k, v]) => [k, getAddress(v)])),
     maxAuthorizationSeconds: p.maxAuthorizationSeconds ?? 3600,
+    approvalMode: p.approvalMode ?? "unknown_seller",
   };
 }
 
@@ -70,6 +79,8 @@ export const IntentSchema = z
     purpose: z.string().min(1).max(500),
     max_amount: amountText,
     seller: z.string().min(1).max(64),
+    /** 주인이 앱에서 맡긴 일(next_task)로 하는 결제면 그 id. 지갑이 그 일의 최대 금액을 강제한다 */
+    task_id: z.string().min(1).max(64).optional(),
   })
   .strict();
 export type Intent = z.infer<typeof IntentSchema>;
@@ -104,12 +115,34 @@ export const DAY_SECONDS = 86_400;
  * 주문(get_order로 다시 가져온 값)을 정책·의도와 대조한다. PROJECT.md §5.1 4단계.
  * 순서: 중복 → 만료 → 체인·토큰 → 판매자 → 의도 금액 → 건당·일일 한도
  */
+/**
+ * 정책 파일 밖에서 오는 주인 결정. 지갑 MCP와 signer가 각자 상태 파일에서 읽어 넘긴다 (에이전트 입력 아님).
+ */
+export interface CheckExtras {
+  /** 주인이 앱에서 승인한 이 주문 (order_ref·받는 주소·금액·체인·토큰이 모두 같아야 효력) */
+  approval?: { orderRef: string; payTo: string; amount: bigint; chainId: number; token: string };
+  /** intent.task_id가 가리키는 맡긴 일. 없거나 끝난 일이면 undefined */
+  task?: { id: string; maxAmount: bigint; active: boolean };
+}
+
+export function approvalMatches(a: CheckExtras["approval"], o: Order): boolean {
+  return (
+    !!a &&
+    a.orderRef === o.orderRef &&
+    sameAddress(a.payTo, o.payTo) &&
+    a.amount === o.amount &&
+    a.chainId === o.chainId &&
+    sameAddress(a.token, o.token)
+  );
+}
+
 export function checkOrder(
   order: Order,
   intentInput: unknown,
   policy: Policy,
   ledger: SpendLedger,
   now: number,
+  extras: CheckExtras = {},
 ): { ok: true; intent: Intent } | Rejection {
   const step = "policy";
   const parsed = IntentSchema.safeParse(intentInput);
@@ -128,12 +161,25 @@ export function checkOrder(
   }
 
   const sellerAddr = policy.sellers.get(intent.seller);
-  if (!sellerAddr) return reject("PAYEE_MISMATCH", step, `허용 목록에 없는 판매자 "${intent.seller}"`);
-  if (!sameAddress(sellerAddr, order.payTo)) {
+  const approved = approvalMatches(extras.approval, order);
+  // 등록한 판매자 이름인데 주소가 다름: 묻지 않고 거절 (승인으로도 못 푼다)
+  if (sellerAddr && !sameAddress(sellerAddr, order.payTo)) {
     return reject("PAYEE_MISMATCH", step, `pay_to ${order.payTo}가 "${intent.seller}"의 고정 주소가 아님`);
   }
+  // 이름은 달라도 주소가 이미 다른 등록 판매자의 것이면 그 판매자로 본다 (이름만 바꿔 승인 요청을 만드는 것 방지)
+  const knownAddr = sellerAddr ?? [...policy.sellers.values()].find((a) => sameAddress(a, order.payTo));
+  // 처음 보는 판매자는 금액·한도 검사를 먼저 다 하고, 통과하면 맨 끝에서 주인 승인 대기로 돌린다
 
   if (order.amount === 0n) return reject("INVALID_INPUT", step, "0원 주문");
+  if (intent.task_id !== undefined) {
+    const t = extras.task;
+    if (!t || t.id !== intent.task_id || !t.active) {
+      return reject("INVALID_INPUT", step, `맡긴 일 ${intent.task_id}이 없거나 이미 끝남`);
+    }
+    if (order.amount > t.maxAmount) {
+      return reject("AMOUNT_OVER_INTENT", step, `주문 ${formatAmount(order.amount)} USDC > 맡긴 일의 최대 ${formatAmount(t.maxAmount)} USDC`);
+    }
+  }
   const maxByIntent = parseAmount(intent.max_amount);
   if (order.amount > maxByIntent) {
     return reject(
@@ -152,6 +198,14 @@ export function checkOrder(
       step,
       `일일 상한 초과 (24시간 사용 ${formatAmount(spent)} / 상한 ${formatAmount(policy.dailyMax)} USDC)`,
     );
+  }
+  if (!approved) {
+    if (!knownAddr) {
+      return reject("NEEDS_OWNER_APPROVAL", step, `처음 보는 판매자 "${intent.seller}" (${order.payTo}): 주인 확인 필요`);
+    }
+    if (policy.approvalMode === "every_payment") {
+      return reject("NEEDS_OWNER_APPROVAL", step, "주인 정책: 모든 결제는 주인 확인 후 서명");
+    }
   }
   return { ok: true, intent };
 }

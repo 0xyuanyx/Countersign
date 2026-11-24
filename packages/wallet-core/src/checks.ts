@@ -11,7 +11,8 @@ import type { Policy } from "./policy.js";
 export type CheckField = "payee" | "amount" | "chain" | "token" | "expiry" | "signer";
 export interface FieldCheck {
   field: CheckField;
-  result: "match" | "mismatch" | "unchecked";
+  /** needs_approval: 처음 보는 판매자라 주인에게 묻는 중 (앱의 주황 칸) */
+  result: "match" | "mismatch" | "needs_approval" | "unchecked";
   expected?: string;
   actual?: string;
 }
@@ -23,6 +24,8 @@ export function describeChecks(args: {
   td?: TwaTypedData;
   agent?: string;
   now: number;
+  /** 주인이 이 주문을 승인했는지 */
+  approved?: boolean;
 }): FieldCheck[] {
   const { policy, order, td, agent, now } = args;
   const intent = (args.intent && typeof args.intent === "object" ? args.intent : {}) as Record<string, unknown>;
@@ -34,7 +37,17 @@ export function describeChecks(args: {
   // 받는 주소: 정책의 판매자 고정 주소 = 주문 pay_to (= 서명 대상 to)
   const fixed = seller ? policy.sellers.get(seller) : undefined;
   const payTo = order?.payTo;
-  cmp(
+  const knownByAddress = payTo ? [...policy.sellers.values()].find((a) => sameAddress(a, payTo)) : undefined;
+  if (order && !fixed && knownByAddress) {
+    cmp("payee", !td || sameAddress(td.message.to, payTo!), knownByAddress, payTo);
+  } else if (order && !fixed && seller) {
+    out.push({
+      field: "payee",
+      result: args.approved ? "match" : "needs_approval",
+      expected: args.approved ? "주인 승인" : `처음 보는 판매자: ${seller}`,
+      actual: payTo,
+    });
+  } else cmp(
     "payee",
     fixed && payTo ? sameAddress(fixed, payTo) && (!td || sameAddress(td.message.to, payTo)) : order && seller ? false : undefined,
     fixed ?? (seller ? `허용 목록에 없음: ${seller}` : undefined),

@@ -236,9 +236,9 @@ describe("E2E: 구매 → 결제 → 납품", () => {
     writePause(paths.pause, { paused: true, at: 1, reason: "test" });
     try {
       const { pay } = await buy("honest");
-      expect(pay.json).toMatchObject({ ok: false, code: "PAUSED" });
+      expect(pay.json).toMatchObject({ ok: false, code: "WALLET_PAUSED" });
       const direct = await new SignerClient(join(paths.dir, "s.sock")).signPayment({} as never, {});
-      expect(direct).toMatchObject({ ok: false, code: "PAUSED" });
+      expect(direct).toMatchObject({ ok: false, code: "WALLET_PAUSED" });
     } finally {
       writePause(paths.pause, { paused: false, at: 2 });
     }

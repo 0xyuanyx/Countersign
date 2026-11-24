@@ -34,7 +34,42 @@ describe("parsePolicy", () => {
 
 describe("checkOrder", () => {
   it("정상 주문 통과", () => expect(run(order()).ok).toBe(true));
-  it("허용 목록 밖 판매자", () => expect(run(order(), { ...intent, seller: "x" })).toMatchObject({ code: "PAYEE_MISMATCH" }));
+  it("다른 이름이어도 등록 판매자의 주소면 그 판매자로 보고 통과", () =>
+    expect(run(order(), { ...intent, seller: "x" }).ok).toBe(true));
+  it("처음 보는 판매자(이름·주소 모두 미등록)는 주인 승인 대기", () =>
+    expect(run(order({ payTo: EVIL }), { ...intent, seller: "x" })).toMatchObject({ code: "NEEDS_OWNER_APPROVAL" }));
+  it("처음 보는 판매자라도 금액·한도 위반이 먼저 거절된다 (승인 요청까지 가지 않음)", () =>
+    expect(run(order({ payTo: EVIL, amount: 600_000n }), { ...intent, seller: "x", max_amount: "1.00" })).toMatchObject({
+      code: "OVER_LIMIT",
+    }));
+  it("주인 승인은 주문 값이 모두 같을 때만 효력", () => {
+    const o = order({ payTo: EVIL });
+    const approval = { orderRef: o.orderRef, payTo: EVIL, amount: o.amount, chainId: CHAIN, token: USDC };
+    const ok = checkOrder(o, { ...intent, seller: "x" }, policy, new MemorySpendLedger(), NOW, { approval });
+    expect(ok.ok).toBe(true);
+    const other = checkOrder(order({ payTo: EVIL, amount: 100_001n }), { ...intent, seller: "x" }, policy, new MemorySpendLedger(), NOW, { approval });
+    expect(other).toMatchObject({ code: "NEEDS_OWNER_APPROVAL" });
+  });
+  it("등록 판매자 이름 + 다른 주소는 승인이 있어도 PAYEE_MISMATCH", () => {
+    const o = order({ payTo: EVIL });
+    const approval = { orderRef: o.orderRef, payTo: EVIL, amount: o.amount, chainId: CHAIN, token: USDC };
+    expect(checkOrder(o, intent, policy, new MemorySpendLedger(), NOW, { approval })).toMatchObject({ code: "PAYEE_MISMATCH" });
+  });
+  it("every_payment 모드: 등록 판매자도 승인 대기, 승인되면 통과", () => {
+    const strict = { ...policy, approvalMode: "every_payment" as const };
+    const o = order();
+    expect(checkOrder(o, intent, strict, new MemorySpendLedger(), NOW)).toMatchObject({ code: "NEEDS_OWNER_APPROVAL" });
+    const approval = { orderRef: o.orderRef, payTo: SELLER, amount: o.amount, chainId: CHAIN, token: USDC };
+    expect(checkOrder(o, intent, strict, new MemorySpendLedger(), NOW, { approval }).ok).toBe(true);
+  });
+  it("맡긴 일: 일의 최대 금액을 넘거나 없는/끝난 일이면 거절", () => {
+    const task = { id: "t1", maxAmount: 50_000n, active: true };
+    const i = { ...intent, task_id: "t1" };
+    expect(checkOrder(order(), i, policy, new MemorySpendLedger(), NOW, { task })).toMatchObject({ code: "AMOUNT_OVER_INTENT" });
+    expect(checkOrder(order({ amount: 50_000n }), i, policy, new MemorySpendLedger(), NOW, { task }).ok).toBe(true);
+    expect(checkOrder(order({ amount: 50_000n }), i, policy, new MemorySpendLedger(), NOW, { task: { ...task, active: false } })).toMatchObject({ code: "INVALID_INPUT" });
+    expect(checkOrder(order({ amount: 50_000n }), i, policy, new MemorySpendLedger(), NOW)).toMatchObject({ code: "INVALID_INPUT" });
+  });
   it("판매자 이름은 맞는데 주소가 다름", () => expect(run(order({ payTo: EVIL }))).toMatchObject({ code: "PAYEE_MISMATCH" }));
   it("의도 상한 초과", () => expect(run(order({ amount: 200_001n }))).toMatchObject({ code: "AMOUNT_OVER_INTENT" }));
   it("건당 상한 초과", () =>

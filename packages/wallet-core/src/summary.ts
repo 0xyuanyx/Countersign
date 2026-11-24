@@ -15,6 +15,8 @@ export interface PolicySummary {
   remaining_24h: string;
   sellers: { name: string; address: string }[];
   max_authorization_seconds: number;
+  /** unknown_seller: 처음 보는 판매자만 주인에게 묻기 / every_payment: 모든 결제를 묻기 */
+  approval_mode: "unknown_seller" | "every_payment";
   paused: boolean;
   paused_reason?: string;
   /** 에이전트가 이 값을 바꿀 방법은 없다 */
@@ -42,6 +44,7 @@ export function summarizePolicy(
     remaining_24h: formatAmount(remaining),
     sellers: [...policy.sellers].map(([name, address]) => ({ name, address })),
     max_authorization_seconds: policy.maxAuthorizationSeconds,
+    approval_mode: policy.approvalMode,
     paused: pause.paused,
     ...(pause.paused && pause.reason && { paused_reason: pause.reason }),
     editable_by_agent: false,

@@ -109,8 +109,8 @@ export const HistoryEntrySchema = z.object({
   id: z.string(),
   at: z.number().int(),
   order_ref: z.string(),
-  /** paid: HSP 완료까지 확인 / rejected: 서명 안 함 / failed: 서명 후 HSP 단계에서 실패 */
-  status: z.enum(["paid", "rejected", "failed"]),
+  /** paid: HSP 완료까지 확인 / rejected: 서명 안 함 / pending: 주인 승인 대기 (서명 안 함) / failed: 서명 후 HSP 단계에서 실패 */
+  status: z.enum(["paid", "rejected", "pending", "failed"]),
   seller: z.string().optional(),
   purpose: z.string().optional(),
   /** 사람이 읽는 USDC 금액 ("0.1"). 주문을 못 읽은 거부에는 없다 */
@@ -131,12 +131,17 @@ export const HistoryEntrySchema = z.object({
     .array(
       z.object({
         field: z.string(),
-        result: z.enum(["match", "mismatch", "unchecked"]),
+        result: z.enum(["match", "mismatch", "needs_approval", "unchecked"]),
         expected: z.string().optional(),
         actual: z.string().optional(),
       }),
     )
     .optional(),
+  /** 결제를 요청한 에이전트 연결 이름 (stdio면 "local") */
+  agent: z.string().optional(),
+  task_id: z.string().optional(),
+  /** NEEDS_OWNER_APPROVAL일 때 주인 앱의 요청 id */
+  request_id: z.string().optional(),
   /** HSP 단계별 시각 (unix초): signed, finalized(payment_id 받음), submitted, 그리고 query_payment 상태가 처음 보인 시각 */
   events: z.array(z.object({ stage: z.string(), at: z.number().int() })).optional(),
 });
@@ -169,6 +174,9 @@ export interface StatePaths {
   ticketSecret: string;
   ownerToken: string;
   signerSocket: string;
+  approvals: string;
+  tasks: string;
+  connections: string;
 }
 
 export function statePaths(env: NodeJS.ProcessEnv = process.env): StatePaths {
@@ -182,6 +190,9 @@ export function statePaths(env: NodeJS.ProcessEnv = process.env): StatePaths {
     ticketSecret: join(dir, "ticket.secret"),
     ownerToken: join(dir, "owner.token"),
     signerSocket: env.COUNTERSIGN_SIGNER_SOCKET || join(dir, "signer.sock"),
+    approvals: join(dir, "approvals"),
+    tasks: join(dir, "tasks"),
+    connections: join(dir, "connections"),
   };
 }
 

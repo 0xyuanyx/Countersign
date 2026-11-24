@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { HspError, type HspClient, type QueryResult } from "@countersign/hsp";
 import type { SignerResponse } from "@countersign/signer";
 import {
+  approvalMatches,
   checkOrder,
   checkSignature,
   describeChecks,
@@ -13,7 +14,11 @@ import {
   reject,
   summarizePolicy,
   verifyPayment,
+  type ApprovalStore,
+  type CheckExtras,
   type HistoryEntry,
+  type Task,
+  type TaskStore,
   type HistoryStore,
   type Order,
   type PauseState,
@@ -52,6 +57,9 @@ export interface WalletDeps {
   ledger: SpendLedger;
   history: HistoryStore;
   pause: () => PauseState;
+  /** 주인 결정 상태 (구매 승인 요청, 맡긴 일). 없으면 승인 요청을 만들지 않고 거절만 한다 */
+  approvals?: ApprovalStore;
+  tasks?: TaskStore;
   balances?: BalanceReader;
   /** "mock"이면 결과에 "돈은 움직이지 않음"을 같이 알린다 */
   hspMode: "mock" | "mcp";
@@ -156,13 +164,14 @@ export class WalletService {
     return this.d.history.list(Math.min(Math.max(limit, 1), 100));
   }
 
-  payOrder(input: unknown): Promise<PayResult> {
-    const run = this.busy.then(() => this.payOrderInner(input));
+  /** caller: 결제를 요청한 에이전트 연결 이름 (내역·승인 요청에 남는다) */
+  payOrder(input: unknown, caller = "local"): Promise<PayResult> {
+    const run = this.busy.then(() => this.payOrderInner(input, caller));
     this.busy = run.catch(() => undefined);
     return run;
   }
 
-  private async payOrderInner(input: unknown): Promise<PayResult> {
+  private async payOrderInner(input: unknown, caller: string): Promise<PayResult> {
     const id = randomBytes(8).toString("hex");
     const parsedInput = PayOrderInputSchema.safeParse(input);
     if (!parsedInput.success) {
@@ -176,11 +185,11 @@ export class WalletService {
     } catch {
       return this.rejected(id, orderRef, reject("POLICY_INVALID", "policy", "정책 파일을 읽을 수 없음"), intentInfo);
     }
-    const ctx: CheckCtx = { intent, policy };
+    const ctx: CheckCtx = { intent, policy, caller };
 
     // 0. 주인의 정지 스위치
     const pause = this.d.pause();
-    if (pause.paused) return this.rejected(id, orderRef, reject("PAUSED", "pause", "주인이 결제를 정지함"), intentInfo);
+    if (pause.paused) return this.rejected(id, orderRef, reject("WALLET_PAUSED", "pause", "주인이 결제를 정지함"), intentInfo);
 
     const agent = await this.account();
     if (typeof agent !== "string") return this.rejected(id, orderRef, agent, intentInfo);
@@ -199,8 +208,14 @@ export class WalletService {
     ctx.order = order;
 
     // 2. 정책·의도 검사 (prepare 전에 한 번: 나쁜 주문이면 HSP에 서명 대상을 만들게 하지도 않는다)
-    const pre = checkOrder(order, intent, policy, this.d.ledger, this.now());
-    if (!pre.ok) return this.rejected(id, orderRef, pre, intentInfo, order, ctx);
+    const extras = this.extras(orderRef, intentInfo.task_id);
+    ctx.approved = approvalMatches(extras.approval, order);
+    const pre = checkOrder(order, intent, policy, this.d.ledger, this.now(), extras);
+    if (!pre.ok) {
+      if (pre.code === "NEEDS_OWNER_APPROVAL") return this.needsApproval(id, orderRef, pre, intentInfo, order, ctx);
+      return this.rejected(id, orderRef, pre, intentInfo, order, ctx);
+    }
+    if (pre.intent.task_id) this.d.tasks?.update(pre.intent.task_id, { status: "working", agent: caller, addOrder: orderRef }, this.now());
 
     // 3. 서명 대상 받기 → 주문과 필드별 대조
     let typedData: unknown;
@@ -215,7 +230,7 @@ export class WalletService {
     const t = this.now();
     const parsedTd = parseTypedData(typedData);
     if (parsedTd.ok) ctx.td = parsedTd.td;
-    const v = verifyPayment({ order, intent, policy, ledger: this.d.ledger, typedData, agent, now: t });
+    const v = verifyPayment({ order, intent, policy, ledger: this.d.ledger, typedData, agent, now: t, extras });
     if (!v.ok) return this.rejected(id, orderRef, v, intentInfo, order, ctx);
 
     // 4. 검증 티켓과 함께 signer에 서명 요청 (signer는 같은 검사를 처음부터 다시 한다)
@@ -244,6 +259,8 @@ export class WalletService {
       order_hash: v.orderHash,
       typed_data_hash: v.typedDataHash,
       checks: this.checks(ctx),
+      agent: caller,
+      ...(v.intent.task_id && { task_id: v.intent.task_id }),
     };
     const events: { stage: string; at: number }[] = [{ stage: "signed", at: t }];
 
@@ -269,6 +286,7 @@ export class WalletService {
         events,
       };
       this.d.history.append(entry);
+      if (v.intent.task_id) this.d.tasks?.update(v.intent.task_id, { status: "paid" }, this.now());
       return {
         ok: true,
         order_ref: orderRef,
@@ -306,6 +324,61 @@ export class WalletService {
     }
   }
 
+  private extras(orderRef: string, taskId: string | undefined): CheckExtras {
+    return { approval: this.d.approvals?.approvalFor(orderRef), task: this.d.tasks?.extraFor(taskId) };
+  }
+
+  /** 처음 보는 판매자 등: 주인 앱에 구매 요청을 만들고(이미 있으면 그대로) 에이전트에게 기다리라고 알린다 */
+  private needsApproval(
+    id: string,
+    orderRef: string,
+    r: Rejection,
+    intent: IntentInfo,
+    order: Order,
+    ctx: CheckCtx,
+  ): Rejection {
+    const store = this.d.approvals;
+    if (!store) return this.rejected(id, orderRef, r, intent, order, ctx);
+    const existing = store.forOrder(orderRef);
+    if (existing?.status === "rejected") {
+      return this.rejected(id, orderRef, { ...reject("OWNER_REJECTED", "policy", "주인이 이 주문을 거절함"), request_id: existing.id }, intent, order, ctx);
+    }
+    const req =
+      existing ??
+      store.ensure({
+        order,
+        reason: /모든 결제/.test(r.reason) ? "every_payment" : "unknown_seller",
+        seller: intent.seller ?? "?",
+        purpose: intent.purpose ?? "",
+        ...(intent.task_id && { taskId: intent.task_id }),
+        agent: ctx.caller,
+        now: this.now(),
+      });
+    return this.rejected(id, orderRef, { ...r, request_id: req.id }, intent, order, ctx);
+  }
+
+  /** 에이전트용: 주인이 맡긴 일 하나를 받아 간다 (가장 오래된 대기 일) */
+  nextTask(caller = "local"): { task: Pick<Task, "id" | "text" | "max_amount"> | null; how_to?: string } {
+    const store = this.d.tasks;
+    const t = store?.nextOpen();
+    if (!store || !t) return { task: null };
+    store.update(t.id, { status: "working", agent: caller }, this.now());
+    return {
+      task: { id: t.id, text: t.text, max_amount: t.max_amount },
+      how_to: `When paying for this task, call pay_order with intent.task_id="${t.id}". The wallet caps it at ${t.max_amount} USDC no matter what you or a seller says. Call finish_task when done.`,
+    };
+  }
+
+  /** 에이전트용: 맡긴 일 결과 보고. 상태 말고는 아무것도 바꾸지 못한다 */
+  finishTask(taskId: string, status: "done" | "failed", note: string, caller = "local") {
+    const store = this.d.tasks;
+    const t = store?.get(taskId);
+    if (!store || !t) return reject("INVALID_INPUT", "input", `맡긴 일 ${taskId}이 없음`);
+    if (t.status === "cancelled") return reject("INVALID_INPUT", "input", "주인이 그만둔 일");
+    const next = store.update(taskId, { status, note: note.slice(0, 1000), agent: caller }, this.now())!;
+    return { ok: true as const, task: { id: next.id, status: next.status } };
+  }
+
   private pol(): Policy {
     return resolvePolicy(this.d.policy);
   }
@@ -327,14 +400,15 @@ export class WalletService {
   }
 
   private checks(ctx: CheckCtx) {
-    return describeChecks({ now: this.now(), ...ctx });
+    const { caller: _c, ...rest } = ctx;
+    return describeChecks({ now: this.now(), ...rest });
   }
 
   private rejected(
     id: string,
     orderRef: string,
     r: Rejection,
-    intent: { seller?: string; purpose?: string } = {},
+    intent: IntentInfo = {},
     order?: Order,
     ctx?: CheckCtx,
   ): Rejection {
@@ -342,8 +416,10 @@ export class WalletService {
       id,
       at: this.now(),
       order_ref: orderRef,
-      status: "rejected",
+      status: r.code === "NEEDS_OWNER_APPROVAL" ? "pending" : "rejected",
       ...intent,
+      ...(ctx && { agent: ctx.caller }),
+      ...(r.request_id && { request_id: r.request_id }),
       ...(order && { amount: formatAmount(order.amount), pay_to: order.payTo, chain_id: order.chainId }),
       code: r.code,
       step: r.step,
@@ -355,20 +431,25 @@ export class WalletService {
   }
 }
 
+type IntentInfo = { seller?: string; purpose?: string; task_id?: string };
+
 interface CheckCtx {
   intent: unknown;
   policy: Policy;
+  caller: string;
+  approved?: boolean;
   agent?: Address;
   order?: Order;
   td?: TwaTypedData;
 }
 
-function intentFields(intent: unknown): { seller?: string; purpose?: string } {
+function intentFields(intent: unknown): IntentInfo {
   if (!intent || typeof intent !== "object") return {};
   const o = intent as Record<string, unknown>;
   return {
     ...(typeof o.seller === "string" && { seller: o.seller.slice(0, 64) }),
     ...(typeof o.purpose === "string" && { purpose: o.purpose.slice(0, 200) }),
+    ...(typeof o.task_id === "string" && { task_id: o.task_id.slice(0, 64) }),
   };
 }
 

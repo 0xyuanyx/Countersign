@@ -30,6 +30,7 @@ const server = createOwnerApi({
   paths,
   ownerToken,
   account: accountOf,
+  ...(process.env.COUNTERSIGN_PUBLIC_MCP_URL && { publicMcpUrl: process.env.COUNTERSIGN_PUBLIC_MCP_URL }),
   balances: async () => {
     const account = await accountOf();
     if (!account) return { balances: [...policyFile.get().tokens.keys()].map((c) => ({ chain_id: c, error: "signer가 꺼져 있어 주소를 모름" })) };

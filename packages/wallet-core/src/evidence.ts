@@ -10,7 +10,7 @@ import {
 } from "viem";
 import { parseUint } from "./amount.js";
 import { orderHash, sameAddress, type Order } from "./order.js";
-import { checkOrder, type Intent, type Policy, type SpendLedger } from "./policy.js";
+import { checkOrder, type CheckExtras, type Intent, type Policy, type SpendLedger } from "./policy.js";
 import { reject, type Rejection } from "./rejection.js";
 
 /**
@@ -188,6 +188,7 @@ export interface PaymentCheckInput {
   typedData: unknown;
   agent: Address;
   now: number;
+  extras?: CheckExtras;
 }
 
 export interface VerifiedPayment {
@@ -200,7 +201,7 @@ export interface VerifiedPayment {
 
 /** 정책 검사 + typed data 대조를 한 번에. 지갑 MCP와 signer가 같은 함수를 쓴다. */
 export function verifyPayment(input: PaymentCheckInput): VerifiedPayment | Rejection {
-  const p = checkOrder(input.order, input.intent, input.policy, input.ledger, input.now);
+  const p = checkOrder(input.order, input.intent, input.policy, input.ledger, input.now, input.extras);
   if (!p.ok) return p;
   const parsed = parseTypedData(input.typedData);
   if (!parsed.ok) return parsed;
