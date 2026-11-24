@@ -10,9 +10,10 @@ export const REJECTION_CODES = {
   CHAIN_OR_TOKEN_NOT_ALLOWED: "판매자에게 허용된 체인·토큰(USDC)으로 주문을 요청한다",
   EXPIRED: "판매자에게 새 주문을 요청한다",
   DUPLICATE: "이미 결제한 주문이다. 다시 결제하지 않는다",
-  // 아래 두 개는 §5.4 표에 없던 것. PROJECT.md 표에 추가 제안
+  // 아래 세 개는 §5.4 표에 없던 것. PROJECT.md 표에 추가 제안
   SIGNATURE_INVALID: "결제를 중단하고 사람(주인)에게 보고한다",
   INVALID_INPUT: "입력 형식을 고쳐 다시 호출한다",
+  TICKET_INVALID: "지갑의 pay 도구로 처음부터 다시 결제한다 (signer에 직접 서명을 요청할 수 없다)",
 } as const;
 
 export type RejectionCode = keyof typeof REJECTION_CODES;

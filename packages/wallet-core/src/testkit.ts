@@ -26,8 +26,10 @@ export const policyJson = {
 export const policy = parsePolicy(policyJson);
 export const intent = { purpose: "주소 프로필 1건", max_amount: "0.20", seller: "profile-seller" };
 
-export async function setup(opts: { amount?: string; payTo?: string; tamper?: (td: RawTypedData) => RawTypedData } = {}) {
-  const hsp = new MockHsp({
+export async function setup(
+  opts: { amount?: string; payTo?: string; tamper?: (td: RawTypedData) => RawTypedData; hsp?: MockHsp } = {},
+) {
+  const hsp = opts.hsp ?? new MockHsp({
     chainId: CHAIN,
     token: USDC,
     now: () => NOW,
