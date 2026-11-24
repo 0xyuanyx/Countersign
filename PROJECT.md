@@ -245,6 +245,9 @@
 | `TYPED_DATA_MISMATCH` | `prepare_payment`의 서명 대상이 주문과 다름 | 결제 중단, 사람에게 보고 |
 | `CHAIN_OR_TOKEN_NOT_ALLOWED` | 허용 안 된 체인·토큰 | 다른 결제 수단 요청 |
 | `EXPIRED` / `DUPLICATE` | 만료 / 이미 결제한 주문 | 새 주문 요청 / 중단 |
+| `SIGNATURE_INVALID` | 서명 후 복원한 서명자가 에이전트 계정이 아님 | 결제 중단, 사람에게 보고 (11/24 추가) |
+| `TICKET_INVALID` | signer에 검증 티켓 없이/위조·만료·재사용 티켓으로 요청 | 지갑 `pay`로 처음부터 다시 (11/24 추가) |
+| `INVALID_INPUT` | intent 등 입력 형식 오류 | 형식 고쳐 재호출 (11/24 추가) |
 
 ### 5.5 정책 파일 (최소)
 
@@ -267,7 +270,11 @@
 `EvidenceRegistry.sol` — 작게 유지한다. **폐기·한도 로직은 넣지 않는다**(팀 작품 영역).
 
 - `registerAgent(address agent, bytes32 policyHash)` — 주인이 에이전트 계정과 정책 해시를 등록
-- `record(bytes32 orderHash, bytes32 typedDataHash, address payTo, uint256 amount, uint256 payChainId, bytes32 payTxHash)` — 등록된 에이전트 계정만 호출. 결제 증거 이벤트
+- ~~`record(bytes32 orderHash, bytes32 typedDataHash, address payTo, uint256 amount, uint256 payChainId, bytes32 payTxHash)` — 등록된 에이전트 계정만 호출~~
+- **변경(11/24, Claude)**: `record(bytes32 orderHash, Authorization a, bytes signature, bytes32 payTxHash)` — **주인(owner)만 호출**하고, 컨트랙트가 EIP-3009 typed data digest를 체인 위에서 다시 계산해 `ecrecover == a.from`(등록된 에이전트)인지 확인한다.
+  - 이유 1: 에이전트 계정이 직접 tx를 보내려면 signer가 "임의 tx 서명"을 해야 해서 키 격리(D3) 원칙과 충돌한다.
+  - 이유 2: payTo·amount·token·payChainId가 에이전트 서명으로 묶여서, 기록하는 쪽이 값을 바꿔 적을 수 없다 (서명 바이트까지 묶는 D6이 체인 위에서 검증됨).
+  - orderHash·payTxHash는 서명에 안 묶이므로 owner만 붙인다. 같은 orderHash 중복 기록은 거부.
 - 이벤트: `AgentRegistered`, `EvidenceRecorded`
 - 결제가 다른 체인(HSP QA 테스트넷)에서 일어나도 증거는 HSK 메인넷에 모인다. "결제는 HSP가 연 곳 어디서든, 증거는 HSK Chain에"
 
@@ -290,7 +297,8 @@ ouryn-agent/
 ├─ packages/
 │  ├─ wallet-core/         keys · amount · quote · policy · evidence (+ tests)
 │  ├─ signer/              키 보관 프로세스, 검증 티켓 확인 후 서명
-│  └─ hsp/                 mcp-client.ts(공식 MCP 8개 도구) · mock.ts · payer.ts · seller.ts
+│  └─ hsp/                 canonical · config · types · mcp-client.ts(공식 MCP 8개 도구) · mock.ts
+│                          (hsp는 가장 아래층: wallet-core가 hsp를 import한다. payer·seller 흐름은 순환 의존을 피하려고 apps/wallet-mcp에 둔다)
 ├─ apps/
 │  ├─ wallet-mcp/          지갑 MCP 서버 (npx 실행)
 │  ├─ agents/              buyer(LLM) · seller · evil-seller
@@ -330,6 +338,8 @@ ouryn-agent/
 | 4 | "공식 권장 제품·프레임워크" 목록에 HSP MCP 말고 더 있는지 | 가산점 | 운영진 |
 | 5 | ~~서울 심사 기준~~ → 완성도·기술적 성숙도·혁신성 (Luma, 배점 없음) | README·발표 구조 | 해결 |
 | 6 | 메인넷 HSK 가스 확보 | 컨트랙트 배포, 증거 기록 | 거래소 출금 |
+| 8 | HSP MCP 도구별 **입력 인자 이름과 응답 형태** (`get_order`의 금액이 최소 단위 정수인지 "0.10" 같은 소수인지, `prepare_payment`가 typed data를 어떤 키로 주는지, `finalize_payment`에 무엇을 넘기는지) | 지금은 `packages/hsp/src/types.ts`에 내부 표준 형태를 정해 두고 mock이 그걸 따른다. 실제 형식은 `mcp-client.ts`의 `args`·`adapt` 두 곳만 고치면 된다 | HSP 가이드 원문 |
+| 9 | USDC EIP-712 domain의 `name`/`version`이 체인별로 무엇인지 (HSK 177·133, Sepolia 계열) | 틀리면 서명이 체인에서 무효가 될 뿐 돈이 새지는 않는다. 지금은 HSP가 준 값을 그대로 쓰고 검사하지 않는다 | 토큰 컨트랙트 `name()`/`version()` 조회 |
 | 7 | ~~Merchant REST 판매자 등록이 필요한지~~ → 불필요. 공식 MCP 서버가 판매자 키를 대신 들고 EIP-712 데이터를 돌려준다 (hsk-meter `hsp_qa/README.md`) | 일 줄이기 | 해결 |
 
 ---
