@@ -9,7 +9,7 @@ import {
   type Policy,
   type Rejection,
   type SpendLedger,
-} from "@ouryn/wallet-core";
+} from "@countersign/wallet-core";
 import type { Address, Hex, LocalAccount } from "viem";
 import { z } from "zod";
 

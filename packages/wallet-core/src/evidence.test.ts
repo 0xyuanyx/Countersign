@@ -1,4 +1,4 @@
-import type { RawTypedData } from "@ouryn/hsp";
+import type { RawTypedData } from "@countersign/hsp";
 import { describe, expect, it } from "vitest";
 import { checkSignature, parseTypedData, verifyPayment, type VerifiedPayment } from "./evidence.js";
 import type { Order } from "./order.js";

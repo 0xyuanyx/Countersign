@@ -1,4 +1,4 @@
-import { RawOrderSchema, canonicalize } from "@ouryn/hsp";
+import { RawOrderSchema, canonicalize } from "@countersign/hsp";
 import { getAddress, keccak256, stringToHex, type Address, type Hex } from "viem";
 import { parseUint, uintToString } from "./amount.js";
 

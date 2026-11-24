@@ -1,12 +1,12 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { canonicalize } from "@ouryn/hsp";
+import { canonicalize } from "@countersign/hsp";
 import { z } from "zod";
 import { orderFromJson, orderToJson, type Order } from "./order.js";
 import type { Intent } from "./policy.js";
 
 /**
  * 검증 티켓: 지갑(검증기)이 "이 typed data 해시는 검증을 통과했다"고 signer에게 알리는 1회용 쪽지.
- * HMAC-SHA256(OURYN_TICKET_SECRET)으로 묶는다. signer는 티켓이 없거나, 위조됐거나, 만료됐거나,
+ * HMAC-SHA256(COUNTERSIGN_TICKET_SECRET)으로 묶는다. signer는 티켓이 없거나, 위조됐거나, 만료됐거나,
  * 이미 쓰였거나, typed data 해시가 다르면 서명하지 않는다. 그리고 티켓을 믿지 않고 정책 검사를 다시 한다.
  *
  * HMAC 키는 서명 키가 아니다. 이것이 새도 정책 밖 결제는 signer의 재검사에서 막힌다.
@@ -40,7 +40,7 @@ export const TicketSchema = TicketBodySchema.extend({ mac: z.string().regex(/^[0
 export type Ticket = z.infer<typeof TicketSchema>;
 
 export function parseTicketSecret(hex: string | undefined): Buffer {
-  if (!hex || !/^[0-9a-fA-F]{64,}$/.test(hex)) throw new Error("OURYN_TICKET_SECRET: 32바이트 이상 hex 필요");
+  if (!hex || !/^[0-9a-fA-F]{64,}$/.test(hex)) throw new Error("COUNTERSIGN_TICKET_SECRET: 32바이트 이상 hex 필요");
   return Buffer.from(hex, "hex");
 }
 

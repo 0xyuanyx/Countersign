@@ -1,4 +1,4 @@
-import { RawTypedDataSchema } from "@ouryn/hsp";
+import { RawTypedDataSchema } from "@countersign/hsp";
 import {
   getAddress,
   getTypesForEIP712Domain,

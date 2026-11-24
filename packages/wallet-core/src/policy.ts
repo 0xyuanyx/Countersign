@@ -1,4 +1,4 @@
-import { KNOWN_USDC } from "@ouryn/hsp";
+import { KNOWN_USDC } from "@countersign/hsp";
 import { getAddress, isAddress, type Address } from "viem";
 import { z } from "zod";
 import { formatAmount, parseAmount } from "./amount.js";

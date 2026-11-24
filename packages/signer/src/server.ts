@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, lstatSync, mkdirSync, unlinkSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { dirname } from "node:path";
-import { reject } from "@ouryn/wallet-core";
+import { reject } from "@countersign/wallet-core";
 import type { Signer } from "./signer.js";
 
 /**

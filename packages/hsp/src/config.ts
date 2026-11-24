@@ -19,9 +19,9 @@ export const HspConfigSchema = z.discriminatedUnion("mode", [
 export type HspConfig = z.infer<typeof HspConfigSchema>;
 
 export function loadHspConfig(env: NodeJS.ProcessEnv = process.env): HspConfig {
-  const mode = env.OURYN_HSP_MODE ?? "mock";
-  const payChainId = env.OURYN_PAY_CHAIN_ID ? Number(env.OURYN_PAY_CHAIN_ID) : undefined;
-  return HspConfigSchema.parse({ mode, mcpUrl: env.OURYN_HSP_MCP_URL || undefined, payChainId });
+  const mode = env.COUNTERSIGN_HSP_MODE ?? "mock";
+  const payChainId = env.COUNTERSIGN_PAY_CHAIN_ID ? Number(env.COUNTERSIGN_PAY_CHAIN_ID) : undefined;
+  return HspConfigSchema.parse({ mode, mcpUrl: env.COUNTERSIGN_HSP_MCP_URL || undefined, payChainId });
 }
 
 /** 공개 토큰 주소 (PROJECT.md §4.3). 다른 체인은 정책 파일 tokenAddresses로 넣는다. */

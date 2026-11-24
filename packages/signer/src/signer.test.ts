@@ -2,8 +2,8 @@ import { randomBytes } from "node:crypto";
 import { statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { issueTicket, normalizeOrder, verifyPayment, type VerifiedPayment } from "@ouryn/wallet-core";
-import { EVIL, NOW, agent, intent, policy, setup } from "@ouryn/wallet-core/testkit";
+import { issueTicket, normalizeOrder, verifyPayment, type VerifiedPayment } from "@countersign/wallet-core";
+import { EVIL, NOW, agent, intent, policy, setup } from "@countersign/wallet-core/testkit";
 import { describe, expect, it } from "vitest";
 import { SignerClient } from "./client.js";
 import { listen } from "./server.js";
@@ -63,7 +63,7 @@ describe("signer", () => {
     const s = await setup({ payTo: EVIL });
     const order = normalizeOrder(await s.hsp.getOrder(s.order.orderRef));
     // 검증 없이 바로 티켓 발급 (뚫린 지갑 흉내)
-    const { typedDataHash, parseTypedData } = await import("@ouryn/wallet-core");
+    const { typedDataHash, parseTypedData } = await import("@countersign/wallet-core");
     const td = parseTypedData(s.typedData);
     if (!td.ok) throw new Error("parse");
     const ticket = issueTicket(secret, { typedDataHash: typedDataHash(td.td), order, intent, now: NOW });
@@ -74,8 +74,8 @@ describe("signer", () => {
 
   it("signer 자체 지출 기록으로 일일 한도를 지킨다", async () => {
     const s = newSigner();
-    const { MockHsp } = await import("@ouryn/hsp");
-    const { CHAIN, USDC } = await import("@ouryn/wallet-core/testkit");
+    const { MockHsp } = await import("@countersign/hsp");
+    const { CHAIN, USDC } = await import("@countersign/wallet-core/testkit");
     const hsp = new MockHsp({ chainId: CHAIN, token: USDC, now: () => NOW }); // 주문 번호가 겹치지 않게 하나를 공유
     for (let i = 0; i < 5; i++) {
       const w = await walletSide({ amount: "200000", hsp });
@@ -96,7 +96,7 @@ describe("signer", () => {
   });
 
   it("유닉스 소켓으로 왕복하고, 소켓 파일 권한은 0600", async () => {
-    const path = join(tmpdir(), `ouryn-test-${randomBytes(4).toString("hex")}`, "signer.sock");
+    const path = join(tmpdir(), `countersign-test-${randomBytes(4).toString("hex")}`, "signer.sock");
     const server = await listen(newSigner(), path);
     try {
       expect(statSync(path).mode & 0o777).toBe(0o600);

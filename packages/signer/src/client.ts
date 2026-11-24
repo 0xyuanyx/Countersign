@@ -1,5 +1,5 @@
 import { connect } from "node:net";
-import type { Ticket } from "@ouryn/wallet-core";
+import type { Ticket } from "@countersign/wallet-core";
 import type { SignerResponse } from "./signer.js";
 
 /** 지갑 MCP 쪽에서 쓰는 signer 클라이언트. 키는 모른다. 소켓으로 요청만 보낸다. */

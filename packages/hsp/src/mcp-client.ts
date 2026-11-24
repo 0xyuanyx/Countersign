@@ -31,7 +31,7 @@ export class McpHspClient implements HspClient {
   constructor(private readonly url: string) {}
 
   async connect(): Promise<void> {
-    const client = new Client({ name: "ouryn-agent-wallet", version: "0.0.0" });
+    const client = new Client({ name: "countersign", version: "0.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(this.url)));
     const { tools } = await client.listTools();
     const names = new Set(tools.map((t) => t.name));

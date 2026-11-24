@@ -60,13 +60,13 @@ describe("설정값", () => {
     expect(loadHspConfig({})).toEqual({ mode: "mock", payChainId: 133 });
   });
   it("결제 체인은 환경변수로 바꾼다", () => {
-    expect(loadHspConfig({ OURYN_PAY_CHAIN_ID: "177" })).toEqual({ mode: "mock", payChainId: 177 });
+    expect(loadHspConfig({ COUNTERSIGN_PAY_CHAIN_ID: "177" })).toEqual({ mode: "mock", payChainId: 177 });
   });
   it("mcp 모드는 https 주소와 체인을 반드시 받는다", () => {
-    expect(() => loadHspConfig({ OURYN_HSP_MODE: "mcp" })).toThrow();
-    expect(() => loadHspConfig({ OURYN_HSP_MODE: "mcp", OURYN_HSP_MCP_URL: "http://x.test", OURYN_PAY_CHAIN_ID: "84532" })).toThrow();
+    expect(() => loadHspConfig({ COUNTERSIGN_HSP_MODE: "mcp" })).toThrow();
+    expect(() => loadHspConfig({ COUNTERSIGN_HSP_MODE: "mcp", COUNTERSIGN_HSP_MCP_URL: "http://x.test", COUNTERSIGN_PAY_CHAIN_ID: "84532" })).toThrow();
     expect(
-      loadHspConfig({ OURYN_HSP_MODE: "mcp", OURYN_HSP_MCP_URL: "https://mcp-qa.hashkeymerchant.com/", OURYN_PAY_CHAIN_ID: "84532" }),
+      loadHspConfig({ COUNTERSIGN_HSP_MODE: "mcp", COUNTERSIGN_HSP_MCP_URL: "https://mcp-qa.hashkeymerchant.com/", COUNTERSIGN_PAY_CHAIN_ID: "84532" }),
     ).toMatchObject({ mode: "mcp", payChainId: 84532 });
   });
   it("mock은 USDC 주소를 모르는 체인이면 만들지 않는다", async () => {

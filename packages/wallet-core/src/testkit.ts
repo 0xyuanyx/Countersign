@@ -1,5 +1,5 @@
 // 테스트 전용 고정값. 공개 BIP-39 테스트 니모닉만 쓴다 (실제 키 아님).
-import { KNOWN_USDC, MockHsp, type RawTypedData } from "@ouryn/hsp";
+import { KNOWN_USDC, MockHsp, type RawTypedData } from "@countersign/hsp";
 import { deriveAccount } from "./keys.js";
 import { normalizeOrder, type Order } from "./order.js";
 import { MemorySpendLedger, parsePolicy } from "./policy.js";

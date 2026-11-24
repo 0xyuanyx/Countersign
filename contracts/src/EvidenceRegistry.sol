@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-/// @title EvidenceRegistry — Ouryn Agent Wallet 결제 증거 기록 (HSK Chain 메인넷)
+/// @title EvidenceRegistry — Countersign 결제 증거 기록 (HSK Chain 메인넷)
 /// @notice 에이전트 지갑이 HSP 결제에 서명한 EIP-3009 TransferWithAuthorization을 증거로 남긴다.
 ///         결제는 HSP가 연 체인 어디서든 일어나고, 증거는 HSK Chain에 모인다.
 /// @dev    서명 검증을 체인 위에서 다시 한다: 기록된 payTo·amount·token·payChainId는 등록된 에이전트가

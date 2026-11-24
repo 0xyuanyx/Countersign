@@ -1,5 +1,5 @@
 {
-  "name": "ouryn-agent",
+  "name": "countersign-agent",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },
