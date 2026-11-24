@@ -7,7 +7,7 @@ import {
   readPause,
   summarizePolicy,
   writePause,
-  type Policy,
+  type PolicyFile,
   type StatePaths,
 } from "@countersign/wallet-core";
 import { z } from "zod";
@@ -19,10 +19,13 @@ import { z } from "zod";
  * - 127.0.0.1에만 연다.
  * - 읽기(GET)와 정지(POST /api/pause)는 토큰 없이 된다. 정지는 "안전한 방향"이라 누구든 누를 수 있게 둔다.
  * - 재개(POST /api/resume)만 주인 토큰(Authorization: Bearer ...)이 필요하다. 에이전트가 스스로 정지를 풀 수 없게.
- * - 정책 값(한도·판매자) 변경 API는 아직 없다. 정책 파일은 주인이 직접 고친다 (signer 재시작 필요).
+ * - 정책 값(한도·판매자·체인) 변경(PATCH /api/policy)도 주인 토큰이 필요하다. 지갑 MCP와 signer는 다음 결제부터
+ *   바뀐 파일을 다시 읽는다 (재시작 불필요). 서명 계정(agent·accountIndex)은 바꿀 수 없다.
  *
  * 엔드포인트 (응답은 모두 JSON):
  *   GET  /api/policy           정책 요약 + 최근 24시간 사용액 + 정지 여부
+ *   GET  /api/policy/file      정책 파일 원본 (편집 화면용)
+ *   PATCH /api/policy          {perTxMax?, dailyMax?, sellers?, chains?, tokenAddresses?, maxAuthorizationSeconds?} (토큰 필요)
  *   GET  /api/history?limit=20 결제·거부 내역 (최신순)
  *   GET  /api/balance          에이전트 계정 주소와 체인별 USDC 잔액 (입금 화면)
  *   GET  /api/pause            정지 상태
@@ -30,7 +33,8 @@ import { z } from "zod";
  *   POST /api/resume           결제 재개 (토큰 필요)
  */
 export interface OwnerApiDeps {
-  policy: Policy;
+  /** 정책 파일 (읽기: 요청마다 다시 읽음, 쓰기: PATCH /api/policy) */
+  policy: PolicyFile;
   paths: StatePaths;
   ownerToken: string;
   /** 에이전트 계정 주소 (signer에게 묻는다. 못 얻으면 undefined) */
@@ -52,23 +56,44 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     void handle(req, res).catch(() => send(res, 500, { ok: false, error: "처리 중 오류" }));
   });
 
+  async function summary() {
+    const ledger = new FileSpendLedger(d.paths.signerLedger);
+    const account = await d.account?.().catch(() => undefined);
+    return summarizePolicy(d.policy.get(), ledger, readPause(d.paths.pause), now(), account);
+  }
+
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const origin = req.headers.origin;
     if (origin && origins.has(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
     }
     if (req.method === "OPTIONS") return void res.writeHead(204).end();
 
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const route = `${req.method} ${url.pathname}`;
     switch (route) {
-      case "GET /api/policy": {
-        const ledger = new FileSpendLedger(d.paths.signerLedger);
-        const account = await d.account?.().catch(() => undefined);
-        return send(res, 200, summarizePolicy(d.policy, ledger, readPause(d.paths.pause), now(), account));
+      case "GET /api/policy":
+        return send(res, 200, await summary());
+      case "GET /api/policy/file":
+        return send(res, 200, d.policy.json());
+      case "PATCH /api/policy": {
+        if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
+        const body = await readJson(req);
+        try {
+          d.policy.update(body);
+        } catch (e) {
+          const detail =
+            e instanceof z.ZodError
+              ? e.issues.map((i) => `${i.path.join(".") || "(본문)"}: ${i.message}`).join("; ")
+              : e instanceof Error
+                ? e.message
+                : "형식 오류";
+          return send(res, 400, { ok: false, error: `정책을 바꾸지 않음: ${detail}`.slice(0, 500) });
+        }
+        return send(res, 200, await summary());
       }
       case "GET /api/history": {
         const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 20) || 20, 1), 200);

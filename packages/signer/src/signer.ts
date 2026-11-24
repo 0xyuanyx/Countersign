@@ -7,7 +7,8 @@ import {
   verifyPayment,
   verifyTicket,
   type PauseState,
-  type Policy,
+  type PolicyInput,
+  resolvePolicy,
   type Rejection,
   type SpendLedger,
 } from "@countersign/wallet-core";
@@ -34,7 +35,8 @@ export type SignerResponse =
 
 export interface SignerDeps {
   account: LocalAccount;
-  policy: Policy;
+  /** 함수로 주면 서명할 때마다 다시 읽는다 (주인 앱의 정책 변경을 재시작 없이 반영) */
+  policy: PolicyInput;
   ticketSecret: Buffer;
   ledger?: SpendLedger;
   now?: () => number;
@@ -50,7 +52,8 @@ export interface Signer {
 const MAX_USED_TICKETS = 10_000;
 
 export function createSigner(deps: SignerDeps): Signer {
-  const { account, policy, ticketSecret } = deps;
+  const { account, ticketSecret } = deps;
+  const startIndex = resolvePolicy(deps.policy).accountIndex;
   const ledger = deps.ledger ?? new MemorySpendLedger();
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
   const usedTickets = new Set<string>();
@@ -60,6 +63,15 @@ export function createSigner(deps: SignerDeps): Signer {
     const t = now();
     const pause = deps.pause?.();
     if (pause?.paused) return reject("PAUSED", "pause", "주인이 결제를 정지함");
+    let policy;
+    try {
+      policy = resolvePolicy(deps.policy);
+    } catch {
+      return reject("POLICY_INVALID", "policy", "정책 파일을 읽을 수 없음");
+    }
+    if (policy.accountIndex !== startIndex) {
+      return reject("POLICY_INVALID", "policy", "정책의 accountIndex가 signer 시작 때와 다름");
+    }
     const ticket = verifyTicket(ticketSecret, ticketInput, t);
     if (!ticket.ok) return reject("TICKET_INVALID", "ticket", ticket.reason);
     if (usedTickets.has(ticket.id)) return reject("TICKET_INVALID", "ticket", "이미 쓴 티켓");

@@ -87,6 +87,30 @@ describe("signer", () => {
     });
   });
 
+  it("정책을 함수로 주면 서명 때마다 다시 읽는다: 판매자를 빼면 바로 거부, 정책을 못 읽으면 POLICY_INVALID", async () => {
+    let current = policy;
+    const s = createSigner({ account: agent, policy: () => current, ticketSecret: secret, now: () => NOW });
+    const w = await walletSide();
+    current = { ...policy, sellers: new Map() };
+    expect(await s.handle({ op: "sign_payment", ticket: w.ticket, typedData: w.typedData })).toMatchObject({ code: "PAYEE_MISMATCH" });
+    const w2 = await walletSide();
+    current = { ...policy, accountIndex: 2 };
+    expect(await s.handle({ op: "sign_payment", ticket: w2.ticket, typedData: w2.typedData })).toMatchObject({ code: "POLICY_INVALID" });
+    const broken = createSigner({
+      account: agent,
+      policy: (() => {
+        let n = 0;
+        return () => {
+          if (n++ > 0) throw new Error("broken");
+          return policy;
+        };
+      })(),
+      ticketSecret: secret,
+      now: () => NOW,
+    });
+    expect(await broken.handle({ op: "sign_payment", ticket: w2.ticket, typedData: w2.typedData })).toMatchObject({ code: "POLICY_INVALID" });
+  });
+
   it("임의 서명·키 내보내기 같은 요청은 없다", async () => {
     const s = newSigner();
     for (const op of ["sign_raw", "sign_message", "export_key", "set_policy"]) {

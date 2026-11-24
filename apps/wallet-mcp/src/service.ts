@@ -6,6 +6,7 @@ import {
   checkSignature,
   describeChecks,
   parseTypedData,
+  resolvePolicy,
   formatAmount,
   issueTicket,
   normalizeOrder,
@@ -17,6 +18,7 @@ import {
   type Order,
   type PauseState,
   type Policy,
+  type PolicyInput,
   type PolicySummary,
   type Rejection,
   type SpendLedger,
@@ -44,7 +46,8 @@ export interface BalanceReader {
 export interface WalletDeps {
   hsp: HspClient;
   signer: SignerPort;
-  policy: Policy;
+  /** 함수로 주면 결제할 때마다 다시 읽는다 */
+  policy: PolicyInput;
   ticketSecret: Buffer;
   ledger: SpendLedger;
   history: HistoryStore;
@@ -110,7 +113,7 @@ export class WalletService {
 
   async getPolicy(): Promise<PolicySummary> {
     const acct = await this.account();
-    return summarizePolicy(this.d.policy, this.d.ledger, this.d.pause(), this.now(), typeof acct === "string" ? acct : undefined);
+    return summarizePolicy(this.pol(), this.d.ledger, this.d.pause(), this.now(), typeof acct === "string" ? acct : undefined);
   }
 
   async getBalance(): Promise<
@@ -126,9 +129,10 @@ export class WalletService {
   > {
     const acct = await this.account();
     if (typeof acct !== "string") return acct;
-    const summary = summarizePolicy(this.d.policy, this.d.ledger, this.d.pause(), this.now(), acct);
+    const policy = this.pol();
+    const summary = summarizePolicy(policy, this.d.ledger, this.d.pause(), this.now(), acct);
     const balances = await Promise.all(
-      [...this.d.policy.tokens].map(async ([chainId, token]) => {
+      [...policy.tokens].map(async ([chainId, token]) => {
         if (!this.d.balances) return { chain_id: chainId, token: "USDC" as const, error: "잔액 조회기가 없음" };
         try {
           const v = await this.d.balances.usdcBalance(chainId, token, acct);
@@ -166,7 +170,13 @@ export class WalletService {
     }
     const { order_ref: orderRef, intent } = parsedInput.data;
     const intentInfo = intentFields(intent);
-    const ctx: CheckCtx = { intent };
+    let policy: Policy;
+    try {
+      policy = this.pol();
+    } catch {
+      return this.rejected(id, orderRef, reject("POLICY_INVALID", "policy", "정책 파일을 읽을 수 없음"), intentInfo);
+    }
+    const ctx: CheckCtx = { intent, policy };
 
     // 0. 주인의 정지 스위치
     const pause = this.d.pause();
@@ -189,7 +199,7 @@ export class WalletService {
     ctx.order = order;
 
     // 2. 정책·의도 검사 (prepare 전에 한 번: 나쁜 주문이면 HSP에 서명 대상을 만들게 하지도 않는다)
-    const pre = checkOrder(order, intent, this.d.policy, this.d.ledger, this.now());
+    const pre = checkOrder(order, intent, policy, this.d.ledger, this.now());
     if (!pre.ok) return this.rejected(id, orderRef, pre, intentInfo, order, ctx);
 
     // 3. 서명 대상 받기 → 주문과 필드별 대조
@@ -205,7 +215,7 @@ export class WalletService {
     const t = this.now();
     const parsedTd = parseTypedData(typedData);
     if (parsedTd.ok) ctx.td = parsedTd.td;
-    const v = verifyPayment({ order, intent, policy: this.d.policy, ledger: this.d.ledger, typedData, agent, now: t });
+    const v = verifyPayment({ order, intent, policy, ledger: this.d.ledger, typedData, agent, now: t });
     if (!v.ok) return this.rejected(id, orderRef, v, intentInfo, order, ctx);
 
     // 4. 검증 티켓과 함께 signer에 서명 요청 (signer는 같은 검사를 처음부터 다시 한다)
@@ -296,6 +306,10 @@ export class WalletService {
     }
   }
 
+  private pol(): Policy {
+    return resolvePolicy(this.d.policy);
+  }
+
   private async waitFinal(paymentId: string, events: { stage: string; at: number }[]): Promise<QueryResult> {
     const interval = this.d.pollIntervalMs ?? 2000;
     const deadline = Date.now() + (this.d.pollTimeoutMs ?? 120_000);
@@ -313,7 +327,7 @@ export class WalletService {
   }
 
   private checks(ctx: CheckCtx) {
-    return describeChecks({ policy: this.d.policy, now: this.now(), ...ctx });
+    return describeChecks({ now: this.now(), ...ctx });
   }
 
   private rejected(
@@ -343,6 +357,7 @@ export class WalletService {
 
 interface CheckCtx {
   intent: unknown;
+  policy: Policy;
   agent?: Address;
   order?: Order;
   td?: TwaTypedData;

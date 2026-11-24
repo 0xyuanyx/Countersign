@@ -1,11 +1,10 @@
 #!/usr/bin/env -S npx tsx
-import { readFileSync } from "node:fs";
 import { createHspClient, loadHspConfig } from "@countersign/hsp";
 import { SignerClient } from "@countersign/signer/client";
 import {
   FileSpendLedger,
   HistoryStore,
-  parsePolicy,
+  PolicyFile,
   parseTicketSecret,
   readOrCreateSharedSecret,
   readPause,
@@ -28,7 +27,8 @@ import { registerWalletTools } from "./tools.js";
 async function main() {
   const policyPath = process.env.COUNTERSIGN_POLICY;
   if (!policyPath) throw new Error("COUNTERSIGN_POLICY(정책 파일 경로)가 필요함");
-  const policy = parsePolicy(JSON.parse(readFileSync(policyPath, "utf8")));
+  const policyFile = new PolicyFile(policyPath);
+  const policy = policyFile.get();
   const paths = statePaths();
   const secretHex = process.env.COUNTERSIGN_TICKET_SECRET || readOrCreateSharedSecret(paths.ticketSecret, false);
   if (!secretHex) throw new Error("검증 티켓 키가 없음: signer를 먼저 실행하세요");
@@ -37,7 +37,7 @@ async function main() {
   const wallet = new WalletService({
     hsp: await createHspClient(hspConfig),
     signer: new SignerClient(paths.signerSocket),
-    policy,
+    policy: () => policyFile.get(),
     ticketSecret: parseTicketSecret(secretHex),
     ledger: new FileSpendLedger(paths.walletLedger),
     history: new HistoryStore(paths.history),

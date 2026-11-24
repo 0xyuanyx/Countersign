@@ -1,9 +1,8 @@
 #!/usr/bin/env -S npx tsx
-import { readFileSync } from "node:fs";
 import {
   FileSpendLedger,
+  PolicyFile,
   deriveAccount,
-  parsePolicy,
   parseTicketSecret,
   readOrCreateSharedSecret,
   readPause,
@@ -22,7 +21,8 @@ import { createSigner } from "./signer.js";
 async function main() {
   const policyPath = process.env.COUNTERSIGN_POLICY;
   if (!policyPath) throw new Error("COUNTERSIGN_POLICY(정책 파일 경로)가 필요함");
-  const policy = parsePolicy(JSON.parse(readFileSync(policyPath, "utf8")));
+  const policyFile = new PolicyFile(policyPath);
+  const policy = policyFile.get();
   const paths = statePaths();
   // 검증 티켓 HMAC 키: 환경변수가 없으면 signer가 만들어 0600 파일로 둔다 (지갑 MCP가 같은 파일을 읽는다)
   const ticketSecret = parseTicketSecret(
@@ -33,7 +33,7 @@ async function main() {
 
   const signer = createSigner({
     account,
-    policy,
+    policy: () => policyFile.get(),
     ticketSecret,
     ledger: new FileSpendLedger(paths.signerLedger),
     pause: () => readPause(paths.pause),

@@ -155,3 +155,9 @@ export function checkOrder(
   }
   return { ok: true, intent };
 }
+
+/** 정책 = 고정 값 또는 "읽을 때마다 파일에서 다시 가져오는" 함수 (주인 앱이 정책을 바꾸면 재시작 없이 반영) */
+export type PolicyInput = Policy | (() => Policy);
+export function resolvePolicy(p: PolicyInput): Policy {
+  return typeof p === "function" ? p() : p;
+}
