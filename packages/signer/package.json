@@ -1,0 +1,14 @@
+{
+  "name": "@ouryn/signer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts", "./client": "./src/client.ts" },
+  "bin": { "ouryn-signer": "./src/main.ts" },
+  "scripts": { "start": "tsx src/main.ts" },
+  "dependencies": {
+    "@ouryn/wallet-core": "workspace:*",
+    "viem": "^2.58.6",
+    "zod": "^4.6.7"
+  }
+}
