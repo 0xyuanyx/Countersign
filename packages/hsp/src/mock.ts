@@ -66,6 +66,7 @@ export class MockHsp implements HspClient {
   private readonly lastSigned = new Map<string, number>();
   private readonly payments = new Map<string, Payment>();
   private seq = 0;
+  private readonly runId = randomBytes(3).toString("hex");
   private readonly now: () => number;
 
   constructor(private readonly opts: MockHspOptions) {
@@ -77,7 +78,8 @@ export class MockHsp implements HspClient {
   }
 
   async createOrder(input: CreateOrderInput): Promise<RawOrder> {
-    const ref = `mock_ord_${++this.seq}`;
+    // 재시작해도 겹치지 않게 (지갑 지출 기록은 파일로 남아서, 번호만 쓰면 DUPLICATE로 오판한다)
+    const ref = `mock_ord_${++this.seq}_${this.runId}`;
     const order: RawOrder = {
       order_ref: ref,
       pay_to: input.pay_to,
@@ -149,7 +151,7 @@ export class MockHsp implements HspClient {
     }
     this.lastSigned.set(orderRef, validBefore);
     order.status = "paid";
-    const id = `mock_pay_${this.payments.size + 1}`;
+    const id = `mock_pay_${this.payments.size + 1}_${this.runId}`;
     this.payments.set(id, { id, orderRef, polls: 0, submitted: false, txHash: keccak256(stringToHex(`${id}:${signature}`)) });
     return { payment_id: id };
   }
