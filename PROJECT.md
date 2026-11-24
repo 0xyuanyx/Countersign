@@ -1,6 +1,6 @@
 # Countersign — HSP 에이전트 결제용 서명 지갑
 
-> 출품명 **Countersign** (2026-11-24 확정, 나중에 낼 정식 Ouryn 지갑과 엮이지 않게). 공개 저장소·패키지 이름은 `countersign-agent` / `@countersign/*`. 맥 로컬 폴더는 `~/Developer/ouryn-agent` 그대로. README·발표에는 "Ouryn 지갑 설계에서 출발" 한 줄만 남긴다.
+> 출품명 **Countersign** (2026-11-24 확정, 나중에 낼 정식 Ouryn 지갑과 엮이지 않게). 공개 저장소·패키지 이름은 `countersign-agent` / `@countersign/*`. 맥 로컬 폴더는 `~/Developer/Countersign` (11/24 ouryn-agent에서 이름 변경). README·발표에는 "Ouryn 지갑 설계에서 출발" 한 줄만 남긴다.
 > 키체인 이름 `OURYN_DEV_MNEMONIC`·`OURYN_DEPLOYER_KEY`는 이미 저장된 값이라 그대로 쓰고, 나머지 환경변수는 `COUNTERSIGN_*`.
 
 > HSK Chain Horizon Seoul Hackathon · **Track 2. Agent Payments & A2A Settlement (HSP)** 출품작
@@ -294,7 +294,7 @@
 - HSP 허용 IP용 고정 IP 서버 1대 (§9 #3)
 
 ```
-countersign-agent/          (로컬 폴더: ~/Developer/ouryn-agent)
+countersign-agent/          (로컬 폴더: ~/Developer/Countersign)
 ├─ PROJECT.md              ← 이 문서
 ├─ AGENTS.md               ← AI 협업 규칙
 ├─ packages/
