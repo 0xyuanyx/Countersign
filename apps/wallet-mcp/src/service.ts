@@ -164,14 +164,19 @@ export class WalletService {
     return this.d.history.list(Math.min(Math.max(limit, 1), 100));
   }
 
-  /** caller: 결제를 요청한 에이전트 연결 이름 (내역·승인 요청에 남는다) */
-  payOrder(input: unknown, caller = "local"): Promise<PayResult> {
-    const run = this.busy.then(() => this.payOrderInner(input, caller));
+  /**
+   * caller: 결제를 요청한 에이전트 연결 (내역·승인 요청에 남는다).
+   * caller.paused: 주인이 이 에이전트 하나만 멈췄는지 (결제마다 다시 묻는다)
+   */
+  payOrder(input: unknown, caller: string | Caller = "local"): Promise<PayResult> {
+    const c: Caller = typeof caller === "string" ? { name: caller } : caller;
+    const run = this.busy.then(() => this.payOrderInner(input, c));
     this.busy = run.catch(() => undefined);
     return run;
   }
 
-  private async payOrderInner(input: unknown, caller: string): Promise<PayResult> {
+  private async payOrderInner(input: unknown, who: Caller): Promise<PayResult> {
+    const caller = who.name;
     const id = randomBytes(8).toString("hex");
     const parsedInput = PayOrderInputSchema.safeParse(input);
     if (!parsedInput.success) {
@@ -185,11 +190,14 @@ export class WalletService {
     } catch {
       return this.rejected(id, orderRef, reject("POLICY_INVALID", "policy", "정책 파일을 읽을 수 없음"), intentInfo);
     }
-    const ctx: CheckCtx = { intent, policy, caller };
+    const ctx: CheckCtx = { intent, policy, caller, ...(who.id && { callerId: who.id }) };
 
     // 0. 주인의 정지 스위치
     const pause = this.d.pause();
-    if (pause.paused) return this.rejected(id, orderRef, reject("WALLET_PAUSED", "pause", "주인이 결제를 정지함"), intentInfo);
+    if (pause.paused) return this.rejected(id, orderRef, reject("WALLET_PAUSED", "pause", "주인이 결제를 정지함"), intentInfo, undefined, ctx);
+    if (who.paused?.()) {
+      return this.rejected(id, orderRef, reject("WALLET_PAUSED", "pause", `주인이 이 에이전트(${caller})를 멈춤`), intentInfo, undefined, ctx);
+    }
 
     const agent = await this.account();
     if (typeof agent !== "string") return this.rejected(id, orderRef, agent, intentInfo);
@@ -260,6 +268,7 @@ export class WalletService {
       typed_data_hash: v.typedDataHash,
       checks: this.checks(ctx),
       agent: caller,
+      ...(who.id && { agent_id: who.id }),
       ...(v.intent.task_id && { task_id: v.intent.task_id }),
     };
     const events: { stage: string; at: number }[] = [{ stage: "signed", at: t }];
@@ -400,7 +409,7 @@ export class WalletService {
   }
 
   private checks(ctx: CheckCtx) {
-    const { caller: _c, ...rest } = ctx;
+    const { caller: _c, callerId: _i, ...rest } = ctx;
     return describeChecks({ now: this.now(), ...rest });
   }
 
@@ -419,6 +428,7 @@ export class WalletService {
       status: r.code === "NEEDS_OWNER_APPROVAL" ? "pending" : "rejected",
       ...intent,
       ...(ctx && { agent: ctx.caller }),
+      ...(ctx?.callerId && { agent_id: ctx.callerId }),
       ...(r.request_id && { request_id: r.request_id }),
       ...(order && { amount: formatAmount(order.amount), pay_to: order.payTo, chain_id: order.chainId }),
       code: r.code,
@@ -431,12 +441,20 @@ export class WalletService {
   }
 }
 
+export interface Caller {
+  name: string;
+  /** 원격 연결 id */
+  id?: string;
+  paused?: () => boolean;
+}
+
 type IntentInfo = { seller?: string; purpose?: string; task_id?: string };
 
 interface CheckCtx {
   intent: unknown;
   policy: Policy;
   caller: string;
+  callerId?: string;
   approved?: boolean;
   agent?: Address;
   order?: Order;

@@ -38,11 +38,14 @@ COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owne
 | `GET /api/tasks` | `{tasks:[{id, text, max_amount, max_amount_raw, status(open/working/paid/done/failed/cancelled), agent?, order_refs[], note?, created_at, updated_at}]}` |
 | `POST /api/tasks {text, maxAmount}` | 맡기기. 지갑과 signer가 이 일로 하는 결제를 `maxAmount`로 막는다 (에이전트가 적은 값은 안 믿음). 글은 부탁일 뿐 정책을 못 바꾼다 |
 | `POST /api/tasks/:id/cancel` | 그만두기 (이후 그 일로는 결제 거절) |
-| `GET /api/agents` | `{agents:[{id, name, created_at, disconnected_at?, connected, last_activity_at?}]}` (토큰은 안 줌) |
+| `GET /api/agents` | `{agents:[{id, name, created_at, disconnected_at?, connected, paused, paused_at?, last_activity_at?}]}` (토큰은 안 줌) |
 | `POST /api/agents {name}` | 새 연결. `{id, name, token, connect:{url, claude_connector, claude_code, codex, cursor}}` — **토큰이 든 주소는 이때 한 번만** 준다 |
 | `POST /api/agents/:id/disconnect` | 연결 끊기. 그 주소는 바로 401 |
+| `PATCH /api/agents/:id {name}` | 이름 바꾸기 (살아 있는 다른 연결과 같은 이름이면 409). 내역의 활동 기록은 연결 id로 이어진다 |
+| `POST /api/agents/:id/pause` / `resume` | 이 에이전트 하나만 멈추기·다시 켜기. 멈춘 동안 그 연결로 들어온 `pay_order`는 `WALLET_PAUSED` (열려 있던 연결도 다음 결제부터). 응답·`GET /api/agents`에 `paused` |
 
 - 연결 주소의 기준은 `COUNTERSIGN_PUBLIC_MCP_URL` (예: HTTPS 터널 주소, 기본 `http://127.0.0.1:7440`). 원격 MCP 서버는 `apps/wallet-mcp/src/main-http.ts`.
 - 내역 `status`에 `pending`(주인 승인 대기)이 생겼다. 그 항목엔 `request_id`가 있고, `checks`의 payee 칸이 `needs_approval`(앱의 주황 칸).
 - 정책 요약에 `approval_mode`(`unknown_seller` 기본 / `every_payment`)가 있다. `PATCH /api/policy {approvalMode}`로 바꾼다.
 
+- 에이전트별 멈춤은 지갑 MCP(원격 연결 단위)에서 막는다. signer는 연결을 모르므로 전체 긴급 정지(`/api/pause`)만 직접 확인한다.

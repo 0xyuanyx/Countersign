@@ -127,7 +127,8 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
         agents: connections.list().map(({ token_sha256: _h, ...c }) => ({
           ...c,
           connected: !c.disconnected_at,
-          last_activity_at: hist.find((e) => e.agent === c.name)?.at,
+          paused: !!c.paused_at,
+          last_activity_at: hist.find((e) => e.agent_id === c.id || (!e.agent_id && e.agent === c.name))?.at,
         })),
       });
     }
@@ -140,6 +141,20 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       const { connection, token } = connections.create(body.data.name, now());
       const { token_sha256: _h, ...pub } = connection;
       return send(res, 201, { ...pub, token, connect: connectCommands(mcpBase, connection.name, token) });
+    }
+    if ((m = /^PATCH \/api\/agents\/([a-z0-9_]+)$/.exec(route))) {
+      if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
+      const body = AgentBodySchema.safeParse(await readJson(req));
+      if (!body.success) return send(res, 400, { ok: false, error: "본문 형식: { name: 영문·숫자·-·_ 1~40자 }" });
+      const c = connections.rename(m[1]!, body.data.name);
+      if (!c) return send(res, 404, { ok: false, error: "없는 연결" });
+      if (c === "duplicate") return send(res, 409, { ok: false, error: "같은 이름의 연결이 이미 있음" });
+      return send(res, 200, publicAgent(c));
+    }
+    if ((m = /^POST \/api\/agents\/([a-z0-9_]+)\/(pause|resume)$/.exec(route))) {
+      const c = connections.setPaused(m[1]!, m[2] === "pause", now());
+      if (!c) return send(res, 404, { ok: false, error: "없는 연결" });
+      return send(res, 200, publicAgent(c));
     }
     if ((m = /^POST \/api\/agents\/([a-z0-9_]+)\/disconnect$/.exec(route))) {
       const c = connections.disconnect(m[1]!, now());
@@ -215,6 +230,11 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
         return routeOwnerState(req, res, url, route);
     }
   }
+}
+
+function publicAgent(c: import("@countersign/wallet-core").Connection) {
+  const { token_sha256: _h, ...pub } = c;
+  return { ...pub, connected: !c.disconnected_at, paused: !!c.paused_at };
 }
 
 const RequestDecisionSchema = z.object({ remember: z.boolean().optional() }).strict();

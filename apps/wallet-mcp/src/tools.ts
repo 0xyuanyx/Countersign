@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { WalletService } from "./service.js";
+import type { Caller, WalletService } from "./service.js";
 
 /**
  * 에이전트가 보는 지갑 MCP 도구 4개 (PROJECT.md §5.3).
@@ -19,7 +19,8 @@ function out(result: unknown, isError = false) {
 }
 
 /** caller: 이 MCP 연결의 에이전트 이름 (원격이면 연결 이름, stdio면 "local") */
-export function registerWalletTools(server: McpServer, wallet: WalletService, caller = "local"): void {
+export function registerWalletTools(server: McpServer, wallet: WalletService, who: string | Caller = "local"): void {
+  const caller = typeof who === "string" ? who : who.name;
   server.registerTool(
     "pay_order",
     {
@@ -48,7 +49,7 @@ export function registerWalletTools(server: McpServer, wallet: WalletService, ca
       },
     },
     async (args) => {
-      const r = await wallet.payOrder(args, caller);
+      const r = await wallet.payOrder(args, who);
       return out(r, !r.ok);
     },
   );

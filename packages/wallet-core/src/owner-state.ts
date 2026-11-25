@@ -230,6 +230,8 @@ export const ConnectionSchema = z.object({
   token_sha256: z.string().regex(/^[0-9a-f]{64}$/),
   created_at: z.number().int(),
   disconnected_at: z.number().int().optional(),
+  /** 이 에이전트 하나만 멈춘 시각 (없으면 동작 중). 멈춘 동안 이 연결로 들어온 pay_order는 WALLET_PAUSED */
+  paused_at: z.number().int().optional(),
 });
 export type Connection = z.infer<typeof ConnectionSchema>;
 
@@ -250,6 +252,26 @@ export class ConnectionStore {
     const connection: Connection = { id: newId("agent"), name, token_sha256: ConnectionStore.hash(token), created_at: now };
     this.rec.put(connection.id, connection);
     return { connection, token };
+  }
+  get(id: string) {
+    return this.rec.get(id);
+  }
+  /** 이름 바꾸기. 살아 있는 다른 연결과 같은 이름이면 undefined가 아니라 "duplicate" */
+  rename(id: string, name: string): Connection | "duplicate" | undefined {
+    const c = this.rec.get(id);
+    if (!c) return undefined;
+    if (this.rec.list().some((o) => o.id !== id && o.name === name && !o.disconnected_at)) return "duplicate";
+    const next = { ...c, name };
+    this.rec.put(id, next);
+    return next;
+  }
+  setPaused(id: string, paused: boolean, now: number): Connection | undefined {
+    const c = this.rec.get(id);
+    if (!c) return undefined;
+    const { paused_at: _p, ...rest } = c;
+    const next: Connection = paused ? { ...rest, paused_at: c.paused_at ?? now } : rest;
+    this.rec.put(id, next);
+    return next;
   }
   disconnect(id: string, now: number): Connection | undefined {
     const c = this.rec.get(id);

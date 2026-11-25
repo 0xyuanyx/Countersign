@@ -139,6 +139,8 @@ export const HistoryEntrySchema = z.object({
     .optional(),
   /** 결제를 요청한 에이전트 연결 이름 (stdio면 "local") */
   agent: z.string().optional(),
+  /** 원격 연결 id (이름을 바꿔도 이어지게) */
+  agent_id: z.string().optional(),
   task_id: z.string().optional(),
   /** NEEDS_OWNER_APPROVAL일 때 주인 앱의 요청 id */
   request_id: z.string().optional(),

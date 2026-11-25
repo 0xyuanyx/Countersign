@@ -251,6 +251,31 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
     await client.close();
   });
 
+  it("에이전트 하나만 멈추면 그 연결의 결제만 WALLET_PAUSED, 이름을 바꿔도 활동 기록이 이어진다", async () => {
+    const a = await connectAgent("pausable");
+    const b = await connectAgent("other");
+    expect((await buyFrom(a.call, "profile")).pay.ok).toBe(true);
+
+    expect((await owner("POST", `/api/agents/${a.created.id}/pause`, {}, false)).status).toBe(401);
+    expect((await owner("POST", `/api/agents/${a.created.id}/pause`, {})).json).toMatchObject({ paused: true });
+    // 이미 열려 있던 연결도 다음 결제부터 바로 막힌다
+    expect((await buyFrom(a.call, "profile")).pay).toMatchObject({ ok: false, code: "WALLET_PAUSED" });
+    expect((await buyFrom(b.call, "profile")).pay.ok).toBe(true);
+    const listed = (await owner("GET", "/api/agents", undefined, false)).json.agents;
+    expect(listed.find((x: any) => x.id === a.created.id)).toMatchObject({ paused: true });
+    expect(listed.find((x: any) => x.id === b.created.id)).toMatchObject({ paused: false });
+
+    expect((await owner("PATCH", `/api/agents/${a.created.id}`, { name: "other" })).status).toBe(409);
+    expect((await owner("PATCH", `/api/agents/${a.created.id}`, { name: "renamed" }, false)).status).toBe(401);
+    expect((await owner("PATCH", `/api/agents/${a.created.id}`, { name: "renamed" })).json).toMatchObject({ name: "renamed", paused: true });
+    await owner("POST", `/api/agents/${a.created.id}/resume`, {});
+    expect((await buyFrom(a.call, "profile")).pay.ok).toBe(true);
+    const after = (await owner("GET", "/api/agents", undefined, false)).json.agents.find((x: any) => x.id === a.created.id);
+    expect(after).toMatchObject({ name: "renamed", paused: false, last_activity_at: expect.any(Number) });
+    await a.client.close();
+    await b.client.close();
+  });
+
   it("연결을 끊으면 그 주소는 바로 401, 연결 목록에 마지막 활동이 보인다", async () => {
     const { created, call } = await connectAgent("temp");
     await call("get_policy");

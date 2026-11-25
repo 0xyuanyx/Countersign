@@ -34,7 +34,12 @@ export function createWalletHttp(wallet: WalletService, connections: ConnectionS
       res.writeHead(405, { Allow: "POST" }).end();
       return;
     }
-    const server = buildMcpServer(wallet, conn.name);
+    const server = buildMcpServer(wallet, {
+      name: conn.name,
+      id: conn.id,
+      // 결제할 때마다 다시 읽는다: 앱에서 멈추면 열려 있던 연결도 바로 막힌다
+      paused: () => !!connections.get(conn.id)?.paused_at,
+    });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on("close", () => {
       void transport.close();

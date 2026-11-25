@@ -13,7 +13,7 @@ import {
 } from "@countersign/wallet-core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { rpcBalanceReader } from "./balances.js";
-import { WalletService } from "./service.js";
+import { WalletService, type Caller } from "./service.js";
 import { registerWalletTools } from "./tools.js";
 
 /**
@@ -47,7 +47,7 @@ export async function walletFromEnv(env: NodeJS.ProcessEnv = process.env) {
   return { wallet, policy, paths, hspConfig };
 }
 
-export function buildMcpServer(wallet: WalletService, caller: string): McpServer {
+export function buildMcpServer(wallet: WalletService, caller: string | Caller): McpServer {
   const server = new McpServer(
     { name: "countersign-wallet", version: "0.0.0" },
     {
