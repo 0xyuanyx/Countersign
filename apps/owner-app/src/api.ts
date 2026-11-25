@@ -134,6 +134,7 @@ export interface OwnerApi {
   pauseAgent(id: string, paused: boolean): Promise<Agent>;
 }
 
+export const NO_SERVER_URL = "연결 코드에 지갑 서버 주소가 없어요. 맥에서 QR을 다시 띄워 주세요";
 export const UNSUPPORTED = "지갑 서버가 아직 이 기능을 지원하지 않아요";
 
 export class ApiError extends Error {
@@ -147,20 +148,24 @@ export class ApiError extends Error {
 
 export class HttpOwnerApi implements OwnerApi {
   readonly mock = false;
-  /** base가 빈 문자열이면 앱과 같은 주소의 /api (Vite가 주인 API로 넘겨 줌) */
+  /**
+   * base = 주인 API 주소 (짝짓기 QR의 api=, 예: 맥 터널 https://wallet.example.com).
+   * 빈 문자열이면 앱과 같은 주소의 /api (로컬 Vite 개발 서버가 주인 API로 넘겨 줌). Vercel에 올린 앱은 항상 base가 있어야 한다.
+   */
   constructor(
     private readonly base: string,
     private readonly token: string,
   ) {}
 
-  private async call<T>(method: string, path: string, body?: unknown, auth = method !== "GET"): Promise<T> {
+  // 토큰은 모든 요청에 붙인다: 터널로 연 주인 API(공개 모드)는 읽기·긴급 정지에도 토큰을 요구한다
+  private async call<T>(method: string, path: string, body?: unknown): Promise<T> {
     let res: Response;
     try {
       res = await fetch(`${this.base}${path}`, {
         method,
         headers: {
           ...(body !== undefined && { "Content-Type": "application/json" }),
-          ...(auth && { Authorization: `Bearer ${this.token}` }),
+          Authorization: `Bearer ${this.token}`,
         },
         ...(body !== undefined && { body: JSON.stringify(body) }),
         cache: "no-store",
@@ -168,6 +173,8 @@ export class HttpOwnerApi implements OwnerApi {
     } catch {
       throw new ApiError(0, "지갑 서버에 닿지 않아요");
     }
+    // 앱과 같은 주소에 /api가 없으면(Vercel 등) JSON이 아닌 페이지가 온다 → 짝짓기 링크에 주인 API 주소(api=)가 빠진 것
+    if (!this.base && !(res.headers.get("content-type") ?? "").includes("json")) throw new ApiError(0, NO_SERVER_URL);
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     // 앱 서버(Vite 프록시·터널)는 살아 있는데 주인 API가 꺼져 있으면 502~504가 온다
     if (res.status >= 502 && res.status <= 504) throw new ApiError(0, "지갑 서버에 닿지 않아요");
@@ -177,8 +184,14 @@ export class HttpOwnerApi implements OwnerApi {
   }
 
   async verify(): Promise<void> {
-    await this.call("GET", "/api/policy");
-    // 읽기 API는 토큰이 필요 없어서, 토큰이 맞는지는 없는 요청을 거절해 보는 걸로 확인한다 (401 = 토큰 틀림, 404 = 토큰 맞음)
+    try {
+      await this.call("GET", "/api/policy");
+    } catch (e) {
+      // 공개 모드 주인 API는 읽기부터 토큰을 본다
+      if (e instanceof ApiError && e.status === 401) throw new ApiError(401, "연결 코드가 맞지 않아요");
+      throw e;
+    }
+    // 로컬 주인 API는 읽기에 토큰이 필요 없어서, 토큰이 맞는지는 없는 요청을 거절해 보는 걸로 확인한다 (401 = 토큰 틀림, 404 = 토큰 맞음)
     try {
       await this.call("POST", "/api/requests/pairing_check/reject", {});
     } catch (e) {
@@ -192,7 +205,7 @@ export class HttpOwnerApi implements OwnerApi {
   patchPolicy = (body: object) => this.call<PolicySummary>("PATCH", "/api/policy", body);
   history = async (limit = 50) => (await this.call<{ entries: HistoryEntry[] }>("GET", `/api/history?limit=${limit}`)).entries;
   balance = () => this.call<Balance>("GET", "/api/balance");
-  pause = (reason?: string) => this.call<PauseState>("POST", "/api/pause", reason ? { reason } : {}, false);
+  pause = (reason?: string) => this.call<PauseState>("POST", "/api/pause", reason ? { reason } : {});
   resume = () => this.call<PauseState>("POST", "/api/resume", {});
   requests = async (status?: string) =>
     (await this.call<{ requests: PurchaseRequest[] }>("GET", `/api/requests${status ? `?status=${status}` : ""}`)).requests;

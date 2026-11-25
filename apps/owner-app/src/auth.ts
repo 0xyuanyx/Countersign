@@ -37,6 +37,7 @@ export const store = {
 
 // ─── 짝짓기 링크 ───
 // 지갑 서버(pnpm --filter @countersign/owner-app pair)가 띄우는 QR = https://<앱 주소>/#pair=<주인 토큰>[&api=<주인 API 주소>]
+// Vercel에 올린 앱은 주인 API와 주소가 달라서 api=(맥의 HTTPS 터널 주소)가 꼭 있어야 한다.
 // 토큰은 # 뒤에 있어서 앱 서버로 전송되지 않는다. 읽은 뒤 주소창에서 바로 지운다.
 
 export function parsePairing(input: string): Pairing | undefined {
@@ -57,7 +58,8 @@ export function parsePairing(input: string): Pairing | undefined {
   const params = new URLSearchParams(frag);
   const token = params.get("pair") ?? (/^[A-Za-z0-9_\-.~+/=]{16,200}$/.test(s) ? s : null);
   if (!token) return undefined;
-  const api = params.get("api") ?? "";
+  // api=가 없으면 빌드 때 정한 기본 주인 API 주소(VITE_OWNER_API_URL, 공개 값), 그것도 없으면 같은 주소의 /api
+  const api = params.get("api") || (import.meta.env.VITE_OWNER_API_URL ?? "");
   if (api && !/^https?:\/\//i.test(api)) return undefined;
   return { base: api.replace(/\/+$/, ""), token, label: api ? new URL(api).host : label };
 }

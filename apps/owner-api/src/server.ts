@@ -44,6 +44,11 @@ export interface OwnerApiDeps {
   /** 에이전트 계정 주소 (signer에게 묻는다. 못 얻으면 undefined) */
   account?: () => Promise<string | undefined>;
   allowedOrigins?: string[];
+  /**
+   * 터널로 인터넷에 열 때 true: 읽기와 긴급 정지를 포함한 모든 요청에 주인 토큰을 요구한다.
+   * (127.0.0.1에서만 쓸 때는 읽기·정지를 토큰 없이 둔다. CORS는 브라우저만 막고 curl은 못 막기 때문)
+   */
+  requireTokenAll?: boolean;
   now?: () => number;
   /** 에이전트 계정의 체인별 USDC 잔액 (사람이 읽는 문자열). 홈 화면·입금 화면용 */
   /** 에이전트 연결 주소의 공개 기준 주소 (예: 터널 https://xxx.trycloudflare.com). 기본 http://127.0.0.1:7440 */
@@ -180,6 +185,7 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
     }
     if (req.method === "OPTIONS") return void res.writeHead(204).end();
+    if (d.requireTokenAll && !authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
 
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const route = `${req.method} ${url.pathname}`;

@@ -2,8 +2,9 @@
 /**
  * 폰 짝짓기 QR을 터미널에 띄운다. 폰 카메라(또는 앱의 "QR 찍기")로 찍으면 그 폰이 주인으로 등록된다.
  *
- *   pnpm --filter @countersign/owner-app pair                     # 같은 와이파이: http://<이 맥 IP>:5173
- *   COUNTERSIGN_APP_URL=https://xxxx.trycloudflare.com pnpm --filter @countersign/owner-app pair   # 터널(HTTPS, Face ID 가능)
+ *   pnpm --filter @countersign/owner-app pair                     # 같은 와이파이: http://<이 맥 IP>:5173 (Vite가 /api를 넘겨 줌)
+ *   COUNTERSIGN_APP_URL=https://<앱>.vercel.app COUNTERSIGN_OWNER_API_URL=https://<맥 터널 주소> pnpm --filter @countersign/owner-app pair
+ *     → Vercel 앱 + 맥 주인 API(HTTPS 터널). Face ID 가능. 터널 주소가 고정이면 한 번만 짝지으면 된다 (apps/demo/tunnel.sh)
  *
  * QR 안에는 주인 토큰이 들어 있다 (비밀번호와 같다). 화면 공유·녹화 중에는 띄우지 않는다.
  * 토큰은 # 뒤에 있어서 앱 서버 로그에 남지 않고, 앱이 읽자마자 주소창에서 지운다.
@@ -26,10 +27,19 @@ if (!token) {
   process.exit(1);
 }
 const appUrl = (process.env.COUNTERSIGN_APP_URL || `http://${lanIp() ?? "localhost"}:5173`).replace(/\/+$/, "");
-const link = `${appUrl}/#pair=${encodeURIComponent(token)}`;
+const apiUrl = (process.env.COUNTERSIGN_OWNER_API_URL || "").replace(/\/+$/, "");
+if (apiUrl && !/^https:\/\//.test(apiUrl)) {
+  console.error("COUNTERSIGN_OWNER_API_URL은 https:// 주소여야 함 (Vercel 앱은 HTTPS라 http 주인 API를 못 부른다)");
+  process.exit(1);
+}
+if (!apiUrl && /\.vercel\.app$/.test(new URL(appUrl).host)) {
+  console.error("Vercel 앱에는 주인 API 주소가 필요함: COUNTERSIGN_OWNER_API_URL=https://<맥 터널 주소>");
+  process.exit(1);
+}
+const link = `${appUrl}/#pair=${encodeURIComponent(token)}${apiUrl ? `&api=${encodeURIComponent(apiUrl)}` : ""}`;
 
 console.log(await QRCode.toString(link, { type: "terminal", small: true, errorCorrectionLevel: "M" }));
-console.log(`Countersign 폰 연결: ${appUrl}`);
+console.log(`Countersign 폰 연결: ${appUrl}${apiUrl ? `  (지갑 서버 ${apiUrl})` : ""}`);
 console.log("폰 카메라로 찍거나, 홈 화면 앱의 \"QR 찍기\"로 찍어 주세요.");
 if (process.argv.includes("--print-link")) console.log(link);
 else console.log("(연결 코드가 필요하면 --print-link. 토큰이 그대로 보이니 주의)");

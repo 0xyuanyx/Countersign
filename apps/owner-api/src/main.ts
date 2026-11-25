@@ -8,7 +8,8 @@ import { createOwnerApi, listenOwnerApi } from "./server.js";
 /**
  * 주인 API 실행: COUNTERSIGN_POLICY=정책.json pnpm --filter @countersign/owner-api start  (기본 127.0.0.1:7420)
  * 주인 토큰은 COUNTERSIGN_OWNER_TOKEN 또는 ~/.countersign/owner.token (없으면 만든다). 값은 출력하지 않는다.
- * PWA 개발 서버 주소는 COUNTERSIGN_APP_ORIGIN (쉼표로 여러 개, 기본 http://localhost:5173).
+ * PWA 주소는 COUNTERSIGN_APP_ORIGIN (쉼표로 여러 개, 기본 http://localhost:5173). Vercel에 올린 앱이면 그 주소 하나만.
+ * 터널로 인터넷에 열 때는 COUNTERSIGN_OWNER_API_PUBLIC=1: 읽기·긴급 정지까지 모든 요청에 주인 토큰을 요구한다.
  */
 const policyPath = process.env.COUNTERSIGN_POLICY;
 if (!policyPath) {
@@ -45,7 +46,11 @@ const server = createOwnerApi({
     );
     return { account, balances };
   },
-  allowedOrigins: (process.env.COUNTERSIGN_APP_ORIGIN || "http://localhost:5173").split(",").map((s) => s.trim()),
+  allowedOrigins: (process.env.COUNTERSIGN_APP_ORIGIN || "http://localhost:5173")
+    .split(",")
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter(Boolean),
+  requireTokenAll: process.env.COUNTERSIGN_OWNER_API_PUBLIC === "1",
 });
 const url = await listenOwnerApi(server, Number(process.env.COUNTERSIGN_OWNER_API_PORT || 7420));
-console.log(`countersign-owner-api: ${url} (재개 토큰 파일: ${process.env.COUNTERSIGN_OWNER_TOKEN ? "환경변수" : paths.ownerToken})`);
+console.log(`countersign-owner-api: ${url}${process.env.COUNTERSIGN_OWNER_API_PUBLIC === "1" ? " (공개 모드: 모든 요청에 주인 토큰)" : ""} (재개 토큰 파일: ${process.env.COUNTERSIGN_OWNER_TOKEN ? "환경변수" : paths.ownerToken})`);

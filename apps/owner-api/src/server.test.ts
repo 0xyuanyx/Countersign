@@ -102,3 +102,41 @@ describe("주인 API", () => {
     }
   });
 });
+
+describe("주인 API 공개 모드 (터널로 인터넷에 열 때)", () => {
+  const pubPaths = statePaths({ COUNTERSIGN_HOME: mkdtempSync(join(tmpdir(), "countersign-owner-pub-")) });
+  let pub: Server;
+  let pubBase: string;
+  const APP = "https://countersign-owner.vercel.app";
+  beforeAll(async () => {
+    pub = createOwnerApi({ policy, paths: pubPaths, ownerToken: TOKEN, allowedOrigins: [APP], requireTokenAll: true, now: () => NOW });
+    pubBase = await listenOwnerApi(pub, 0);
+  });
+  afterAll(() => void pub.close());
+  const call = (path: string, init: RequestInit = {}) => fetch(`${pubBase}${path}`, init);
+
+  it("토큰 없이는 읽기도, 긴급 정지도 받지 않는다", async () => {
+    for (const p of ["/api/policy", "/api/policy/file", "/api/history", "/api/requests", "/api/agents", "/api/pause"]) {
+      expect((await call(p)).status).toBe(401);
+    }
+    expect((await call("/api/pause", { method: "POST", body: "{}" })).status).toBe(401);
+    expect(readPause(pubPaths.pause).paused).toBe(false);
+    expect((await call("/api/policy", { headers: { Authorization: `Bearer ${"b".repeat(64)}` } })).status).toBe(401);
+  });
+
+  it("맞는 토큰이면 읽고 정지할 수 있다", async () => {
+    const auth = { Authorization: `Bearer ${TOKEN}` };
+    expect((await call("/api/policy", { headers: auth })).status).toBe(200);
+    expect((await call("/api/pause", { method: "POST", headers: auth, body: "{}" })).status).toBe(200);
+    expect(readPause(pubPaths.pause).paused).toBe(true);
+  });
+
+  it("브라우저 사전 요청(OPTIONS)은 토큰 없이 답하고, CORS는 허용한 앱 주소에만 연다", async () => {
+    const pre = await call("/api/policy", { method: "OPTIONS", headers: { Origin: APP, "Access-Control-Request-Headers": "authorization" } });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get("access-control-allow-origin")).toBe(APP);
+    expect(pre.headers.get("access-control-allow-headers")).toContain("Authorization");
+    const evil = await call("/api/policy", { method: "OPTIONS", headers: { Origin: "https://evil.example" } });
+    expect(evil.headers.get("access-control-allow-origin")).toBeNull();
+  });
+});

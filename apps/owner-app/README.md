@@ -18,13 +18,34 @@ pnpm --filter @countersign/owner-app pair      # 터미널에 짝짓기 QR
 ```
 
 - 폰은 127.0.0.1에만 열린 주인 API에 직접 못 붙는다. 그래서 Vite가 `/api`를 주인 API로 넘긴다 (`vite.config.ts`, 주소는 `COUNTERSIGN_OWNER_API`). 폰 → 앱 주소 → `/api` → 주인 API.
-- 같은 와이파이면 `http://<맥 IP>:5173`으로 충분하다. **Face ID(패스키)와 카메라는 HTTPS에서만** 되므로 데모는 HTTPS 터널을 쓴다: `COUNTERSIGN_APP_URL=https://<터널 주소> pnpm --filter @countersign/owner-app pair`. 터널 주소를 쓸 때는 주인 API의 `COUNTERSIGN_APP_ORIGIN`은 바꿀 필요 없다 (같은 주소의 `/api`로 부르므로 CORS가 생기지 않음).
+- 같은 와이파이면 `http://<맥 IP>:5173`으로 충분하다. **Face ID(패스키)와 카메라는 HTTPS에서만** 되므로 시연은 아래 Vercel 배포를 쓴다.
+
+## Vercel 배포 (고정 주소)
+
+앱은 Vercel 고정 주소에서, 지갑 데이터는 맥의 주인 API에서 온다. Vercel에는 프록시가 없으므로 앱은 짝짓기 QR에 든 주인 API 주소(`api=`)로 직접 부른다.
+
+```
+폰 (https://<앱>.vercel.app) ──HTTPS·CORS──▶ 맥 터널 https://<고정 주소>/api/ ──▶ 127.0.0.1:7420 주인 API
+```
+
+- **Vercel 프로젝트**: GitHub 저장소를 가져오고 Root Directory를 `apps/owner-app`로. 나머지는 `vercel.json`(설치·빌드·헤더)이 정한다. **환경변수는 넣지 않는다** (비밀 값 없음. 데모 모드는 연결 화면 "지갑 없이 데모로 둘러보기"로 Vercel만으로 동작). 선택: `VITE_OWNER_API_URL`(공개 값)을 넣으면 `api=`가 없는 연결 코드에도 그 주소를 쓴다.
+- **맥 쪽** (한 번만 `apps/demo/tunnel.sh setup <호스트 이름>`, Cloudflare에 도메인이 있어야 함. 없으면 `quick`으로 임시 주소):
+
+```bash
+COUNTERSIGN_APP_ORIGIN=https://<앱>.vercel.app COUNTERSIGN_OWNER_API_PUBLIC=1 apps/demo/demo.sh up
+apps/demo/tunnel.sh run
+COUNTERSIGN_APP_URL=https://<앱>.vercel.app COUNTERSIGN_OWNER_API_URL=$(apps/demo/tunnel.sh url) pnpm --filter @countersign/owner-app pair
+```
+
+- 주인 API는 **공개 모드**(`COUNTERSIGN_OWNER_API_PUBLIC=1`)로 띄운다: 읽기·긴급 정지까지 모든 요청에 주인 토큰, CORS는 Vercel 주소만. 앱은 모든 요청에 토큰을 붙인다.
+- 터널 주소가 고정이면 맥을 껐다 켜도 폰을 다시 짝지을 필요가 없다. 임시 주소(`quick`)는 켤 때마다 바뀌어 다시 짝지어야 한다.
+- 패스키는 Vercel 도메인(`<앱>.vercel.app`)에 묶인다. 주소를 바꾸면 Face ID를 다시 켜야 한다 (앱 비밀번호·짝짓기도 브라우저 저장소가 주소별이라 다시).
 - 연결 화면 맨 아래 "지갑 없이 데모로 둘러보기"로도 데모 데이터를 볼 수 있다.
 
 ## 짝짓기 (가입 없음)
 
-QR = `<앱 주소>/#pair=<주인 토큰>`. 토큰은 `#` 뒤라 서버로 전송되지 않고, 앱이 읽자마자 주소창에서 지운다.
-앱은 `GET /api/policy`로 서버에 닿는지, 없는 요청을 거절해 보는 걸로(401이면 틀림, 404면 맞음) 토큰이 맞는지 확인한다.
+QR = `<앱 주소>/#pair=<주인 토큰>[&api=<주인 API 주소>]`. 토큰은 `#` 뒤라 서버로 전송되지 않고, 앱이 읽자마자 주소창에서 지운다.
+앱은 `GET /api/policy`로 서버에 닿는지(공개 모드면 여기서 401 = 토큰 틀림), 없는 요청을 거절해 보는 걸로(401이면 틀림, 404면 맞음) 토큰이 맞는지 확인한다. `api=`가 빠진 코드를 Vercel 앱에 넣으면 "지갑 서버 주소가 없어요"로 막는다.
 아이폰은 Safari와 홈 화면 앱의 저장소가 따로라, 브라우저로 열면 먼저 홈 화면 추가 안내를 보여 주고 짝짓기는 홈 화면 앱 안에서 한다 (앱 안 카메라는 BarcodeDetector, 없으면 jsQR).
 
 ## 화면 (이번 버전)

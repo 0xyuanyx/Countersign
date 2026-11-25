@@ -23,6 +23,7 @@ COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owne
 - 정지는 안전한 방향이라 토큰 없이 누를 수 있다. 재개만 토큰이 필요하다 (에이전트가 스스로 정지를 풀 수 없게).
 - 주인 토큰: `COUNTERSIGN_OWNER_TOKEN` 또는 `~/.countersign/owner.token`(없으면 처음 실행 때 0600으로 만든다).
 - CORS: `COUNTERSIGN_APP_ORIGIN`(쉼표로 여러 개, 기본 `http://localhost:5173`)에만 허용.
+- **공개 모드** (`COUNTERSIGN_OWNER_API_PUBLIC=1`): 맥의 HTTPS 터널(`apps/demo/tunnel.sh`)로 인터넷에 열 때 쓴다. 위 표에서 "없음"인 읽기와 `POST /api/pause`까지 **모든 요청에 주인 토큰**을 요구한다 (CORS는 브라우저만 막고 curl은 못 막아서, 열어 두면 누구나 내역을 읽고 지갑을 멈출 수 있다). 브라우저 사전 요청(OPTIONS)만 토큰 없이 답한다. 이때 `COUNTERSIGN_APP_ORIGIN`은 Vercel 앱 주소 하나만 둔다.
 - 정책 변경은 지갑 MCP와 signer가 **다음 결제부터 바로** 반영한다 (재시작 불필요, 파일이 바뀌면 다시 읽음). 정책 파일이 깨지면 둘 다 `POLICY_INVALID`로 거부한다.
 - `agent`·`accountIndex`(서명 계정)는 바꿀 수 없다 (signer가 시작할 때 키를 정함). `sellers`는 통째로 바꾸므로 기존 판매자도 같이 보낸다.
 
