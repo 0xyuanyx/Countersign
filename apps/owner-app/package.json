@@ -1,0 +1,23 @@
+{
+  "name": "@countersign/owner-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "VITE_MOCK=1 vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pair": "tsx scripts/pair.ts"
+  },
+  "dependencies": {
+    "jsqr": "1.4.0",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@countersign/wallet-core": "workspace:*",
+    "@types/qrcode": "1.5.5",
+    "vite": "8.3.8"
+  }
+}
