@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>에이전트 연결</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+summary{list-style:none;cursor:pointer}summary::-webkit-details-marker{display:none}
+details[open] .cs-chev{transform:rotate(90deg)}
+.cs-chev{transition:transform 160ms cubic-bezier(0.22,1,0.36,1)}
+.cs-press{transition:transform 120ms cubic-bezier(0.22,1,0.36,1)}.cs-press:active{transform:scale(0.98)}
+@media (prefers-reduced-motion: reduce){*{transition:none !important}}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; box-sizing: border-box; padding: 16px 20px 32px; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <div style="display: flex; align-items: center; height: 44px">
+    <a href="AgentSheet.dc.html" aria-label="뒤로" style="width: 44px; height: 44px; margin-left: -12px; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F7F7F9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+  </div>
+  <h1 style="margin: 12px 0 0; font-size: 22px; font-weight: 600">새 에이전트 연결</h1>
+  <p style="margin: 4px 0 0; font-size: 14px; line-height: 21px; color: #A0A0AA">이 주소를 에이전트 앱에 넣으면 구매 에이전트 2가 돼요</p>
+
+  <section style="margin-top: 20px; padding: 16px; border-radius: 16px; background: #17171A; border: 1px solid rgba(247,247,249,0.10); display: flex; flex-direction: column; gap: 12px">
+    <span style="font-size: 13px; color: #8A8A94">연결 주소 · 구매 에이전트 2 전용</span>
+    <code style="font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 20px; word-break: break-all">https://wallet.example/mcp/a2</code>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <button type="button" class="cs-press" style="height: 44px; border: 0; border-radius: 12px; background: linear-gradient(#F7F7F9, #E9E9EC); color: #0E0E10; font-family: inherit; font-size: 14px; font-weight: 600">주소 복사</button>
+      <button type="button" class="cs-press" style="height: 44px; border-radius: 12px; border: 1px solid rgba(247,247,249,0.08); background: #1F1F23; color: #F7F7F9; font-family: inherit; font-size: 14px">컴퓨터로 보내기</button>
+    </div>
+    <a href="AgentSetup.dc.html" style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #F5A524"><span style="width: 6px; height: 6px; border-radius: 3px; background: #F5A524"></span>연결을 기다리는 중 · 붙으면 기본 규칙 화면으로 넘어가요</a>
+  </section>
+
+  <h2 style="margin: 28px 0 8px; font-size: 13px; font-weight: 500; color: #8A8A94">앱별로 넣는 곳</h2>
+  <div style="border-radius: 16px; background: #17171A; display: flex; flex-direction: column; padding: 0 16px">
+    <details open="" style="border-bottom: 1px solid rgba(247,247,249,0.06)">
+      <summary style="display: flex; align-items: center; height: 52px; font-size: 15px"><span style="flex: 1">Claude 앱</span><svg class="cs-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></summary>
+      <p style="margin: 0 0 14px; font-size: 13px; line-height: 20px; color: #A0A0AA">설정 › 커넥터 › 사용자 지정 커넥터 추가에 주소를 붙여 넣어요. 한 번 넣으면 폰의 Claude 앱에서도 바로 써요</p>
+    </details>
+    <details style="border-bottom: 1px solid rgba(247,247,249,0.06)">
+      <summary style="display: flex; align-items: center; height: 52px; font-size: 15px"><span style="flex: 1">Codex</span><svg class="cs-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></summary>
+      <code style="display: block; margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: #0F0F11; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 18px; word-break: break-all">codex mcp add countersign --url https://wallet.example/mcp/a2</code>
+    </details>
+    <details style="border-bottom: 1px solid rgba(247,247,249,0.06)">
+      <summary style="display: flex; align-items: center; height: 52px; font-size: 15px"><span style="flex: 1">Cursor</span><svg class="cs-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></summary>
+      <p style="margin: 0 0 14px; font-size: 13px; line-height: 20px; color: #A0A0AA">컴퓨터로 보낸 링크를 누르면 Cursor가 열리며 바로 추가돼요</p>
+    </details>
+    <details>
+      <summary style="display: flex; align-items: center; height: 52px; font-size: 15px"><span style="flex: 1">Claude Code</span><svg class="cs-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></summary>
+      <code style="display: block; margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: #0F0F11; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 18px; word-break: break-all">claude mcp add --transport http countersign https://wallet.example/mcp/a2</code>
+    </details>
+  </div>
+
+  <p style="margin: 20px 0 0; font-size: 12px; line-height: 18px; color: #8A8A94">주소마다 에이전트 한 명이에요. 에이전트에게는 결제 도구만 열리고, 정책 바꾸기와 키 꺼내기는 할 수 없어요</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

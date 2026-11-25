@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>잠금 화면 알림</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+@keyframes cs-drop{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; padding: 0 12px; background: #121216; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: stretch">
+
+  <div aria-hidden="true" style="margin-top: 96px; display: flex; flex-direction: column; align-items: center">
+    <span style="font-size: 17px; color: #A0A0AA">11월 25일 화요일</span>
+    <span style="font-size: 80px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; margin-top: 4px">17:24</span>
+  </div>
+
+  <a href="Approval.dc.html" style="margin-top: 260px; padding: 14px; border-radius: 22px; background: rgba(42,42,48,0.92); display: flex; gap: 12px; animation: cs-drop 360ms cubic-bezier(0.22,1,0.36,1) 300ms both">
+    <span style="width: 38px; height: 38px; border-radius: 9px; background: #0B0B0D; border: 1px solid rgba(247,247,249,0.10); display: flex; align-items: center; justify-content: center; flex: none">
+      <svg viewBox="0 0 320 320" width="30" height="30" aria-hidden="true"><defs><linearGradient id="nt1s" x1="60" y1="40" x2="270" y2="290" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FCFCFC"></stop><stop offset="0.34" stop-color="#FFFFFF"></stop><stop offset="0.81" stop-color="#A6A6AA"></stop><stop offset="1" stop-color="#F4F4F5"></stop></linearGradient><radialGradient id="nt1d" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="#FFFFFF"></stop><stop offset="0.45" stop-color="#EDEDEF"></stop><stop offset="1" stop-color="#A9A9AE"></stop></radialGradient></defs><g transform="translate(-2.5 0)"><path d="M170.7 246.7 A66 66 0 0 1 74.2 156.7" fill="none" stroke="url(#nt1s)" stroke-width="18" stroke-linecap="round"></path><circle cx="184" cy="136" r="92" fill="url(#nt1d)"></circle><ellipse cx="159" cy="131" rx="10.5" ry="17" fill="#0B0B0D"></ellipse><ellipse cx="209" cy="131" rx="10.5" ry="17" fill="#0B0B0D"></ellipse></g></svg>
+    </span>
+    <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+      <span style="display: flex; justify-content: space-between; font-size: 14px"><span style="font-weight: 600">구매 요청</span><span style="color: #A0A0AA; font-size: 13px">지금</span></span>
+      <span style="font-size: 14px; line-height: 20px; color: #E4E4E7">처음 보는 판매자 weather-feed가 0.30 USDC를 청구했어요. 눌러서 확인해 주세요</span>
+    </span>
+  </a>
+
+  <a href="Rejected.dc.html" style="margin-top: 8px; padding: 14px; border-radius: 22px; background: rgba(42,42,48,0.92); display: flex; gap: 12px; animation: cs-drop 360ms cubic-bezier(0.22,1,0.36,1) 120ms both">
+    <span style="width: 38px; height: 38px; border-radius: 9px; background: #0B0B0D; border: 1px solid rgba(247,247,249,0.10); display: flex; align-items: center; justify-content: center; flex: none">
+      <svg viewBox="0 0 320 320" width="30" height="30" aria-hidden="true"><defs><linearGradient id="nt2s" x1="60" y1="40" x2="270" y2="290" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FCFCFC"></stop><stop offset="0.34" stop-color="#FFFFFF"></stop><stop offset="0.81" stop-color="#A6A6AA"></stop><stop offset="1" stop-color="#F4F4F5"></stop></linearGradient><radialGradient id="nt2d" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="#FFFFFF"></stop><stop offset="0.45" stop-color="#EDEDEF"></stop><stop offset="1" stop-color="#A9A9AE"></stop></radialGradient></defs><g transform="translate(-2.5 0)"><path d="M170.7 246.7 A66 66 0 0 1 74.2 156.7" fill="none" stroke="url(#nt2s)" stroke-width="18" stroke-linecap="round"></path><circle cx="184" cy="136" r="92" fill="url(#nt2d)"></circle><ellipse cx="159" cy="131" rx="10.5" ry="17" fill="#0B0B0D"></ellipse><ellipse cx="209" cy="131" rx="10.5" ry="17" fill="#0B0B0D"></ellipse></g></svg>
+    </span>
+    <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+      <span style="display: flex; justify-content: space-between; font-size: 14px"><span style="font-weight: 600">결제를 막았어요</span><span style="color: #A0A0AA; font-size: 13px">1분 전</span></span>
+      <span style="font-size: 14px; line-height: 20px; color: #E4E4E7">area-report 청구서의 받는 주소가 등록된 주소와 달라요. 돈은 나가지 않았어요</span>
+    </span>
+  </a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

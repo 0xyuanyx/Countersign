@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>거절 상세</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+summary{list-style:none;cursor:pointer}summary::-webkit-details-marker{display:none}
+details[open] .cs-chev{transform:rotate(90deg)}
+.cs-chev{transition:transform 160ms cubic-bezier(0.22,1,0.36,1)}
+@keyframes cs-fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes cs-flag{from{background-color:#5E5E66}to{background-color:#FF5C5C}}
+@keyframes cs-label{from{color:#A0A0AA}to{color:#FF8A8A}}
+@keyframes cs-mark{from{background-color:rgba(255,92,92,0);color:#F7F7F9}to{background-color:rgba(255,92,92,0.14);color:#FF8A8A}}
+@keyframes cs-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; box-sizing: border-box; padding: 16px 20px 32px; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 44px">
+    <a href="Main.dc.html" aria-label="뒤로" style="width: 44px; height: 44px; margin-left: -12px; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F7F7F9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <span style="font-size: 13px; color: #8A8A94">오늘 17:24</span>
+  </div>
+
+  <span style="margin-top: 12px; font-size: 13px; color: #FF5C5C">거절됨 · 돈은 나가지 않았어요</span>
+  <h1 style="margin: 8px 0 0; font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em">받는 주소가 바뀐 청구서예요</h1>
+  <p style="margin: 8px 0 0; font-size: 15px; line-height: 22px; color: #A0A0AA">area-report · 0.10 USDC</p>
+
+  <section style="margin-top: 24px; padding: 20px 16px 8px; border-radius: 16px; background: #17171A; display: flex; flex-direction: column">
+    <div style="display: flex; gap: 4px">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #FF5C5C; transform-origin: left; animation: cs-fill 280ms cubic-bezier(0.22,1,0.36,1) 0ms both, cs-flag 200ms cubic-bezier(0.22,1,0.36,1) 760ms both"></span><span style="font-size: 12px; color: #FF8A8A; animation: cs-label 200ms cubic-bezier(0.22,1,0.36,1) 760ms both">수취인</span></div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #2A2A30"></span><span style="font-size: 12px; color: #8A8A94">금액</span></div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #2A2A30"></span><span style="font-size: 12px; color: #8A8A94">체인</span></div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #2A2A30"></span><span style="font-size: 12px; color: #8A8A94">토큰</span></div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #2A2A30"></span><span style="font-size: 12px; color: #8A8A94">만료</span></div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #2A2A30"></span><span style="font-size: 12px; color: #8A8A94">서명자</span></div>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; color: #8A8A94">등록된 주소</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 18px; color: #F7F7F9; word-break: break-all">0x3f9A2<span style="color: #A0A0AA">bC40e5D71a8F6B2c09E4d1A7b3C5E</span>81c21E</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; color: #8A8A94">청구서의 주소</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 18px; color: #F7F7F9; word-break: break-all">0x3f9A2<span style="color: #FF8A8A; background: rgba(255,92,92,0.14); border-radius: 2px; animation: cs-mark 240ms cubic-bezier(0.22,1,0.36,1) 900ms both">7d1B09aF4c6E2d8b1F0A5c3E7d290</span>81c21E</span>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 20px; color: #A0A0AA">앞뒤가 같아서 눈으로는 놓치기 쉬워요</p>
+    </div>
+
+    <p style="margin: 12px 0 0; padding: 14px 0 8px; border-top: 1px solid rgba(247,247,249,0.06); font-size: 14px; color: #A0A0AA">첫 칸에서 멈추고 서명하지 않았어요</p>
+  </section>
+
+  <section style="margin-top: 12px; padding: 4px 16px; border-radius: 16px; background: #17171A; display: flex; flex-direction: column">
+    <a href="Approved.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 64px; animation: cs-in 320ms cubic-bezier(0.22,1,0.36,1) 1200ms both">
+      <span style="width: 32px; height: 32px; border-radius: 16px; background: rgba(0,200,150,0.12); display: flex; align-items: center; justify-content: center; flex: none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00C896" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v4h-4"></path></svg>
+      </span>
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 15px">에이전트가 새 청구서로 다시 결제했어요</span>
+        <span style="font-size: 13px; color: #8A8A94">17:25 · 0.10 USDC · 진짜 판매자 주소로</span>
+      </span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+    </a>
+    <details style="border-top: 1px solid rgba(247,247,249,0.06)">
+      <summary style="display: flex; align-items: center; height: 48px; font-size: 14px; color: #A0A0AA">
+        <span style="flex: 1">기록 자세히</span>
+        <svg class="cs-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+      </summary>
+      <div style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px">
+        <div style="padding: 12px; border-radius: 10px; background: #0F0F11; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 20px; color: #A0A0AA; display: flex; flex-direction: column">
+          <span>code <span style="color: #FF8A8A">PAYEE_MISMATCH</span></span>
+          <span>next_action <span style="color: #F7F7F9">판매자에게 주문 재발급 요청</span></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #A0A0AA">
+          <span><span style="color: #8A8A94">17:24:06</span>  결제 요청 받음</span>
+          <span><span style="color: #8A8A94">17:24:07</span>  HSP에서 주문 다시 가져옴</span>
+          <span><span style="color: #8A8A94">17:24:08</span>  주소가 달라 서명 거부</span>
+          <span><span style="color: #8A8A94">17:24:11</span>  에이전트가 재발급 요청</span>
+        </div>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A8A94">주문 ord_7Q2f…c91</span>
+      </div>
+    </details>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

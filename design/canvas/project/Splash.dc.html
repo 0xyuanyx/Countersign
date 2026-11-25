@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>스플래시</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}
+</style>
+</helmet>
+<a href="InstallSheet.dc.html" aria-label="Countersign 시작" style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center">
+  <svg viewBox="0 0 320 320" width="168" height="168" role="img" aria-label="Countersign 로고" style="margin-top: -40px">
+    <defs>
+      <linearGradient id="spl-s" x1="60" y1="40" x2="270" y2="290" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#FCFCFC"></stop><stop offset="0.16" stop-color="#C6C6C8"></stop><stop offset="0.34" stop-color="#FFFFFF"></stop><stop offset="0.58" stop-color="#E6E6E7"></stop><stop offset="0.81" stop-color="#A6A6AA"></stop><stop offset="1" stop-color="#F4F4F5"></stop>
+      </linearGradient>
+      <radialGradient id="spl-d" cx="36%" cy="30%" r="80%">
+        <stop offset="0" stop-color="#FFFFFF"></stop><stop offset="0.45" stop-color="#EDEDEF"></stop><stop offset="1" stop-color="#A9A9AE"></stop>
+      </radialGradient>
+    </defs>
+    <path d="{{ringD}}" fill="none" stroke="url(#spl-s)" stroke-width="{{ringW}}" stroke-linecap="round"></path>
+    <circle cx="{{dotX}}" cy="{{dotY}}" r="{{dotR}}" fill="url(#spl-d)"></circle>
+    <ellipse cx="{{eye1X}}" cy="{{eyeY}}" rx="{{eyeRX}}" ry="{{eyeRY}}" fill="#0B0B0D"></ellipse>
+    <ellipse cx="{{eye2X}}" cy="{{eyeY}}" rx="{{eyeRX}}" ry="{{eyeRY}}" fill="#0B0B0D"></ellipse>
+  </svg>
+  <span style="margin-top: 20px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; opacity: {{wordOpacity}}; transform: translateY({{wordShift}}px)">Countersign</span>
+</a>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this.run();
+  }
+  componentWillUnmount() {
+    cancelAnimationFrame(this.raf);
+  }
+  run() {
+    var self = this;
+    var reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { self.setState({ t: 1 }); return; }
+    var start = performance.now() + 200;
+    var step = function (now) {
+      var t = Math.max(0, Math.min(1, (now - start) / 1600));
+      self.setState({ t: t });
+      if (t < 1) { self.raf = requestAnimationFrame(step); }
+      else { self.raf = setTimeout(function () { self.run(); }, 1800); }
+    };
+    self.raf = requestAnimationFrame(step);
+  }
+  renderVals() {
+    var t = (this.state && this.state.t) || 0;
+    var clamp = function (x) { return Math.max(0, Math.min(1, x)); };
+    var ease = function (x) { return 1 - Math.pow(1 - x, 4); };
+    var phase = function (a, b) { return ease(clamp((t - a) / (b - a))); };
+    var lerp = function (a, b, k) { return a + (b - a) * k; };
+    // design/brand/animation/icon-animation.js 의 ICON_ANIMATION 과 같은 값
+    var d = phase(0, 0.78), g = phase(0, 0.78), e = phase(0.72, 1), w = phase(0.7, 1);
+    var dx = lerp(248, 181.5, d), dy = lerp(102, 136, d), dr = lerp(20, 92, d);
+    var cx = lerp(160, 121.5, g), cy = lerp(160, 200, g), r = lerp(102, 66, g), sw = lerp(40, 18, g);
+    var A0 = lerp(0, 45, g), A1 = lerp(293, 221, g);
+    var R = Math.PI / 180, clear = dr + sw / 2 + 10;
+    var inside = function (a) { return Math.hypot(cx + r * Math.cos(a * R) - dx, cy + r * Math.sin(a * R) - dy) < clear; };
+    while (A0 < A1 && inside(A0)) { A0 += 0.5; }
+    while (A1 > A0 && inside(A1)) { A1 -= 0.5; }
+    var ringD = A1 > A0 ? ('M' + (cx + r * Math.cos(A0 * R)).toFixed(2) + ' ' + (cy + r * Math.sin(A0 * R)).toFixed(2) +
+      ' A' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 ' + (A1 - A0 > 180 ? 1 : 0) + ' 1 ' + (cx + r * Math.cos(A1 * R)).toFixed(2) + ' ' + (cy + r * Math.sin(A1 * R)).toFixed(2)) : '';
+    return {
+      ringD: ringD,
+      ringW: sw.toFixed(2),
+      dotX: dx.toFixed(2), dotY: dy.toFixed(2), dotR: dr.toFixed(2),
+      eye1X: (dx - 25).toFixed(2), eye2X: (dx + 25).toFixed(2), eyeY: (dy - 5).toFixed(2),
+      eyeRX: (10.5 * Math.min(1, e * 1.4)).toFixed(2), eyeRY: (17 * e).toFixed(2),
+      wordOpacity: w.toFixed(3), wordShift: ((1 - w) * 6).toFixed(2)
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>구매 요청</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+@keyframes cs-dim{from{opacity:0}to{opacity:1}}
+@keyframes cs-sheet{from{transform:translateY(100%)}to{transform:none}}
+.cs-press{transition:transform 120ms cubic-bezier(0.22,1,0.36,1)}.cs-press:active{transform:scale(0.98)}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; font-variant-numeric: tabular-nums">
+
+  <div aria-hidden="true" style="padding: 76px 20px 0; display: flex; flex-direction: column; opacity: 0.5">
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 14px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #00C896"></span>지켜보는 중</div>
+    <div style="margin-top: 16px; font-size: 14px; color: #A0A0AA">결제용 잔액</div>
+    <div style="margin-top: 4px; font-size: 40px; font-weight: 600">24.80 <span style="font-size: 18px; color: #A0A0AA; font-weight: 400">USDC</span></div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(0,0,0,0.62); animation: cs-dim 200ms cubic-bezier(0.22,1,0.36,1) both"></div>
+
+  <div role="dialog" aria-modal="true" aria-labelledby="ask-title" style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 20px 28px; border-radius: 28px 28px 0 0; background: #1A1A1E; display: flex; flex-direction: column; animation: cs-sheet 360ms cubic-bezier(0.22,1,0.36,1) 40ms both">
+    <span style="align-self: center; width: 36px; height: 5px; border-radius: 3px; background: #3A3A42"></span>
+
+    <span style="margin-top: 20px; font-size: 13px; color: #F5A524">4분 32초 남음 · 답이 없으면 결제하지 않아요</span>
+    <h1 id="ask-title" style="margin: 8px 0 0; font-size: 22px; font-weight: 600">처음 보는 판매자예요</h1>
+    <p style="margin: 4px 0 0; font-size: 14px; line-height: 21px; color: #A0A0AA">맡긴 일: 내일 서울 날씨 데이터 사 와</p>
+
+    <div style="margin-top: 16px; display: flex; align-items: baseline; gap: 8px">
+      <span style="font-size: 36px; font-weight: 600; letter-spacing: -0.02em">0.30</span>
+      <span style="font-size: 17px; color: #A0A0AA">USDC</span>
+    </div>
+
+    <div style="margin-top: 16px; padding: 16px; border-radius: 16px; background: #1F1F23; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <span style="font-size: 15px; font-weight: 500">weather-feed</span>
+        <span style="font-size: 13px; color: #8A8A94">서울 7일 예보 1건</span>
+      </div>
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 18px; color: #A0A0AA; word-break: break-all"><span style="color: #7CC4FF">0x9B2e61</span>c0F4a8D37e5B19aC02F6d8E1a7<span style="color: #7CC4FF">b3d047dA</span></span>
+      <div style="display: flex; gap: 4px">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 4px; border-radius: 2px; background: #F5A524"></span><span style="font-size: 11px; color: #F5A524">처음 봄</span></div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 4px; border-radius: 2px; background: #00C896"></span><span style="font-size: 11px; color: #8A8A94">금액</span></div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 4px; border-radius: 2px; background: #00C896"></span><span style="font-size: 11px; color: #8A8A94">체인</span></div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 4px; border-radius: 2px; background: #00C896"></span><span style="font-size: 11px; color: #8A8A94">토큰</span></div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 4px; border-radius: 2px; background: #00C896"></span><span style="font-size: 11px; color: #8A8A94">만료</span></div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 4px; border-radius: 2px; background: #2A2A30"></span><span style="font-size: 11px; color: #8A8A94">서명자</span></div>
+      </div>
+    </div>
+
+
+    <a href="LockPay.dc.html" class="cs-press" style="margin-top: 20px; height: 56px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 16px; background: linear-gradient(#F7F7F9, #E9E9EC); color: #0E0E10; font-family: inherit; font-size: 16px; font-weight: 600">0.30 USDC 결제</a>
+    <a href="Main.dc.html" style="margin-top: 4px; height: 48px; display: flex; align-items: center; justify-content: center; color: #A0A0AA; font-size: 15px">거절</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

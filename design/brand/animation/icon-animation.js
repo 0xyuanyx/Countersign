@@ -1,0 +1,108 @@
+// Countersign 아이콘 애니메이션: Ouryn 로고 → 눈 달린 에이전트
+// 쓰는 법:
+//   import { mountIconAnimation } from './icon-animation.js';
+//   const anim = mountIconAnimation(document.getElementById('logo'), { size: 160, autoplay: true });
+//   anim.play();          // 처음부터 재생 (Promise, 끝나면 resolve)
+//   anim.seek(0.5);       // 0~1 사이 한 장면으로
+//   anim.destroy();
+// prefers-reduced-motion: reduce 이면 바로 끝 모양을 보여 준다.
+// 좌표는 320×320 viewBox. 색은 Ouryn 그대로.
+
+const NS = 'http://www.w3.org/2000/svg';
+
+export const ICON_ANIMATION = {
+  duration: 1600, // ms
+  delay: 0,
+  // 구간 (0~1): 점 커짐과 링 작아짐은 같은 구간·같은 속도, 그다음 눈 뜸
+  phases: { dot: [0, 0.78], ring: [0, 0.78], eyes: [0.72, 1] },
+  // 링은 원과 이만큼(px) 떨어진 곳에서 끊긴다. 링이 원 밑으로 지나가는 장면이 없다
+  clearance: 10,
+  from: { ring: { cx: 160, cy: 160, r: 102, width: 40, a0: 0, a1: 293 }, dot: { cx: 248, cy: 102, r: 20 } },
+  to:   { ring: { cx: 121.5, cy: 200, r: 66, width: 18, a0: 45, a1: 221 }, dot: { cx: 181.5, cy: 136, r: 92 } },
+  eyes: { dx: 25, dy: -5, rx: 10.5, ry: 17 },
+  colors: { bg: '#0B0B0D', eye: '#0B0B0D' },
+};
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (t) => Math.max(0, Math.min(1, t));
+const ease = (t) => 1 - Math.pow(1 - t, 4); // ease-out quart (앱 곡선 cubic-bezier(0.22,1,0.36,1)과 비슷)
+const phase = (t, [a, b]) => ease(clamp((t - a) / (b - a)));
+
+function arcPath(cx, cy, r, a0, a1) {
+  const R = Math.PI / 180;
+  const x0 = cx + r * Math.cos(a0 * R), y0 = cy + r * Math.sin(a0 * R);
+  const x1 = cx + r * Math.cos(a1 * R), y1 = cy + r * Math.sin(a1 * R);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r.toFixed(2)} ${r.toFixed(2)} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+// 링 양 끝을 원에서 clear 만큼 떨어질 때까지 잘라 낸다
+function clipArc(ox, oy, r, a0, a1, cx, cy, clear) {
+  const R = Math.PI / 180;
+  const inside = (a) => Math.hypot(ox + r * Math.cos(a * R) - cx, oy + r * Math.sin(a * R) - cy) < clear;
+  const step = 0.5;
+  while (a0 < a1 && inside(a0)) a0 += step;
+  while (a1 > a0 && inside(a1)) a1 -= step;
+  return [a0, a1];
+}
+
+let uid = 0;
+function el(name, attrs = {}, parent) {
+  const n = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+export function mountIconAnimation(container, { size = 160, autoplay = true, background = true, spec = ICON_ANIMATION } = {}) {
+  const id = `cs${++uid}`;
+  const svg = el('svg', { viewBox: '0 0 320 320', width: size, height: size, role: 'img', 'aria-label': 'Countersign' });
+  const defs = el('defs', {}, svg);
+  const lg = el('linearGradient', { id: `${id}s`, x1: 60, y1: 40, x2: 270, y2: 290, gradientUnits: 'userSpaceOnUse' }, defs);
+  [[0, '#FCFCFC'], [0.16, '#C6C6C8'], [0.34, '#FFFFFF'], [0.58, '#E6E6E7'], [0.81, '#A6A6AA'], [1, '#F4F4F5']]
+    .forEach(([o, c]) => el('stop', { offset: o, 'stop-color': c }, lg));
+  const rg = el('radialGradient', { id: `${id}d`, cx: '36%', cy: '30%', r: '80%' }, defs);
+  [[0, '#FFFFFF'], [0.45, '#EDEDEF'], [1, '#A9A9AE']].forEach(([o, c]) => el('stop', { offset: o, 'stop-color': c }, rg));
+  if (background) el('rect', { width: 320, height: 320, fill: spec.colors.bg }, svg);
+  const ring = el('path', { fill: 'none', stroke: `url(#${id}s)`, 'stroke-linecap': 'round' }, svg);
+  const dot = el('circle', { fill: `url(#${id}d)` }, svg);
+  const e1 = el('ellipse', { fill: spec.colors.eye }, svg);
+  const e2 = el('ellipse', { fill: spec.colors.eye }, svg);
+  container.appendChild(svg);
+
+  const { from: F, to: T, phases: P, eyes: E } = spec;
+  function seek(t) {
+    const d = phase(t, P.dot), g = phase(t, P.ring), e = phase(t, P.eyes);
+    const cx = lerp(F.dot.cx, T.dot.cx, d), cy = lerp(F.dot.cy, T.dot.cy, d), r = lerp(F.dot.r, T.dot.r, d);
+    const rcx = lerp(F.ring.cx, T.ring.cx, g), rcy = lerp(F.ring.cy, T.ring.cy, g), rr = lerp(F.ring.r, T.ring.r, g);
+    const w = lerp(F.ring.width, T.ring.width, g);
+    const [a0, a1] = clipArc(rcx, rcy, rr, lerp(F.ring.a0, T.ring.a0, g), lerp(F.ring.a1, T.ring.a1, g), cx, cy, r + w / 2 + spec.clearance);
+    ring.setAttribute('d', a1 > a0 ? arcPath(rcx, rcy, rr, a0, a1) : '');
+    ring.setAttribute('stroke-width', w);
+    dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', r);
+    [[e1, -E.dx], [e2, E.dx]].forEach(([n, dx]) => {
+      n.setAttribute('cx', cx + dx); n.setAttribute('cy', cy + E.dy);
+      n.setAttribute('rx', E.rx * Math.min(1, e * 1.4)); n.setAttribute('ry', E.ry * e);
+    });
+  }
+
+  let raf = 0;
+  function play() {
+    cancelAnimationFrame(raf);
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { seek(1); return Promise.resolve(); }
+    return new Promise((resolve) => {
+      const t0 = performance.now() + spec.delay;
+      seek(0);
+      const step = (now) => {
+        const t = clamp((now - t0) / spec.duration);
+        seek(t);
+        if (t < 1) raf = requestAnimationFrame(step); else resolve();
+      };
+      raf = requestAnimationFrame(step);
+    });
+  }
+
+  seek(autoplay ? 0 : 1);
+  if (autoplay) play();
+  return { svg, play, seek, destroy() { cancelAnimationFrame(raf); svg.remove(); } };
+}

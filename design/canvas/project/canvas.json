@@ -1,0 +1,365 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Activity.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "결제 내역",
+      "w": 390,
+      "x": 3290,
+      "y": 0
+    },
+    "AgentEdit.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "에이전트 편집 (목록에서 ⋯)",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "AgentSheet.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "홈 › 구매 에이전트 1 누름",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "Approval.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "구매 요청 (처음 보는 판매자)",
+      "w": 390,
+      "x": 940,
+      "y": 1760
+    },
+    "Approved.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "결제 상세",
+      "w": 390,
+      "x": 3760,
+      "y": 0
+    },
+    "Command.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "맡길 일 쓰기 (홈 입력칸이 커진 것)",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "Connect.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "새 에이전트 연결",
+      "w": 390,
+      "x": 2350,
+      "y": 1760
+    },
+    "Deposit.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "입금 주소",
+      "w": 390,
+      "x": 3760,
+      "y": 1760
+    },
+    "Lock.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "비밀번호 확인 (정책 바꿀 때)",
+      "w": 390,
+      "x": 3290,
+      "y": 1760
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 28,
+      "title": "홈",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Policy.dc.html": {
+      "h": 1120,
+      "radius": 28,
+      "title": "정책",
+      "w": 390,
+      "x": 0,
+      "y": 1760
+    },
+    "Rejected.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "거절 상세 (데모 핵심)",
+      "w": 390,
+      "x": 2820,
+      "y": 0
+    },
+    "Settings.dc.html": {
+      "h": 1060,
+      "radius": 28,
+      "title": "설정",
+      "w": 390,
+      "x": 2820,
+      "y": 1760
+    },
+    "Stop.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "긴급 정지 확인",
+      "w": 390,
+      "x": 4230,
+      "y": 1760
+    },
+    "Stopped.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "정지된 홈",
+      "w": 390,
+      "x": 4700,
+      "y": 1760
+    },
+    "Working.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "맡긴 일 진행 중",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "ApprovalNext.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "결제 후: 다음부터 바로 결제할까요?",
+      "w": 390,
+      "x": 1880,
+      "y": 1760
+    },
+    "OnboardPair.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "처음 실행 2 · 지갑과 연결 (홈 화면 앱에서)",
+      "w": 390,
+      "x": 940,
+      "y": 3240
+    },
+    "OnboardPin.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "처음 실행 3 · 비밀번호 만들기",
+      "w": 390,
+      "x": 1410,
+      "y": 3240
+    },
+    "InstallSheet.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "처음 실행 1 · 홈 화면 추가 안내",
+      "w": 390,
+      "x": 470,
+      "y": 3240
+    },
+    "Splash.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "처음 실행 0 · 스플래시 (로고 애니메이션)",
+      "w": 390,
+      "x": 0,
+      "y": 3240,
+      "is_interactive": true
+    },
+    "LockPay.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "결제 → 비밀번호 확인",
+      "w": 390,
+      "x": 1410,
+      "y": 1760
+    },
+    "LimitSheet.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "정책 › 한도 바꾸기",
+      "w": 390,
+      "x": 470,
+      "y": 1760
+    },
+    "Notify.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "잠금 화면 알림 (데모용)",
+      "w": 390,
+      "x": 4230,
+      "y": 0
+    },
+    "Banners.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "홈 상태 줄·빈 화면",
+      "w": 390,
+      "x": 4700,
+      "y": 0
+    },
+    "HomeEmpty.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "처음 실행 4 · 처음 홈 (에이전트 연결 안내)",
+      "w": 390,
+      "x": 1880,
+      "y": 3240
+    },
+    "AgentSetup.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "처음 실행 5 · 연결 직후 기본 규칙",
+      "w": 390,
+      "x": 2350,
+      "y": 3240
+    },
+    "MainDraft.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "완료 · 키보드 내림 → 쓴 글이 홈 입력칸에 그대로",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "LockStart.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "처음 실행 6 · 기본 규칙 저장 → 비밀번호 → 홈",
+      "w": 390,
+      "x": 2820,
+      "y": 3240
+    },
+    "PinChange.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "설정 › 앱 비밀번호 바꾸기",
+      "w": 390,
+      "x": 5170,
+      "y": 1760
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-11-24T08:40:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "noteOrder": [
+    "row1",
+    "row2",
+    "sig",
+    "cmd",
+    "seller",
+    "lock",
+    "row4",
+    "onb"
+  ],
+  "notes": {
+    "cmd": {
+      "fill": "blue",
+      "size": 24,
+      "text": "맡기기: 홈 입력칸과 쓰기 화면의 상자는 하나의 요소. 누르면 그 상자가 위로 커지고 키보드가 올라옴. 상자 바로 아래 최대 금액 칩(0.10 / 0.25 / 0.50 한도) → 상자 안 화살표로 보내면 바로 맡김(확인 시트 없음). 완료를 누르거나 키보드를 내리면 쓴 글이 홈 상자에 그대로 남음. 최대 금액은 지갑이 직접 보관해서 에이전트가 늘릴 수 없음 (pay의 intent.max_amount 상한).",
+      "w": 320,
+      "x": 5170,
+      "y": 440
+    },
+    "lock": {
+      "fill": "blue",
+      "size": 24,
+      "text": "잠금: 앱을 열 때 6자리 비밀번호 또는 Face ID(패스키). 구매 승인(결제 → 비밀번호 → 다음부터 바로 결제?)·정책 바꾸기·정지 풀기는 매번 다시 확인. 확인 화면 제목과 돌아갈 곳은 부른 화면이 정함.",
+      "w": 320,
+      "x": 5640,
+      "y": 2200
+    },
+    "row1": {
+      "kind": "title1",
+      "maxW": 5090,
+      "text": "일 맡기고 결제 지켜보기",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "row2": {
+      "kind": "title1",
+      "maxW": 5560,
+      "text": "규칙과 안전장치",
+      "w": 240,
+      "x": 0,
+      "y": 1460
+    },
+    "seller": {
+      "fill": "blue",
+      "size": 24,
+      "text": "판매자 규칙: 등록한 판매자 = 묻지 않고 결제. 처음 보는 판매자 = 결제 전에 물어봄 → 결제 후 '다음부터 이곳은 요청 없이 바로 결제할까요?' 승인하면 그 주소로 등록. 등록한 판매자 이름인데 주소가 다르면 = 묻지 않고 거절 (데모의 악성 청구).",
+      "w": 320,
+      "x": 5640,
+      "y": 1760
+    },
+    "sig": {
+      "fill": "gray",
+      "size": 24,
+      "text": "대조 띠·진행 단계 색: 초록 = 됨, 빨강 = 안 됨(거기서 멈춤, 뒤 칸은 회색), 주황 = 사람에게 묻는 중(다른 칸 검사는 통과한 상태라 초록), 회색 = 아직 안 함. 6칸 = 수취인 · 금액 · 체인 · 토큰 · 만료 · 서명자.",
+      "w": 320,
+      "x": 5170,
+      "y": 0
+    },
+    "row4": {
+      "kind": "title1",
+      "maxW": 3210,
+      "text": "처음 실행",
+      "x": 0,
+      "y": 2940
+    },
+    "onb": {
+      "fill": "blue",
+      "size": 24,
+      "w": 320,
+      "x": 3290,
+      "y": 3240,
+      "text": "순서: 항상 스플래시(1.6초)부터 → 브라우저로 열었을 때만 홈 화면 추가 안내 → 홈 화면 앱에서 지갑과 연결(QR) → 비밀번호 → 처음 홈(시작하기 3단계: 에이전트 연결 · 기본 규칙 · USDC 넣기, 맡길 일 입력칸 잠김) → 에이전트 연결(새 에이전트 연결 화면) → 붙으면 기본 규칙(1회·하루 한도, 판매자 규칙 안내) → 비밀번호 → 홈. 가입·이메일 없음."
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "AgentSheet.dc.html",
+    "AgentEdit.dc.html",
+    "Command.dc.html",
+    "MainDraft.dc.html",
+    "Working.dc.html",
+    "Rejected.dc.html",
+    "Activity.dc.html",
+    "Approved.dc.html",
+    "Notify.dc.html",
+    "Banners.dc.html",
+    "Policy.dc.html",
+    "LimitSheet.dc.html",
+    "Approval.dc.html",
+    "LockPay.dc.html",
+    "ApprovalNext.dc.html",
+    "Connect.dc.html",
+    "Settings.dc.html",
+    "Lock.dc.html",
+    "Deposit.dc.html",
+    "Stop.dc.html",
+    "Stopped.dc.html",
+    "PinChange.dc.html",
+    "Splash.dc.html",
+    "InstallSheet.dc.html",
+    "OnboardPair.dc.html",
+    "OnboardPin.dc.html",
+    "HomeEmpty.dc.html",
+    "AgentSetup.dc.html",
+    "LockStart.dc.html"
+  ],
+  "pages": [],
+  "title": "Countersign 앱 시안"
+}

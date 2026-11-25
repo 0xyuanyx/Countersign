@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>에이전트 편집</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; box-sizing: border-box; padding: 16px 20px 32px; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 44px">
+    <a href="AgentSheet.dc.html" aria-label="뒤로" style="width: 44px; height: 44px; margin-left: -12px; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F7F7F9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #A0A0AA"><span style="width: 6px; height: 6px; border-radius: 3px; background: #00C896"></span>Claude Code 연결됨</span>
+  </div>
+
+  <label for="agent-name" style="margin-top: 12px; font-size: 13px; color: #8A8A94">이름</label>
+  <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 16px; border-radius: 14px; background: #17171A; border: 1px solid rgba(247,247,249,0.10)">
+    <input id="agent-name" value="구매 에이전트 1" style="flex: 1; min-width: 0; border: 0; background: transparent; color: #F7F7F9; font-family: inherit; font-size: 17px; font-weight: 600; outline: none">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path></svg>
+  </div>
+
+  <div style="margin-top: 20px; border-radius: 16px; background: #17171A; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-bottom: 1px solid rgba(247,247,249,0.06)">
+      <span style="flex: 1; font-size: 15px">오늘 쓴 돈</span><span style="font-size: 14px; color: #A0A0AA">1.30 / 5.00 USDC</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-bottom: 1px solid rgba(247,247,249,0.06)">
+      <span style="flex: 1; font-size: 15px">결제 계정</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A0A0AA"><span style="color: #7CC4FF">0xd5C4fE</span>…<span style="color: #7CC4FF">EF9c153</span></span>
+    </div>
+    <a href="Policy.dc.html" style="display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px">
+      <span style="flex: 1; font-size: 15px">이 에이전트의 정책</span><span style="font-size: 14px; color: #A0A0AA">1회 0.50 · 하루 5.00</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+    </a>
+  </div>
+
+  <div style="margin-top: 12px; border-radius: 16px; background: #17171A; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 16px; border-bottom: 1px solid rgba(247,247,249,0.06)">
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px">이 에이전트만 멈추기</span><span style="font-size: 12px; color: #8A8A94">다른 에이전트는 계속 결제해요</span></span>
+      <span role="switch" aria-checked="false" aria-label="이 에이전트만 멈추기" style="width: 44px; height: 26px; border-radius: 13px; background: #2A2A30; position: relative; flex: none"><span style="position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 11px; background: #A0A0AA"></span></span>
+    </div>
+    <a href="Connect.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 16px">
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px">다른 앱으로 옮기기</span><span style="font-size: 12px; color: #8A8A94">새 연결 주소를 만들면 지금 주소는 바로 끊겨요</span></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+    </a>
+  </div>
+
+  <button type="button" style="margin-top: 28px; height: 52px; border-radius: 14px; border: 1px solid rgba(255,92,92,0.32); background: transparent; color: #FF5C5C; font-family: inherit; font-size: 15px; font-weight: 500">연결 끊기</button>
+  <p style="margin: 8px 0 0; font-size: 12px; line-height: 18px; color: #8A8A94; text-align: center">끊어도 결제 계정과 내역은 남아요. 남은 돈은 그대로예요</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

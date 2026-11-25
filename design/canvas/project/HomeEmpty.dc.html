@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>처음 홈</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+.cs-press{transition:transform 120ms cubic-bezier(0.22,1,0.36,1)}.cs-press:active{transform:scale(0.98)}
+@keyframes cs-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; font-variant-numeric: tabular-nums">
+  <div style="padding: 16px 20px 0; display: flex; flex-direction: column">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 44px">
+      <span style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600">
+        <svg viewBox="0 0 320 320" width="28" height="28" aria-hidden="true"><defs><linearGradient id="heS" x1="60" y1="40" x2="270" y2="290" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FCFCFC"></stop><stop offset="0.34" stop-color="#FFFFFF"></stop><stop offset="0.81" stop-color="#A6A6AA"></stop><stop offset="1" stop-color="#F4F4F5"></stop></linearGradient><radialGradient id="heD" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="#FFFFFF"></stop><stop offset="0.45" stop-color="#EDEDEF"></stop><stop offset="1" stop-color="#A9A9AE"></stop></radialGradient></defs><g transform="translate(-2.5 0)"><path d="M170.7 246.7 A66 66 0 0 1 74.2 156.7" fill="none" stroke="url(#heS)" stroke-width="18" stroke-linecap="round"></path><circle cx="184" cy="136" r="92" fill="url(#heD)"></circle><ellipse cx="159" cy="131" rx="10.5" ry="17" fill="#0B0B0D"></ellipse><ellipse cx="209" cy="131" rx="10.5" ry="17" fill="#0B0B0D"></ellipse></g></svg>
+        Countersign
+      </span>
+      <span style="font-size: 12px; color: #A0A0AA; padding: 6px 10px; border-radius: 8px; background: #17171A">HSK 테스트넷</span>
+    </div>
+
+    <h1 style="margin: 28px 0 0; font-size: 24px; line-height: 1.3; font-weight: 600">에이전트를 연결하면<br>지갑이 결제를 지켜봐요</h1>
+    <p style="margin: 8px 0 0; font-size: 14px; color: #A0A0AA">0 / 3 · 세 단계면 시작할 수 있어요</p>
+
+    <ol style="margin: 20px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px">
+      <li style="animation: cs-in 320ms cubic-bezier(0.22,1,0.36,1) 120ms both">
+        <a href="Connect.dc.html" class="cs-press" style="display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 0 16px; border-radius: 16px; background: #17171A; border: 1px solid rgba(212,212,216,0.40)">
+          <span style="width: 32px; height: 32px; border-radius: 16px; background: linear-gradient(#F7F7F9, #E9E9EC); color: #0E0E10; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex: none">1</span>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 16px; font-weight: 600">에이전트 연결하기</span><span style="font-size: 13px; color: #A0A0AA">Claude, Codex, Cursor에 주소 한 줄</span></span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A0A0AA" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+        </a>
+      </li>
+      <li style="display: flex; align-items: center; gap: 14px; min-height: 68px; padding: 0 16px; border-radius: 16px; border: 1px solid rgba(247,247,249,0.08); animation: cs-in 320ms cubic-bezier(0.22,1,0.36,1) 180ms both">
+        <span style="width: 32px; height: 32px; border-radius: 16px; background: #2A2A30; color: #A0A0AA; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex: none">2</span>
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; color: #A0A0AA">기본 규칙 정하기</span><span style="font-size: 13px; color: #8A8A94">한도와 판매자 · 연결하면 바로 이어져요</span></span>
+      </li>
+      <li style="animation: cs-in 320ms cubic-bezier(0.22,1,0.36,1) 240ms both">
+        <a href="Deposit.dc.html" style="display: flex; align-items: center; gap: 14px; min-height: 68px; padding: 0 16px; border-radius: 16px; border: 1px solid rgba(247,247,249,0.08)">
+          <span style="width: 32px; height: 32px; border-radius: 16px; background: #2A2A30; color: #A0A0AA; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex: none">3</span>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px">USDC 넣기</span><span style="font-size: 13px; color: #8A8A94">지금 잔액 0.00 · 먼저 넣어도 돼요</span></span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A94" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+        </a>
+      </li>
+    </ol>
+  </div>
+
+  <div aria-disabled="true" style="position: absolute; left: 20px; right: 20px; bottom: 88px; height: 52px; padding: 0 8px 0 16px; box-sizing: border-box; border-radius: 16px; background: #121215; border: 1px solid rgba(247,247,249,0.06); display: flex; align-items: center; gap: 10px">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5E5E66" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+    <span style="flex: 1; font-size: 14px; color: #8A8A94">에이전트를 연결하면 일을 맡길 수 있어요</span>
+  </div>
+
+  <nav aria-label="탭" style="position: absolute; left: 0; right: 0; bottom: 0; height: 76px; padding-bottom: 12px; box-sizing: border-box; background: #0B0B0D; border-top: 1px solid rgba(247,247,249,0.08); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+    <a href="HomeEmpty.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; color: #F7F7F9">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20h-5v-6H9v6H4z"></path></svg>홈</a>
+    <a href="Activity.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; color: #8A8A94">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12"></path><path d="M8 12h12"></path><path d="M8 18h12"></path><path d="M4 6h.01"></path><path d="M4 12h.01"></path><path d="M4 18h.01"></path></svg>내역</a>
+    <a href="Policy.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; color: #8A8A94">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h4"></path><path d="M12 17h8"></path><circle cx="10" cy="17" r="2"></circle></svg>정책</a>
+    <a href="Settings.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; color: #8A8A94">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>설정</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

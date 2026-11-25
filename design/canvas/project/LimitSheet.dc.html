@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>한도 바꾸기</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+@keyframes cs-dim{from{opacity:0}to{opacity:1}}
+@keyframes cs-sheet{from{transform:translateY(100%)}to{transform:none}}
+.cs-press{transition:transform 120ms cubic-bezier(0.22,1,0.36,1)}.cs-press:active{transform:scale(0.98)}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; font-variant-numeric: tabular-nums">
+
+  <div aria-hidden="true" style="padding: 76px 20px 0; display: flex; flex-direction: column; gap: 12px; opacity: 0.5">
+    <div style="font-size: 22px; font-weight: 600">정책</div>
+    <div style="height: 112px; border-radius: 16px; background: #17171A"></div>
+    <div style="height: 168px; border-radius: 16px; background: #17171A"></div>
+  </div>
+  <a href="Policy.dc.html" aria-label="닫기" style="position: absolute; inset: 0; background: rgba(0,0,0,0.62); animation: cs-dim 200ms cubic-bezier(0.22,1,0.36,1) both"></a>
+
+  <div role="dialog" aria-modal="true" aria-labelledby="limit-title" style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 20px 32px; border-radius: 28px 28px 0 0; background: #1A1A1E; display: flex; flex-direction: column; animation: cs-sheet 360ms cubic-bezier(0.22,1,0.36,1) 40ms both">
+    <span style="align-self: center; width: 36px; height: 5px; border-radius: 3px; background: #3A3A42"></span>
+    <h1 id="limit-title" style="margin: 20px 0 0; font-size: 22px; font-weight: 600">1회 최대 금액</h1>
+    <p style="margin: 6px 0 0; font-size: 14px; color: #A0A0AA">지금 0.50 USDC</p>
+
+    <label for="limit" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">새 1회 최대 금액</label>
+    <div style="margin-top: 20px; display: flex; align-items: baseline; gap: 8px; height: 64px; padding: 0 16px; border-radius: 16px; background: #1F1F23; border: 1px solid rgba(212,212,216,0.55)">
+      <input id="limit" inputmode="decimal" value="1.00" style="flex: 1; min-width: 0; height: 62px; border: 0; background: transparent; color: #F7F7F9; font-family: inherit; font-size: 32px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; outline: none">
+      <span style="font-size: 17px; color: #A0A0AA">USDC</span>
+    </div>
+    <p style="margin: 10px 0 0; font-size: 13px; line-height: 20px; color: #8A8A94">하루 최대 5.00 USDC보다 클 수 없어요. 바꾸면 다음 결제부터 적용돼요</p>
+
+    <a href="Lock.dc.html" class="cs-press" style="margin-top: 24px; height: 56px; border-radius: 16px; background: linear-gradient(#F7F7F9, #E9E9EC); color: #0E0E10; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600">저장</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

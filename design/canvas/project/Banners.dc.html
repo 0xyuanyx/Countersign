@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>홈 상태 배너</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/535cca3be3e931c3cd2015211131788c) format("opentype");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/0a391f5b67d17d0917b7dbd79fe08768) format("opentype");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url(/_blob/3d64c27a2cf1f92015e7d8fad7cb0f61) format("opentype");font-weight:600;font-display:swap}
+body{margin:0;background:#0B0B0D}
+a{color:#F7F7F9;text-decoration:none}a:hover{color:#FFFFFF}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; padding: 16px 20px 0; background: #0B0B0D; color: #F7F7F9; font-family: Pretendard, system-ui, sans-serif; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+
+  <h1 style="margin: 12px 0 0; font-size: 20px; font-weight: 600">홈 맨 위 상태 줄</h1>
+  <p style="margin: 6px 0 0; font-size: 13px; line-height: 20px; color: #8A8A94">문제가 있을 때만 상태 줄 자리(지켜보는 중)에 한 줄로 나와요. 여러 개면 가장 급한 것 하나만</p>
+
+  <h2 style="margin: 24px 0 8px; font-size: 13px; font-weight: 500; color: #8A8A94">지갑 서버에 닿지 않을 때</h2>
+  <div role="status" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 12px 0 16px; border-radius: 14px; background: #17171A; border: 1px solid rgba(255,92,92,0.32)">
+    <span style="width: 8px; height: 8px; border-radius: 4px; background: #FF5C5C; flex: none"></span>
+    <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 500">지갑 서버와 연결이 끊겼어요</span><span style="font-size: 12px; color: #8A8A94">2분 전 마지막 확인 · 에이전트 결제도 멈춰 있어요</span></span>
+    <button type="button" style="height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: #2A2A30; color: #F7F7F9; font-family: inherit; font-size: 13px">다시 시도</button>
+  </div>
+
+  <h2 style="margin: 24px 0 8px; font-size: 13px; font-weight: 500; color: #8A8A94">잔액이 1회 한도보다 적을 때</h2>
+  <a href="Deposit.dc.html" role="status" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 12px 0 16px; border-radius: 14px; background: #17171A; border: 1px solid rgba(245,165,36,0.40)">
+    <span style="width: 8px; height: 8px; border-radius: 4px; background: #F5A524; flex: none"></span>
+    <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 500">잔액이 0.30 USDC 남았어요</span><span style="font-size: 12px; color: #8A8A94">1회 한도 0.50보다 적어서 결제가 막힐 수 있어요</span></span>
+    <span style="font-size: 13px; color: #A0A0AA">입금</span>
+  </a>
+
+  <h2 style="margin: 24px 0 8px; font-size: 13px; font-weight: 500; color: #8A8A94">에이전트가 꺼져 있을 때</h2>
+  <div role="status" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 12px 0 16px; border-radius: 14px; background: #17171A; border: 1px solid rgba(247,247,249,0.10)">
+    <span style="width: 8px; height: 8px; border-radius: 4px; background: #5E5E66; flex: none"></span>
+    <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 500">구매 에이전트 1이 꺼져 있어요</span><span style="font-size: 12px; color: #8A8A94">맡길 일 입력칸이 잠겨요 · 에이전트를 켜면 풀려요</span></span>
+  </div>
+
+  <h2 style="margin: 28px 0 8px; font-size: 13px; font-weight: 500; color: #8A8A94">내역이 없을 때 (처음)</h2>
+  <div style="padding: 28px 20px; border-radius: 16px; border: 1px dashed rgba(247,247,249,0.12); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center">
+    <span style="font-size: 15px; font-weight: 500">아직 결제가 없어요</span>
+    <span style="font-size: 13px; line-height: 20px; color: #8A8A94">아래 입력칸에 할 일을 적으면<br>에이전트가 결제할 때마다 여기 보여요</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
