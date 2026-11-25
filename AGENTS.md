@@ -1,6 +1,6 @@
 # AGENTS.md — AI 협업 규칙
 
-이 저장소는 사람(태민)과 AI 협업자(GPT, Claude)가 같이 개발한다. 작업 전에 **`PROJECT.md`를 먼저 읽는다.** 이 파일과 `PROJECT.md`가 충돌하면 `PROJECT.md`가 기준이다.
+이 저장소는 사람(태민)과 AI 협업자가 같이 개발한다. 작업 전에 **`PROJECT.md`를 먼저 읽는다.** 이 파일과 `PROJECT.md`가 충돌하면 `PROJECT.md`가 기준이다.
 
 ## 절대 규칙
 
@@ -17,6 +17,7 @@
 6. **키는 `signer` 프로세스에만 둔다.** 지갑 MCP 서버와 에이전트 코드는 키를 읽지 않는다. 키 내보내기, 임의 서명(`sign_raw`) 도구를 만들지 않는다.
 7. **팀 출품작 영역을 구현하지 않는다**: 폐기(revoke) 시연, 온체인 누적 한도, 위임 사슬, 책임 판정 (`PROJECT.md` §2.4).
 8. README와 발표의 모든 주장은 VERIFIED / REPRODUCIBLE / NOT-CLAIMED 중 하나로 표시한다. 확인 안 된 것을 된 것처럼 쓰지 않는다.
+9. **HSP 연동은 공식 가이드 `docs/hsp-agentic-payment_EN.md`를 따른다.** 네트워크·토큰·프로토콜은 `get_chain_config`에서만, 서명은 `prepare_payment`가 준 `eip712` 그대로, `submit_payment`에는 `payment_mandate_json` 그대로. `merchant_name`은 항상 같은 팀 이름을 쓴다.
 
 ## 작업 방식
 

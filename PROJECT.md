@@ -5,7 +5,7 @@
 
 > HSK Chain Horizon Seoul Hackathon · **Track 2. Agent Payments & A2A Settlement (HSP)** 출품작
 > 개인 출품(박태민 / 0xyuanyx). 같은 트랙 팀 출품작과는 별개 프로젝트 (§2.3 경계).
-> 이 문서는 사람(태민)과 AI 협업자(GPT, Claude)가 같이 보는 **기준 문서**다. 방향이 바뀌면 이 문서부터 고친다.
+> 이 문서는 사람(태민)과 AI 협업자가 같이 보는 **기준 문서**다. 방향이 바뀌면 이 문서부터 고친다.
 > 최종 수정: 2026-11-24 (경쟁작 19개 분석 반영, §2·§4·§5·§6·§8·§9·§10 개정)
 
 ---
@@ -79,7 +79,7 @@
 | # | 차별점 | 경쟁작 대비 |
 |---|---|---|
 | D1 | **HSP 공식 MCP의 서명자(Signer)로 붙는 지갑 제품**: `npx` 한 줄 설치, Claude Desktop·Cursor·GPT 어디에든 MCP로 연결 | 경쟁작은 자기 앱 전용 흐름. 우리는 생태계 부품 → 공식 제품 가산점 + "생태계 가치" |
-| D2 | **사람 클릭 없는 자율 결제**: 사람은 정책을 한 번만 정하고, 결제마다 지갑이 사람 대신 clear-signing 검증 | leash·Tandem은 결제마다 사람 승인 |
+| D2 | **허용한 판매자는 사람 클릭 없이, 처음 보는 판매자만 사람에게 묻는다** (11/25 태민 결정): 주인이 허용한 판매자는 지갑 검증(6칸)만 통과하면 요청 없이 바로 결제. 처음 보는 판매자는 `NEEDS_OWNER_APPROVAL`로 폰 앱에 구매 요청 카드가 뜨고, 카드 아래 "다음부터 이곳은 요청 없이 바로 결제할까요? 취소 / 승인"으로 등록할 수 있다. 등록 판매자 이름 + 다른 주소는 묻지 않고 거절. HSP 가이드의 "서명 전 사람 확인"을 그대로 따르려면 정책 `approvalMode: every_payment`로 모든 결제를 카드 승인으로 바꿀 수 있다(선택). 어느 쪽이든 검증 실패는 카드조차 뜨지 않는다 | leash·Tandem은 결제마다 사람이 원본 값을 판단, OKX Agentic Wallet은 에이전트가 시키는 대로 서명. 우리는 지갑이 먼저 걸러 내고 사람은 새 판매자만 본다 |
 | D3 | **키 격리**: 서명 키는 별도 서명 프로세스에만 있고, 에이전트가 보는 MCP 서버에는 키가 없다. "검증 통과 티켓" 없이는 서명 프로세스가 아무것도 서명하지 않는다 | 경쟁작은 에이전트 프로세스가 키를 같이 쥔다 |
 | D4 | **실제 LLM 레드팀 수치**: Claude·GPT 에이전트에 인젝션 시나리오를 돌려 "지갑 없을 때 N건 결제됨 → 지갑 있을 때 0건, 정상 결제 오탐 0건" | 실제 LLM이 속는 장면을 잰 곳이 없다 |
 | D5 | **에이전트가 읽을 수 있는 거부**: 거부 코드와 다음 행동(예: "판매자에게 주문 재발급 요청")을 구조화해서 돌려줘, 에이전트가 스스로 복구한다 | 경쟁작 거부는 사람용 문구 |
@@ -125,14 +125,23 @@
 
 ### 4.1 공식 HSP Agentic Payment MCP 서버 (핵심 경로)
 
-출처: 공개 경쟁작 README(hsk-meter, leash)의 기록. **HSP 가이드 원문으로 다시 확인할 것 (§9 #1).**
+출처: **운영진이 준 공식 가이드** `docs/hsp-agentic-payment_EN.md` (HSP Agentic Payment — Setup and Execution Guide, QA, 2026-10-30). 아래와 가이드가 다르면 가이드가 기준이다.
 
-- 주소(QA): `https://mcp-qa.hashkeymerchant.com/` · **IP 허용 목록 방식** · 2026-10-30 해커톤 팀에 공개
-- 도구 8개: `get_chain_config`, `create_order`, `get_order`, `prepare_payment`, `finalize_payment`, `estimate_fee`, `submit_payment`, `query_payment`
-- 흐름: 판매 측 `create_order` → 구매 측 `get_order`, `prepare_payment`(EIP-712 데이터와 payment payload 반환) → **지갑이 EIP-3009 `TransferWithAuthorization` 서명** → `finalize_payment` → `submit_payment` → HSP relayer가 브로드캐스트(구매자는 가스 불필요) → `query_payment` 폴링
-- 상태: `payment-safe`(확인 절반)와 `payment-finalized`를 구분해서 보여 준다. 15~40분 뒤에는 `query_payment`가 오류를 돌려줄 수 있다
-- 오류 30043: 이전 서명의 `validBefore`가 지나기 전에는 새로 서명하지 않는다. 이전 서명은 재제출하지 않는다
-- 인도 대회 시점 QA가 지원한 네트워크: Base Sepolia, Ethereum Sepolia, Arbitrum Sepolia. HSK 테스트넷(133)은 목록에 있지만 테스트 USDC를 공개적으로 받을 방법이 없었다. **HSK 메인넷 HSP 결제는 열려 있지 않았다**
+- 주소(QA): `https://mcp-qa.hashkeymerchant.com/` · Streamable HTTP · MCP 설정 키 `hsp-agentic-payment` · 헬스체크 `GET /health`
+- **IP 허용**: 실제로 HSP에 접속하는 환경의 공인 egress IP를 운영진 스프레드시트 "HSP Agentic Payment — QA Access Request"에 등록 → 허용 확인 후 접속. IP가 바뀌면 다시 등록. 허용 전에는 재시도하지 않는다
+- **App Key/Secret 불필요**: HSP 서버가 관리. Merchant 판매자 등록 필요 없음
+- 도구 8개: `get_chain_config`, `create_order`, `get_order`, `prepare_payment`, `finalize_payment`, `estimate_fee`, `submit_payment`, `query_payment`. 연결 후 라이브 입력 스키마를 확인하고 그대로 쓴다. `finalize_payment` 없으면 진행 금지
+- 네트워크·토큰·컨트랙트·프로토콜은 **`get_chain_config` 응답에서만** 가져온다 (기억이나 하드코딩 금지). 토큰의 `payment_protocol`은 `eip3009` 또는 `permit2`
+- `create_order`: `merchant_name`(**팀 집계용 이름, 생성·조회 때 똑같이**), `pay_to`, `cart_mandate`(`amount.currency=USD`, `merchant_authorization` 넣지 않음, `method_data[].supported_methods="https://www.x402.org/"`, `data.x402Version=2`). 반환 `flow_id`, `payment_request_id`, `payment_url` → 둘 다 보관
+- `prepare_payment(flow_id, payer, protocol)` 반환: `eip712{domain,types,primaryType,message}`, `cart_hash`, `token_total_raw`, `quote_expires_at`(5분), `pay_to`, `payer`, `payment_request_id`, `payment_payload`, `payment_mandate_contents`
+- 서명: 반환된 `eip712`를 **그대로** EIP-712 서명(65바이트). primaryType은 eip3009면 `TransferWithAuthorization`, permit2면 `PermitTransferFrom`. 서명 전 잔액 ≥ `token_total_raw` 확인
+- `finalize_payment(signature, payment_payload, payment_mandate_contents, cart_hash)` → `payment_mandate_json` → `submit_payment`에 **그대로** 전달. JWT·해시를 직접 만들지 않는다
+- 가스: 주문의 `gas_fee_advanced`가 true면 플랫폼이 대납, false면 `payment_details_total = token_usd + gas_fee`
+- 견적 만료나 오류 `30043`이면 `prepare_payment`부터 다시 하고 새로 서명. 옛 서명 재제출 금지. 제출 결과가 불확실하면 새 주문 만들지 말고 조회부터
+- `query_payment(flow_id 또는 payment_request_id, expected_merchant_name)` 15초마다. `attribution_verified=true`여야 팀 귀속 인정. `payment-timeout`은 복구 가능(계속 조회). `payment-safe`(확인 절반)와 `payment-finalized`(최종)를 구분해서 보고. tx 해시는 `payment.tx_signature`. 10분 넘으면 "Pending confirmation"
+- **가이드의 사람 확인 단계**: 서명 전과 제출 전에 `pay_to`, payer, `token_total_raw`를 사용자에게 보여 주고 명시적 승인을 받으라고 되어 있다 → §2.3 D2 처리 방식 참고
+- 가이드 예시 지갑은 **OKX Agentic Wallet**(에이전트가 쓰는 지갑). 우리 지갑의 직접 비교 대상이다 (§2.3)
+- **테스트넷 HSK·USDC는 운영진이 직접 지급** (2026-11-25 답변). HSK 테스트넷(133)에서 HSP 결제를 할 수 있을 가능성이 높다. `get_chain_config`로 확인할 것
 
 ### 4.2 Merchant REST API (보조, 자격 증명 나오면)
 
@@ -236,6 +245,11 @@
 | `get_balance` | — | 허용 체인별 USDC 잔액(RPC 읽기), 남은 24시간 한도 |
 | `get_policy` | — | 허용 판매자·주소, 체인, 건당·일일 한도, 24시간 사용액, 정지 여부 (읽기 전용) |
 | `get_history` | `limit` | 최근 승인·거부·실패 내역 |
+| `next_task` | — | 주인이 앱에서 맡긴 일 `{id, text, max_amount}` (11/25). 결제 때 `intent.task_id`로 넘기면 지갑이 그 일의 최대 금액을 강제 |
+| `finish_task` | `task_id`, `status(done/failed)`, `note` | 맡긴 일 결과 보고 (11/25) |
+
+**판매자 규칙 (11/25 태민 결정)**: 등록 판매자는 바로 결제, 처음 보는 판매자는 `NEEDS_OWNER_APPROVAL`로 주인 승인 대기("다음부터 묻지 않기"면 정책에 등록), 등록 판매자 이름 + 다른 주소는 묻지 않고 `PAYEE_MISMATCH`. 승인은 주문 값(주소·금액·체인·토큰) 전체에 묶이고, signer도 같은 승인 파일을 읽어 다시 검사한다.
+**원격 MCP (11/25)**: 같은 도구를 Streamable HTTP(`apps/wallet-mcp/src/main-http.ts`, :7440)로도 연다. 주인 API가 에이전트별 연결 주소·토큰을 만들고 끊는다. HTTPS는 앞단 터널·프록시.
 
 주인(사람)용 기능(정책·내역 보기, 정지·재개)은 MCP가 아니라 별도 로컬 HTTP **주인 API**(`apps/owner-api`, PWA 앱용)로 연다. 정지는 토큰 없이, 재개와 정책 변경(`PATCH /api/policy`)은 주인 토큰이 있어야 한다. 정책 파일은 지갑 MCP와 signer가 결제마다 다시 읽어 재시작 없이 반영한다(서명 계정은 못 바꿈). 정지 스위치는 지갑 MCP와 **signer가 둘 다** 서명할 때마다 다시 읽는다.
 
@@ -254,10 +268,12 @@
 | `SIGNATURE_INVALID` | 서명 후 복원한 서명자가 에이전트 계정이 아님 | 결제 중단, 사람에게 보고 (11/24 추가) |
 | `TICKET_INVALID` | signer에 검증 티켓 없이/위조·만료·재사용 티켓으로 요청 | 지갑 `pay`로 처음부터 다시 (11/24 추가) |
 | `INVALID_INPUT` | intent 등 입력 형식 오류 | 형식 고쳐 재호출 (11/24 추가) |
-| `PAUSED` | 주인이 결제를 정지함 | 결제하지 말고 주인에게 알림 (11/24 추가) |
+| `WALLET_PAUSED` | 주인이 결제를 정지함 | 결제하지 말고 주인에게 알림 (11/24 추가) |
 | `HSP_ERROR` | HSP 호출 실패·없는 주문·응답 형식 다름 | 잠시 후 재시도, 계속되면 새 주문 요청 (11/24 추가) |
 | `SIGNER_UNAVAILABLE` | signer 프로세스가 꺼져 있음 | 주인에게 signer 실행 요청 (11/24 추가) |
 | `POLICY_INVALID` | 정책 파일이 깨졌거나 서명 계정이 바뀜 | 결제하지 말고 주인에게 알림 (11/24 추가) |
+| `NEEDS_OWNER_APPROVAL` | 처음 보는 판매자(또는 `approvalMode: every_payment`). 금액·한도 검사는 다 통과함. 주인 앱에 구매 요청이 생김 (`request_id`) | 1~2분 뒤 같은 주문으로 재시도하거나 다른 판매자 찾기 (11/25 추가) |
+| `OWNER_REJECTED` | 주인이 그 구매 요청을 거절함 | 같은 주문 결제 금지, 다른 판매자 (11/25 추가) |
 
 ### 5.5 정책 파일 (최소)
 
@@ -281,7 +297,7 @@
 
 - `registerAgent(address agent, bytes32 policyHash)` — 주인이 에이전트 계정과 정책 해시를 등록
 - ~~`record(bytes32 orderHash, bytes32 typedDataHash, address payTo, uint256 amount, uint256 payChainId, bytes32 payTxHash)` — 등록된 에이전트 계정만 호출~~
-- **변경(11/24, Claude)**: `record(bytes32 orderHash, Authorization a, bytes signature, bytes32 payTxHash)` — **주인(owner)만 호출**하고, 컨트랙트가 EIP-3009 typed data digest를 체인 위에서 다시 계산해 `ecrecover == a.from`(등록된 에이전트)인지 확인한다.
+- **변경(11/24)**: `record(bytes32 orderHash, Authorization a, bytes signature, bytes32 payTxHash)` — **주인(owner)만 호출**하고, 컨트랙트가 EIP-3009 typed data digest를 체인 위에서 다시 계산해 `ecrecover == a.from`(등록된 에이전트)인지 확인한다.
   - 이유 1: 에이전트 계정이 직접 tx를 보내려면 signer가 "임의 tx 서명"을 해야 해서 키 격리(D3) 원칙과 충돌한다.
   - 이유 2: payTo·amount·token·payChainId가 에이전트 서명으로 묶여서, 기록하는 쪽이 값을 바꿔 적을 수 없다 (서명 바이트까지 묶는 D6이 체인 위에서 검증됨).
   - orderHash·payTxHash는 서명에 안 묶이므로 owner만 붙인다. 같은 orderHash 중복 기록은 거부.
@@ -344,13 +360,13 @@ countersign-agent/          (로컬 폴더: ~/Developer/Countersign)
 
 | # | 질문 | 왜 중요 | 어디서 확인 |
 |---|---|---|---|
-| 1 | HSP 공식 Agentic Payment MCP 접근: IP 허용 신청 방법, 가이드 원문(도구 입력·출력 형식) | 핵심 경로 전체 | 운영진 / 텔레그램 |
-| 2 | **서울 대회에서 HSK 메인넷(또는 HSK 테스트넷 133) HSP 결제가 열리는지**, 테스트 USDC 받는 방법 | "HSK Chain에서 HSP 결제"를 보여 줄 수 있는지 | 운영진 |
-| 3 | 허용 IP: 고정 IP 서버를 어디에 둘지 (맥은 IP가 바뀐다) | 실연동 위치 | 결정: 태민 |
+| 1 | ~~HSP MCP 접근 방법, 가이드 원문~~ → 해결: 가이드 `docs/hsp-agentic-payment_EN.md`, IP는 운영진 스프레드시트에 등록 | 핵심 경로 전체 | 해결 (11/25) |
+| 2 | 테스트넷 HSK·USDC는 운영진이 직접 지급 (해결). **HSK 메인넷 HSP 결제는 여전히 미확인**, `get_chain_config`로 확인 | "HSK Chain에서 HSP 결제"를 보여 줄 수 있는지 | 운영진 |
+| 3 | 허용 IP: **집 인터넷 IP로 결정** (11/25, 태민). 실결제는 집에서만 돌린다. 12/5 현장은 IP가 달라서 실결제 영상을 미리 녹화하고, 가능하면 현장 IP를 당일 아침 추가 요청 | 실연동 위치, 데모 당일 | 결정됨 |
 | 4 | "공식 권장 제품·프레임워크" 목록에 HSP MCP 말고 더 있는지 | 가산점 | 운영진 |
 | 5 | ~~서울 심사 기준~~ → 완성도·기술적 성숙도·혁신성 (Luma, 배점 없음) | README·발표 구조 | 해결 |
 | 6 | 메인넷 HSK 가스 확보 | 컨트랙트 배포, 증거 기록 | 거래소 출금 |
-| 8 | HSP MCP 도구별 **입력 인자 이름과 응답 형태** (`get_order`의 금액이 최소 단위 정수인지 "0.10" 같은 소수인지, `prepare_payment`가 typed data를 어떤 키로 주는지, `finalize_payment`에 무엇을 넘기는지) | 지금은 `packages/hsp/src/types.ts`에 내부 표준 형태를 정해 두고 mock이 그걸 따른다. 실제 형식은 `mcp-client.ts`의 `args`·`adapt` 두 곳만 고치면 된다 | HSP 가이드 원문 |
+| 8 | (일부 해결: 가이드에 `prepare_payment` 반환 키와 `finalize_payment` 입력이 나옴 → §4.1. 라이브 스키마로 최종 확인) HSP MCP 도구별 **입력 인자 이름과 응답 형태** (`get_order`의 금액이 최소 단위 정수인지 "0.10" 같은 소수인지, `prepare_payment`가 typed data를 어떤 키로 주는지, `finalize_payment`에 무엇을 넘기는지) | 지금은 `packages/hsp/src/types.ts`에 내부 표준 형태를 정해 두고 mock이 그걸 따른다. 실제 형식은 `mcp-client.ts`의 `args`·`adapt` 두 곳만 고치면 된다 | HSP 가이드 원문 |
 | 9 | USDC EIP-712 domain의 `name`/`version`이 체인별로 무엇인지 (HSK 177·133, Sepolia 계열) | 틀리면 서명이 체인에서 무효가 될 뿐 돈이 새지는 않는다. 지금은 HSP가 준 값을 그대로 쓰고 검사하지 않는다 | 토큰 컨트랙트 `name()`/`version()` 조회 |
 | 10 | `query_payment` 응답에 `order_ref`가 있는지, 판매자가 "이 결제가 내 주문 것"임을 어떻게 확인하는지 (지금은 구매자가 `payment_id`를 판매자에게 넘기고, 판매자가 `query_payment`의 `order_ref`로 대조한다고 가정. mock은 그렇게 동작) | 판매 서버 납품 조건 | HSP 가이드 원문 |
 | 7 | ~~Merchant REST 판매자 등록이 필요한지~~ → 불필요. 공식 MCP 서버가 판매자 키를 대신 들고 EIP-712 데이터를 돌려준다 (hsk-meter `hsp_qa/README.md`) | 일 줄이기 | 해결 |
