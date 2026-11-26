@@ -25,16 +25,17 @@ pnpm --filter @countersign/owner-app pair      # 터미널에 짝짓기 QR
 앱은 Vercel 고정 주소에서, 지갑 데이터는 맥의 주인 API에서 온다. Vercel에는 프록시가 없으므로 앱은 짝짓기 QR에 든 주인 API 주소(`api=`)로 직접 부른다.
 
 ```
-폰 (https://<앱>.vercel.app) ──HTTPS·CORS──▶ 맥 터널 https://<고정 주소>/api/ ──▶ 127.0.0.1:7420 주인 API
+폰 (https://countersign-wallet.vercel.app) ──HTTPS·CORS──▶ 맥 터널 https://<고정 주소>/api/ ──▶ 127.0.0.1:7420 주인 API
 ```
 
 - **Vercel 프로젝트**: GitHub 저장소를 가져오고 Root Directory를 `apps/owner-app`로. 나머지는 `vercel.json`(설치·빌드·헤더)이 정한다. **환경변수는 넣지 않는다** (비밀 값 없음. 데모 모드는 연결 화면 "지갑 없이 데모로 둘러보기"로 Vercel만으로 동작). 선택: `VITE_OWNER_API_URL`(공개 값)을 넣으면 `api=`가 없는 연결 코드에도 그 주소를 쓴다.
-- **맥 쪽** (한 번만 `apps/demo/tunnel.sh setup <호스트 이름>`, Cloudflare에 도메인이 있어야 함. 없으면 `quick`으로 임시 주소):
+- **맥 쪽**: 고정 주소는 ngrok 무료 고정 주소(`https://gone-headscarf-unsoiled.ngrok-free.dev`, 처음 한 번 `ngrok config add-authtoken`과 `tunnel.sh ngrok-setup <주소>`). Cloudflare 도메인이 생기면 `tunnel.sh setup <호스트 이름>` / `run`으로 바꿀 수 있다. 저장소 폴더에서 세 줄을 차례로 (2번은 켜 둔 채로 새 탭에서 3번):
 
 ```bash
-COUNTERSIGN_APP_ORIGIN=https://<앱>.vercel.app COUNTERSIGN_OWNER_API_PUBLIC=1 apps/demo/demo.sh up
-apps/demo/tunnel.sh run
-COUNTERSIGN_APP_URL=https://<앱>.vercel.app COUNTERSIGN_OWNER_API_URL=$(apps/demo/tunnel.sh url) pnpm --filter @countersign/owner-app pair
+COUNTERSIGN_APP_ORIGIN=https://countersign-wallet.vercel.app COUNTERSIGN_OWNER_API_PUBLIC=1 apps/demo/demo.sh up
+apps/demo/tunnel.sh ngrok
+# demo.sh는 지갑 데이터를 저장소 .countersign/에 두므로 짝짓기도 같은 곳의 주인 토큰을 읽게 한다
+COUNTERSIGN_HOME=$PWD/.countersign COUNTERSIGN_APP_URL=https://countersign-wallet.vercel.app COUNTERSIGN_OWNER_API_URL=$(apps/demo/tunnel.sh url) pnpm --filter @countersign/owner-app pair
 ```
 
 - 주인 API는 **공개 모드**(`COUNTERSIGN_OWNER_API_PUBLIC=1`)로 띄운다: 읽기·긴급 정지까지 모든 요청에 주인 토큰, CORS는 Vercel 주소만. 앱은 모든 요청에 토큰을 붙인다.
