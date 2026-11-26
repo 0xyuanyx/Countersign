@@ -46,7 +46,7 @@ export function entryTitle(e: HistoryEntry): string {
 }
 
 export function statusWord(e: HistoryEntry): string {
-  if (e.kind === "withdraw") return "출금";
+  if (e.kind === "withdraw") return e.status === "confirming" ? "출금 확인 중" : e.status === "failed" ? "출금 실패" : "출금";
   return { paid: "결제됨", rejected: "거절", pending: "확인 대기", failed: "실패", confirming: "확인 중" }[e.status];
 }
 

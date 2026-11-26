@@ -1,6 +1,6 @@
 // 홈: 상태, 잔액, 오늘 한도, 입금·긴급 정지, 구매 요청, 방금 막은 결제, 최근 결제, 맡길 일 입력칸
 
-import { addressUrl, ApiError, chainIds, txUrl, type Agent, type HistoryEntry, type Task } from "../api.js";
+import { addressUrl, ApiError, chainIds, txUrl, type Agent, type HistoryEntry, type Task, type Withdrawal } from "../api.js";
 import { app, currentAgent, goneAgents, go, openSheet, refresh, refreshSoon, selectAgent, strip, type Screen } from "../app.js";
 import { store } from "../auth.js";
 import { addrHtml, busy, countTo, esc, hhmm, ic, toast, usdc } from "../ui.js";
@@ -408,17 +408,28 @@ export function withdrawSheet(prefill = ""): void {
   );
 }
 
-/** 출금 진행: 서명 → Sepolia로 보내기 → 끝(탐색기) / 실패(다시 시도). 지갑 서버 호출은 한 번이라 단계는 시간으로 넘기고, 끝과 실패는 응답으로 정한다 */
-function withdrawProgress(agentId: string, chainId: number, amount: string): void {
-  const steps = ["서명", "Sepolia로 전송", "완료"];
+/** 출금 요청 id: 영문 소문자·숫자·-·_ 8~64자. 버튼을 누를 때 한 번 만들고 다시 시도해도 같은 값 → 출금은 한 번만 */
+function newRequestId(): string {
+  const r = crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `wd-${r.toLowerCase()}`;
+}
+
+/**
+ * 출금 진행: 서명 → Sepolia로 전송 → 블록 확인 → 끝(탐색기) / 실패(같은 요청으로 다시 시도).
+ * 지갑 서버가 pending(보냈지만 영수증 전)을 주면 같은 request_id로 5초마다 다시 물어 확인만 이어 간다.
+ */
+function withdrawProgress(agentId: string, chainId: number, amount: string, requestId = newRequestId()): void {
+  const steps = ["서명", "Sepolia로 전송", "블록 확인"];
   const stepHtml = (cur: number, failed = false) =>
     `<ol class="work-steps" style="margin-top:20px">${steps
       .map((s, i) => `<li class="${i < cur ? "done" : i === cur ? (failed ? "fail" : "now") : ""}" ${i === cur ? 'aria-current="step"' : ""}><span class="b"></span><span>${s}</span></li>`)
       .join("")}</ol>`;
   let timer: number | undefined;
+  let poll: number | undefined;
+  let open = true;
   openSheet(
     `<h1 class="title-md" data-title>${usdc(amount)} USDC 출금하는 중</h1>
-     <p class="muted t13" style="margin-top:6px" data-sub>창을 닫아도 출금은 계속돼요</p>
+     <p class="muted t13" style="margin-top:6px;line-height:20px" data-sub>창을 닫아도 출금은 계속돼요</p>
      <div data-steps>${stepHtml(0)}</div>
      <div class="bottom-actions" style="padding-top:20px" data-actions>
        <button class="btn btn-ghost press" data-act="close">닫기</button>
@@ -426,34 +437,67 @@ function withdrawProgress(agentId: string, chainId: number, amount: string): voi
     (sheet, close) => {
       const $ = (k: string) => sheet.querySelector<HTMLElement>(`[data-${k}]`)!;
       let cur = 0;
-      timer = window.setInterval(() => {
-        if (cur < 1) $("steps").innerHTML = stepHtml(++cur);
-      }, 1200);
-      sheet.addEventListener("click", (e) => {
+      let tries = 0;
+      const explorer = (w: Withdrawal) => w.explorer_url ?? txUrl({ tx_hash: w.tx_hash, chain_id: chainId });
+      const linkBtn = (url?: string, primary = true) =>
+        url ? `<a class="btn ${primary ? "btn-primary" : "btn-card"} press" href="${esc(url)}" target="_blank" rel="noopener noreferrer">탐색기에서 거래 보기</a>` : "";
+      const send = () => {
+        clearInterval(timer);
+        $("sub").style.color = "";
+        timer = window.setInterval(() => {
+          if (cur < 1) $("steps").innerHTML = stepHtml(++cur);
+        }, 1200);
+        app.api
+          .withdraw(agentId, amount, requestId)
+          .then((w) => {
+            clearInterval(timer);
+            if (!open) return refreshSoon();
+            if (w.status === "pending") {
+              // 보냈고 영수증 기다리는 중: 같은 요청으로 확인만 이어 간다 (2분쯤까지)
+              cur = 2;
+              $("title").textContent = `${usdc(w.amount)} USDC를 보냈어요`;
+              $("sub").textContent = "블록에 들어가기를 기다리는 중이에요 · 창을 닫아도 내역에서 이어서 볼 수 있어요";
+              $("steps").innerHTML = stepHtml(2);
+              $("actions").innerHTML = `${linkBtn(explorer(w), false)}<button class="btn btn-ghost press" data-act="close">닫기</button>`;
+              if (++tries <= 24) poll = window.setTimeout(send, 5000);
+              else $("sub").textContent = "블록 확인이 늦어요 · 내역에서 확인 중으로 남고, 확인되면 결제됨으로 바뀌어요";
+              return refreshSoon();
+            }
+            $("title").textContent = `${usdc(w.amount)} USDC를 보냈어요`;
+            $("sub").textContent = `받는 곳 ${w.to.slice(0, 6)}…${w.to.slice(-4)} · 블록에서 확인했어요`;
+            $("steps").innerHTML = stepHtml(3);
+            $("actions").innerHTML = `${linkBtn(explorer(w))}<button class="btn btn-ghost press" data-act="close">닫기</button>`;
+            refreshSoon();
+          })
+          .catch((x) => {
+            clearInterval(timer);
+            if (!open) return refreshSoon();
+            $("title").textContent = cur >= 2 ? "출금 확인이 끊겼어요" : "출금하지 못했어요";
+            $("sub").textContent = `${x instanceof ApiError ? x.message : "지갑 서버에서 답이 없어요"}${cur >= 2 ? " · 다시 시도해도 같은 출금을 확인만 해요" : " · 다시 시도해도 출금은 한 번만 돼요"}`;
+            $("sub").style.color = "var(--bad-text)";
+            $("steps").innerHTML = stepHtml(cur, true);
+            $("actions").innerHTML = `<button class="btn btn-primary press" data-act="retry">다시 시도</button><button class="btn btn-ghost press" data-act="close">닫기</button>`;
+            refreshSoon();
+          });
+      };
+      sheet.addEventListener("click", async (e) => {
         const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
-        if (act === "close") void close();
-        if (act === "retry") void close().then(() => withdrawSheet(amount));
+        if (act === "close") {
+          open = false;
+          clearTimeout(poll);
+          void close();
+        }
+        if (act === "retry") {
+          // 돈이 나가는 동작이라 다시 확인. 요청 id는 그대로 → 이미 보냈다면 새로 보내지 않는다
+          if (!(await unlock({ title: "출금을 다시 시도해요", subtitle: `${usdc(amount)} USDC · 같은 출금 요청이에요`, closable: true }))) return;
+          $("title").textContent = `${usdc(amount)} USDC 출금하는 중`;
+          $("sub").textContent = "창을 닫아도 출금은 계속돼요";
+          $("steps").innerHTML = stepHtml(cur);
+          $("actions").innerHTML = `<button class="btn btn-ghost press" data-act="close">닫기</button>`;
+          send();
+        }
       });
-      app.api
-        .withdraw(agentId, amount)
-        .then((w) => {
-          clearInterval(timer);
-          const url = w.explorer_url ?? txUrl({ tx_hash: w.tx_hash, chain_id: chainId });
-          $("title").textContent = `${usdc(w.amount)} USDC를 보냈어요`;
-          $("sub").textContent = `받는 곳 ${w.to.slice(0, 6)}…${w.to.slice(-4)} · 블록에 들어가면 잔액이 바뀌어요`;
-          $("steps").innerHTML = stepHtml(3);
-          $("actions").innerHTML = `${url ? `<a class="btn btn-primary press" href="${esc(url)}" target="_blank" rel="noopener noreferrer">탐색기에서 거래 보기</a>` : ""}<button class="btn btn-ghost press" data-act="close">닫기</button>`;
-          refreshSoon();
-        })
-        .catch((x) => {
-          clearInterval(timer);
-          $("title").textContent = "출금하지 못했어요";
-          $("sub").textContent = x instanceof ApiError ? x.message : "지갑 서버에서 답이 없어요";
-          $("sub").style.color = "var(--bad-text)";
-          $("steps").innerHTML = stepHtml(cur, true);
-          $("actions").innerHTML = `<button class="btn btn-primary press" data-act="retry">다시 시도</button><button class="btn btn-ghost press" data-act="close">닫기</button>`;
-          refreshSoon();
-        });
+      send();
     },
     { label: "출금 진행", dismissable: false },
   );

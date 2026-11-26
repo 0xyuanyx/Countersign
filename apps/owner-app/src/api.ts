@@ -127,7 +127,8 @@ export type CatalogChip = {
 };
 export type Deposit = { address: string; chain_id: number; token: string; token_symbol?: string; explorer_url?: string };
 export type AgentDetail = { agent: Agent; policy?: PolicySummary; balance?: Balance; deposit?: Deposit };
-export type Withdrawal = { tx_hash: string; explorer_url?: string; amount: string; from: string; to: string };
+/** status: done = 체인에서 확인됨, pending = 보냈지만 영수증 전 (같은 request_id로 다시 보내면 확인만 이어서 함) */
+export type Withdrawal = { tx_hash?: string; explorer_url?: string; amount: string; from: string; to: string; status?: "done" | "pending"; request_id?: string };
 /** POST /api/agents 응답. token·url은 이때 한 번만 온다 (비밀번호와 같다) */
 export type NewAgent = {
   id: string;
@@ -178,7 +179,8 @@ export interface OwnerApi {
   pauseAgent(id: string, paused: boolean): Promise<Agent>;
   agentDetail(id: string): Promise<AgentDetail>;
   /** 에이전트 계정의 USDC를 주인 계정(0번)으로. amount가 없으면 전액. 실제 체인 거래 */
-  withdraw(id: string, amount?: string): Promise<Withdrawal>;
+  /** requestId: 출금 버튼을 누를 때 한 번 만든 값. 다시 시도해도 같은 값을 보내면 출금은 한 번만 된다 */
+  withdraw(id: string, amount: string, requestId: string): Promise<Withdrawal>;
   /** 목록에서 숨기기. 서버가 숨김을 저장하면 true, 못 하면 false (앱이 이 폰에만 저장) */
   hideAgent(id: string): Promise<boolean>;
   /** 판매 서버 상품으로 만든 추천 칩 (GET /api/catalog) */
@@ -321,7 +323,8 @@ export class HttpOwnerApi implements OwnerApi {
       throw e;
     }
   };
-  withdraw = (id: string, amount?: string) => this.call<Withdrawal>("POST", `/api/agents/${encodeURIComponent(id)}/withdraw`, amount ? { amount } : {});
+  withdraw = (id: string, amount: string, requestId: string) =>
+    this.call<Withdrawal>("POST", `/api/agents/${encodeURIComponent(id)}/withdraw`, { amount, request_id: requestId });
 }
 
 /** 전역 /api/balance 모양과 에이전트별 모양({usdc, native})을 하나로 */

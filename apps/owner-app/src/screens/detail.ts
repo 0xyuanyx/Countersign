@@ -140,8 +140,8 @@ function txRow(e: HistoryEntry, label: string): string {
 
 function withdrawBody(e: HistoryEntry): string {
   return `
-    <span class="t13" style="margin-top:12px;color:var(--ok)">출금</span>
-    <h1 class="title" style="margin-top:8px">주인 계정으로 ${usdc(e.amount)} USDC를 옮겼어요</h1>
+    <span class="t13" style="margin-top:12px;color:${e.status === "confirming" ? "var(--ask)" : e.status === "failed" ? "var(--bad)" : "var(--ok)"}">출금${e.status === "confirming" ? " · 블록 확인 중" : e.status === "failed" ? " · 실패, 돈은 그대로예요" : ""}</span>
+    <h1 class="title" style="margin-top:8px">주인 계정으로 ${usdc(e.amount)} USDC를 ${e.status === "confirming" ? "보냈어요 · 확인 중" : e.status === "failed" ? "옮기지 못했어요" : "옮겼어요"}</h1>
     <p class="muted" style="margin-top:8px;line-height:22px">${e.chain_id ? esc(chainName(e.chain_id)) : ""}${e.to ? ` · 받는 곳 ${esc(e.to.slice(0, 6))}…${esc(e.to.slice(-4))}` : ""}</p>
     ${txRow(e, "출금 거래")}`;
 }
