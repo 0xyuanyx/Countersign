@@ -4,7 +4,7 @@
 
 import { ApiError, chainIds, type NewAgent } from "../api.js";
 import { app, currentAgent, go, refresh, refreshSoon, selectAgent, type Screen } from "../app.js";
-import { esc, ic, toast, usdc } from "../ui.js";
+import { busy, esc, ic, toast, usdc } from "../ui.js";
 import { agentState, attached, chainName, chainShort, tabs } from "./common.js";
 import { MockOwnerApi } from "../mock.js";
 import { unlock } from "./gates.js";
@@ -163,7 +163,7 @@ export function connect(): Screen {
           }
           (t.closest("button") as HTMLButtonElement).disabled = true;
           try {
-            created = await app.api.createAgent(name);
+            created = await busy(t.closest("button"), "만드는 중…", () => app.api.createAgent(name));
             // 새 에이전트는 계정·정책이 따로라, 만들자마자 그 에이전트를 본다
             selectAgent(created.id);
             refreshSoon();
@@ -268,7 +268,7 @@ export function agentSetup(id: string): Screen {
           const body: { perTxMax?: string; dailyMax?: string } = {};
           if (Number(nPer) !== Number(p?.per_tx_max)) body.perTxMax = nPer;
           if (Number(nDaily) !== Number(p?.daily_max)) body.dailyMax = nDaily;
-          if (body.perTxMax || body.dailyMax) await app.api.patchPolicy(body);
+          if (body.perTxMax || body.dailyMax) await busy(root.querySelector<HTMLElement>('[data-act="start"]'), "저장하는 중…", () => app.api.patchPolicy(body));
           markSetup(id);
           toast("기본 규칙을 저장했어요");
           refreshSoon();

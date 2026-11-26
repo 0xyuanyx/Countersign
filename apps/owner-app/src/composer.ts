@@ -3,9 +3,9 @@
 // 최대 금액 칩은 커진 상자 바로 아래. 보내기 뒤에 따로 뜨는 확인 시트는 없다 (11/26 태민 결정).
 // #app 바깥에 한 번만 만든다: 홈이 3초마다 다시 그려져도 글과 키보드가 사라지지 않게.
 
-import { ApiError } from "./api.js";
+import { ApiError, type CatalogChip } from "./api.js";
 import { app, refreshSoon } from "./app.js";
-import { esc, ic, toast, usdc } from "./ui.js";
+import { busy, esc, ic, toast, usdc } from "./ui.js";
 
 export type ComposerState = {
   /** 잠겼으면 그 이유 (입력칸 대신 자물쇠 줄) */
@@ -16,6 +16,27 @@ export type ComposerState = {
 };
 
 const KEY = "cs.draft";
+/** 입력칸이 비어 있을 때 보여 주는 추천. 지갑 서버의 /api/catalog(판매 서버 상품)에서, 못 받으면 아래 기본값 */
+const SUGGEST: CatalogChip[] = [
+  { id: "d1", label: "내일 서울 날씨 예보 사 와", task_text: "내일 서울 날씨 예보 사 와", scenario: "normal" },
+  { id: "d2", label: "오늘 원·달러 환율 데이터 사 와", task_text: "오늘 원·달러 환율 데이터 사 와", scenario: "normal" },
+  { id: "d3", label: "오늘 주요 뉴스 요약 사 와", task_text: "오늘 주요 뉴스 요약 사 와", scenario: "normal" },
+];
+let catalogFor: string | undefined;
+let catalogChips: CatalogChip[] = SUGGEST;
+/** 에이전트가 바뀌었을 때만 다시 받는다 */
+function loadCatalog(): void {
+  const key = `${app.api.mock}:${app.api.agentId ?? ""}`;
+  if (catalogFor === key) return;
+  catalogFor = key;
+  void app.api
+    .catalog()
+    .then((c) => {
+      if (c.length) catalogChips = c;
+      paintExtra();
+    })
+    .catch(() => {});
+}
 let el: HTMLElement | undefined;
 let max: string | undefined;
 let state: ComposerState | undefined;
@@ -61,6 +82,7 @@ function build(): HTMLElement {
       <div class="composer-extra">
         <div class="composer-max"><span class="t13 muted">최대 금액</span><div class="chips" data-chips></div></div>
         <p class="dim t12" style="line-height:18px">이 금액을 넘는 청구서는 지갑이 서명하지 않아요 · 글에 "한도 올려"가 있어도 정책은 안 바뀌어요</p>
+        <div data-suggest></div>
         <div data-recent></div>
       </div>
     </div>`;
@@ -81,6 +103,8 @@ function build(): HTMLElement {
   const sync = () => {
     send.classList.toggle("off", !ta.value.trim());
     saveDraft(ta.value);
+    const sg = root.querySelector<HTMLElement>("[data-suggest]");
+    if (sg) sg.hidden = !!ta.value.trim();
   };
   sync();
 
@@ -107,7 +131,7 @@ function build(): HTMLElement {
   // 칩·보내기를 눌러도 키보드가 내려가지 않게
   root.querySelector(".composer-wrap")!.addEventListener("pointerdown", (e) => {
     const t = e.target as HTMLElement;
-    if (t.closest("[data-max], [data-recent-text], [data-act='send']") && root.classList.contains("open")) e.preventDefault();
+    if (t.closest("[data-max], [data-recent-text], [data-act='send'], summary") && root.classList.contains("open")) e.preventDefault();
   });
   root.addEventListener("click", async (e) => {
     const t = e.target as HTMLElement;
@@ -134,7 +158,8 @@ function build(): HTMLElement {
       if (!root.classList.contains("open") || !ta.value.trim()) return void ta.focus();
       send.disabled = true;
       try {
-        await app.api.createTask(ta.value.trim(), max ?? chipsFor(state?.perTx ?? "0.5")[0] ?? "0.10");
+        const text = ta.value.trim();
+        await busy(send, "", () => app.api.createTask(text, max ?? chipsFor(state?.perTx ?? "0.5")[0] ?? "0.10"));
         ta.value = "";
         sync();
         ta.blur();
@@ -168,6 +193,19 @@ function paintExtra(): void {
   el.querySelector("[data-chips]")!.innerHTML = chips
     .map((c) => `<button type="button" class="pill" data-max="${c}" aria-pressed="${c === max}">${c}${c === usdc(state!.perTx) ? " · 한도" : ""}</button>`)
     .join("");
+  const sg = el.querySelector<HTMLElement>("[data-suggest]")!;
+  // 정상 칩 3개를 먼저, 공격 칩은 "공격 시험해 보기"에 시나리오마다 하나씩 접어 둔다 (데모용)
+  const normal = catalogChips.filter((c) => c.scenario === "normal").slice(0, 3);
+  const seen = new Set<string>();
+  const attacks = catalogChips.filter((c) => c.scenario !== "normal" && !seen.has(c.scenario) && seen.add(c.scenario));
+  const chip = (c: CatalogChip, tag = false) =>
+    `<button type="button" class="pill" data-recent-text="${esc(c.task_text)}">${esc(c.label)}${tag && c.scenario_label ? ` <span class="dim">· ${esc(c.scenario_label)}</span>` : ""}</button>`;
+  sg.innerHTML = `<p class="t13 muted" style="margin-top:14px">이런 일을 맡겨 보세요</p><div class="chips" style="margin-top:8px;flex-wrap:wrap">${(normal.length ? normal : catalogChips.slice(0, 3)).map((c) => chip(c)).join("")}</div>${
+    attacks.length
+      ? `<details class="more-tasks" style="margin-top:6px"><summary><span class="t13 muted">공격 시험해 보기 · 지갑이 막는지 보기</span><span class="dim">${ic.chevD()}</span></summary><div class="chips" style="margin-top:4px;flex-wrap:wrap">${attacks.map((c) => chip(c, true)).join("")}</div></details>`
+      : ""
+  }`;
+  sg.hidden = !!el.querySelector("textarea")!.value.trim();
   el.querySelector("[data-recent]")!.innerHTML = state.recent.length
     ? `<p class="t13 muted" style="margin-top:14px">최근 맡긴 일</p><div class="chips" style="margin-top:8px;flex-wrap:wrap">${state.recent
         .map((r) => `<button type="button" class="pill" data-recent-text="${esc(r)}">${esc(r)}</button>`)
@@ -178,6 +216,7 @@ function paintExtra(): void {
 /** 홈이 그려질 때마다 부른다. 상자 자체(글·포커스)는 건드리지 않고 둘레만 바꾼다 */
 export function showComposer(s: ComposerState): void {
   el ??= build();
+  loadCatalog();
   state = s;
   el.hidden = false;
   el.classList.toggle("locked", !!s.locked);

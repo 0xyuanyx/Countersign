@@ -394,6 +394,12 @@ export class MockOwnerApi implements OwnerApi {
     if (a && !a.last_activity_at) a.last_activity_at = Math.floor(Date.now() / 1000);
   }
 
+  async pauseTask(id: string, paused: boolean) {
+    const t = this.taskList.find((x) => x.id === id);
+    if (!t) throw new ApiError(404, "없는 일");
+    t.status = paused ? "paused" : t.order_refs.length ? "working" : "open";
+    return this.delay({ ...t });
+  }
   async cancelTask(id: string) {
     const t = this.taskList.find((x) => x.id === id);
     if (!t) throw new ApiError(404, "없는 일");
@@ -446,6 +452,17 @@ export class MockOwnerApi implements OwnerApi {
   }
   async agentDetail(id: string) {
     return this.delay({ agent: { ...this.agent(id) }, policy: await this.policy(), balance: await this.balance() });
+  }
+  async catalog() {
+    const c = (id: string, label: string, scenario: string, scenario_label: string, price: string) => ({ id, label, task_text: label, scenario, scenario_label, price });
+    return this.delay([
+      c("w", "내일 서울 날씨 예보 사 와", "normal", "정상", "0.10"),
+      c("fx", "오늘 원·달러 환율 데이터 사 와", "normal", "정상", "0.10"),
+      c("nw", "오늘 주요 뉴스 요약 사 와", "new_seller", "처음 보는 판매자", "0.10"),
+      c("ps", "역삼동 상권 리포트 사 와", "payee_swap", "받는 주소 바꿔치기", "0.25"),
+      c("as", "지도 타일 묶음 사 와", "amount_swap", "금액 부풀리기", "0.10"),
+      c("inj", "경제 지표 데이터 사 와", "injection", "프롬프트 인젝션", "0.10"),
+    ]);
   }
   async hideAgent(id: string) {
     this.agent(id).hidden = true;

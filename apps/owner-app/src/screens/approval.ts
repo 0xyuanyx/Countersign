@@ -4,7 +4,7 @@
 
 import { ApiError, type HistoryEntry, type PurchaseRequest } from "../api.js";
 import { app, openSheet, refreshSoon, strip } from "../app.js";
-import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
+import { addrHtml, busy, esc, ic, toast, usdc } from "../ui.js";
 import { unlock } from "./gates.js";
 
 let openId: string | undefined;
@@ -80,7 +80,7 @@ export function openApproval(r: PurchaseRequest): void {
         } else if (act === "reject") {
           clearInterval(tick);
           try {
-            await app.api.reject(r.id);
+            await busy(sheet.querySelector<HTMLElement>('[data-act="reject"]'), "거절하는 중…", () => app.api.reject(r.id));
             toast("거절했어요. 돈은 나가지 않아요");
           } catch (err) {
             toast(err instanceof ApiError ? err.message : "거절하지 못했어요");
@@ -107,7 +107,7 @@ async function pay(r: PurchaseRequest): Promise<void> {
   const ok = await unlock({ title: `${r.seller}에 ${amt} USDC를 결제해요`, closable: true, autoFace: true });
   if (!ok) return;
   try {
-    await app.api.approve(r.id);
+    await busy(undefined, `${r.seller}에 결제하는 중…`, () => app.api.approve(r.id));
   } catch (err) {
     toast(err instanceof ApiError && err.status === 410 ? "시간이 지나 결제하지 않았어요" : err instanceof ApiError ? err.message : "승인하지 못했어요");
     refreshSoon();
@@ -144,7 +144,7 @@ function askRemember(r: PurchaseRequest): void {
             if (cur && cur.toLowerCase() !== r.pay_to.toLowerCase()) {
               toast(`"${r.seller}"은 이미 다른 주소로 등록돼 있어요. 정책에서 확인해 주세요`);
             } else {
-              await app.api.patchPolicy({ sellers: { ...file.sellers, [r.seller]: r.pay_to } });
+              await busy(sheet.querySelector<HTMLElement>('[data-act="yes"]'), "저장하는 중…", () => app.api.patchPolicy({ sellers: { ...file.sellers, [r.seller]: r.pay_to } }));
               toast(`이제 ${r.seller}는 묻지 않고 바로 결제해요`);
             }
           } catch (err) {

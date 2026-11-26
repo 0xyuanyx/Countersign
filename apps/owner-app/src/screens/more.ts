@@ -3,7 +3,7 @@
 import { ApiError, chainIds } from "../api.js";
 import { app, currentAgent, goneAgents, openSheet, refreshSoon, type Screen } from "../app.js";
 import { createPasskey, isStandalone, passkeySupported, store } from "../auth.js";
-import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
+import { addrHtml, busy, esc, ic, toast, usdc } from "../ui.js";
 import { agentState, chainName, offlineBanner, tabs } from "./common.js";
 import { installGuide, pinChange, unlock } from "./gates.js";
 import { enableNotifications, notifyPermission } from "../notify.js";
@@ -109,7 +109,7 @@ function editLimit(key: "perTxMax" | "dailyMax", cur: string, other: string): vo
         await close();
         if (!(await unlock({ title: `${label}을 ${usdc(cur)}에서 ${usdc(v)} USDC로 바꿔요`, closable: true }))) return;
         try {
-          await app.api.patchPolicy({ [key]: v });
+          await busy(undefined, "정책을 저장하는 중…", () => app.api.patchPolicy({ [key]: v }));
           toast("정책을 바꿨어요. 다음 결제부터 적용돼요");
         } catch (e) {
           toast(e instanceof ApiError ? e.message : "바꾸지 못했어요");

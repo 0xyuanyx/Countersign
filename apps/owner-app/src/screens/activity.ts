@@ -34,6 +34,7 @@ function groupStatus(g: Group): { dot: string; text: string; open: boolean } {
   if (pending) return { dot: "ask", text: "결제 전에 물어보는 중", open: true };
   if (st === "open" || st === "working") return { dot: "ask", text: `진행 중${blocked ? ` · ${blocked}건 막음` : ""}`, open: true };
   if (st === "cancelled") return { dot: "off", text: "그만둠", open: false };
+  if (st === "paused") return { dot: "ask", text: "멈춤", open: true };
   if (paid > 0) return { dot: "", text: blocked ? `끝 · ${blocked}건 막고 ${paid.toFixed(2)} 결제` : `끝 · ${paid.toFixed(2)} USDC`, open: false };
   const last = g.entries[0];
   if (st === "failed" || (last && last.status !== "paid")) return { dot: "bad", text: `못 함${last ? ` · ${shortReason(last)}` : ""}`, open: false };

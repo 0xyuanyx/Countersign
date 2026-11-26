@@ -85,7 +85,7 @@ export type Task = {
   text: string;
   max_amount: string;
   max_amount_raw: string;
-  status: "open" | "working" | "paid" | "done" | "failed" | "cancelled";
+  status: "open" | "working" | "paused" | "paid" | "done" | "failed" | "cancelled";
   agent?: string;
   order_refs: string[];
   note?: string;
@@ -113,6 +113,16 @@ export type Agent = {
   last_seen_at?: number;
   /** 목록에서 숨김 (연결 끊고 잔액 0일 때만). 결제 기록은 서버에 남는다 */
   hidden?: boolean;
+};
+export type CatalogChip = {
+  id: string;
+  label: string;
+  task_text: string;
+  price?: string;
+  seller?: string;
+  scenario: "normal" | "new_seller" | "over_limit" | "payee_swap" | "amount_swap" | "chain_swap" | "injection" | string;
+  scenario_label?: string;
+  exceeds_per_tx?: boolean;
 };
 export type Deposit = { address: string; chain_id: number; token: string; token_symbol?: string; explorer_url?: string };
 export type AgentDetail = { agent: Agent; policy?: PolicySummary; balance?: Balance; deposit?: Deposit };
@@ -157,6 +167,8 @@ export interface OwnerApi {
   tasks(): Promise<Task[]>;
   createTask(text: string, maxAmount: string): Promise<Task>;
   cancelTask(id: string): Promise<Task>;
+  /** 이 일만 멈추기·다시 시작 (지갑 서버에 없으면 UNSUPPORTED) */
+  pauseTask(id: string, paused: boolean): Promise<Task>;
   agents(): Promise<Agent[]>;
   createAgent(name: string): Promise<NewAgent>;
   disconnectAgent(id: string): Promise<Agent>;
@@ -168,6 +180,8 @@ export interface OwnerApi {
   withdraw(id: string, amount?: string): Promise<Withdrawal>;
   /** 목록에서 숨기기. 서버가 숨김을 저장하면 true, 못 하면 false (앱이 이 폰에만 저장) */
   hideAgent(id: string): Promise<boolean>;
+  /** 판매 서버 상품으로 만든 추천 칩 (GET /api/catalog) */
+  catalog(): Promise<CatalogChip[]>;
 }
 
 export const NO_SERVER_URL = "연결 코드에 지갑 서버 주소가 없어요. 맥에서 QR을 다시 띄워 주세요";
@@ -284,6 +298,7 @@ export class HttpOwnerApi implements OwnerApi {
   cancelTask = (id: string) => this.call<Task>("POST", `/api/tasks/${encodeURIComponent(id)}/cancel`, {});
   // 지갑 서버(b1414df~)의 connected는 "실제로 붙은 적 있음"이고 active가 "끊기지 않음"이다.
   // 앱은 connected = 끊기지 않음, 붙었는지는 attached()로 따로 본다
+  pauseTask = (id: string, paused: boolean) => this.call<Task>("POST", `/api/tasks/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, {});
   agents = async () =>
     (await this.call<{ agents: Agent[] }>("GET", "/api/agents")).agents.map((a) => (a.active === undefined ? a : { ...a, connected: a.active }));
   createAgent = (name: string) => this.call<NewAgent>("POST", "/api/agents", { name });
@@ -294,6 +309,8 @@ export class HttpOwnerApi implements OwnerApi {
     const d = await this.call<AgentDetail & { balance?: AgentBalanceRaw }>("GET", `/api/agents/${encodeURIComponent(id)}`);
     return { ...d, balance: d.balance ? normBalance(d.balance) : undefined };
   };
+  catalog = async () =>
+    (await this.call<{ chips?: CatalogChip[] }>("GET", `/api/catalog${this.agentId ? `?agent=${encodeURIComponent(this.agentId)}` : ""}`)).chips ?? [];
   hideAgent = async (id: string) => {
     try {
       const a = await this.call<Agent & { agent?: Agent }>("PATCH", `/api/agents/${encodeURIComponent(id)}`, { hidden: true });

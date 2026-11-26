@@ -3,7 +3,7 @@
 
 import { ApiError } from "../api.js";
 import { app, go, hideHere, openSheet, refreshSoon, type Screen } from "../app.js";
-import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
+import { addrHtml, busy, esc, ic, toast, usdc } from "../ui.js";
 import { agentState, attached } from "./common.js";
 import { unlock } from "./gates.js";
 import { showCreated } from "./onboard.js";
@@ -92,7 +92,7 @@ export function agentEdit(id: string): Screen {
           if (!NAME_RE.test(name)) return void (err.textContent = "영문·숫자·-·_로 40자까지 넣어 주세요");
           btn!.disabled = true;
           try {
-            await app.api.renameAgent(a.id, name);
+            await busy(btn, "저장 중", () => app.api.renameAgent(a.id, name));
             toast("이름을 바꿨어요");
             refreshSoon();
           } catch (x) {
@@ -105,7 +105,7 @@ export function agentEdit(id: string): Screen {
           // 멈추는 건 바로, 다시 켜는 건 비밀번호 (긴급 정지와 같은 규칙)
           if (!next && !(await unlock({ title: `${a.name} 다시 켜요`, subtitle: "정책 안에서 다시 결제할 수 있어요", closable: true }))) return;
           try {
-            await app.api.pauseAgent(a.id, next);
+            await busy(btn, next ? "멈추는 중…" : "다시 켜는 중…", () => app.api.pauseAgent(a.id, next));
             toast(next ? "이 에이전트만 멈췄어요" : "다시 켰어요");
             refreshSoon();
           } catch (x) {
@@ -138,8 +138,10 @@ function moveSheet(id: string, name: string): void {
         await close();
         if (!(await unlock({ title: "새 연결 주소를 만들어요", subtitle: "지금 주소는 바로 끊겨요", closable: true }))) return;
         try {
-          await app.api.disconnectAgent(id);
-          showCreated(await app.api.createAgent(name));
+          await busy(undefined, "새 연결 주소를 만드는 중…", async () => {
+            await app.api.disconnectAgent(id);
+            showCreated(await app.api.createAgent(name));
+          });
           refreshSoon();
           go("connect");
         } catch (x) {
@@ -166,7 +168,7 @@ function hideSheet(id: string, name: string): void {
         if (act !== "go") return;
         await close();
         try {
-          if (!(await app.api.hideAgent(id))) hideHere(id);
+          if (!(await busy(undefined, "숨기는 중…", () => app.api.hideAgent(id)))) hideHere(id);
           toast("목록에서 숨겼어요");
           go("settings");
           refreshSoon();
@@ -194,7 +196,7 @@ function disconnectSheet(id: string, name: string): void {
         await close();
         if (!(await unlock({ title: "연결을 끊어요", subtitle: name, closable: true }))) return;
         try {
-          await app.api.disconnectAgent(id);
+          await busy(undefined, "연결을 끊는 중…", () => app.api.disconnectAgent(id));
           toast("연결을 끊었어요");
           refreshSoon();
         } catch (x) {

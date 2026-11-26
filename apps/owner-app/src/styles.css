@@ -27,6 +27,8 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); }
+/* 더블탭·핀치 확대 막기 (터치 미스 방지). 입력칸은 16px 이상이라 아이폰이 입력할 때 확대하지 않는다 */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font-family: "Pretendard", "Pretendard Variable", system-ui, -apple-system, sans-serif;
   font-size: 15px;
@@ -250,7 +252,7 @@ details[open] > summary .chev { transform: rotate(180deg); }
 .scan-box .c2 { right: 20px; top: 20px; border-right-width: 3px; border-top-width: 3px; border-radius: 0 10px 0 0; }
 .scan-box .c3 { left: 20px; bottom: 20px; border-left-width: 3px; border-bottom-width: 3px; border-radius: 0 0 0 10px; }
 .scan-box .c4 { right: 20px; bottom: 20px; border-right-width: 3px; border-bottom-width: 3px; border-radius: 0 0 10px 0; }
-.field { width: 100%; height: 52px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); color: var(--fg); font: inherit; font-size: 15px; padding: 0 16px; outline: none; }
+.field { width: 100%; height: 52px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); color: var(--fg); font: inherit; font-size: 16px; padding: 0 16px; outline: none; }
 .field:focus { border-color: rgba(247, 247, 249, 0.24); }
 textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: none; }
 .err-text { color: var(--bad-text); font-size: 13px; }
@@ -326,7 +328,7 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .composer-ic { display: flex; flex: none; }
 .composer textarea {
   flex: 1; min-width: 0; resize: none; border: 0; outline: none; background: transparent; color: var(--fg);
-  font: inherit; font-size: 15px; line-height: 22px; padding: 0; height: 22px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font: inherit; font-size: 16px; line-height: 22px; padding: 0; height: 22px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 .composer textarea::placeholder { color: var(--fg3); }
 .composer .send-ic { border: 0; cursor: pointer; }
@@ -363,3 +365,19 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .gone-agents > summary { list-style: none; }
 .gone-agents > summary::-webkit-details-marker { display: none; }
 .gone-agents[open] > summary svg { transform: rotate(180deg); }
+.work-steps li.fail { color: var(--bad-text); }
+.work-steps li.fail .b { background: var(--bad); }
+/* 진행 중 표시: 버튼·토스트 앞의 작은 원 */
+.spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; vertical-align: -2px; margin-right: 8px; animation: cs-spin 0.8s linear infinite; flex: none; }
+@keyframes cs-spin { to { transform: rotate(360deg); } }
+[aria-busy="true"] { pointer-events: none; opacity: 0.8; }
+.status-line.press { width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 0; cursor: pointer; }
+.dot.working { animation: cs-pulse 1.4s ease-in-out infinite; }
+.work-acts { display: flex; gap: 8px; }
+.work-acts .pill { height: 34px; font-size: 13px; padding: 0 14px; background: var(--cell); }
+.more-tasks { margin-top: 8px; }
+.more-tasks > summary { list-style: none; display: flex; justify-content: space-between; align-items: center; min-height: 40px; cursor: pointer; }
+.more-tasks > summary::-webkit-details-marker { display: none; }
+.more-tasks[open] > summary svg { transform: rotate(180deg); }
+.more-tasks .work-card { margin-top: 8px; }
+.flash-once { animation: cs-flash 900ms ease-out; }

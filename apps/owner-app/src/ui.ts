@@ -123,6 +123,41 @@ export function toast(text: string): void {
   toastTimer = window.setTimeout(() => el.remove(), 2600);
 }
 
+/** 끝날 때까지 떠 있는 "…하는 중" 토스트. 다음 toast()가 바꿔 끼운다 */
+export function toastBusy(text: string): void {
+  toast(text);
+  clearTimeout(toastTimer);
+  const el = document.querySelector(".toast");
+  if (el) el.innerHTML = `<span class="spin"></span>${esc(text)}`;
+  toastTimer = window.setTimeout(() => el?.remove(), 30_000);
+}
+
+/**
+ * 비동기 동작 동안 버튼을 "…하는 중"으로 바꾸고 막는다. 버튼이 없으면(시트가 닫힌 뒤 등) 진행 토스트.
+ * 끝나면 버튼을 되돌린다 (결과 토스트는 부른 쪽에서).
+ */
+export async function busy<T>(btn: HTMLElement | null | undefined, label: string, fn: () => Promise<T>): Promise<T> {
+  if (!btn || !btn.isConnected) {
+    toastBusy(label);
+    try {
+      return await fn();
+    } finally {
+      if (document.querySelector(".toast")?.querySelector(".spin")) document.querySelector(".toast")?.remove();
+    }
+  }
+  const html = btn.innerHTML;
+  btn.setAttribute("aria-busy", "true");
+  if (btn instanceof HTMLButtonElement) btn.disabled = true;
+  btn.innerHTML = `<span class="spin"></span>${esc(label)}`;
+  try {
+    return await fn();
+  } finally {
+    btn.removeAttribute("aria-busy");
+    if (btn instanceof HTMLButtonElement) btn.disabled = false;
+    btn.innerHTML = html;
+  }
+}
+
 /** 숫자가 바뀔 때 400ms 동안 이전 값에서 새 값으로 센다 */
 export function countTo(el: Element | null, from: number, to: number, digits = 2): void {
   if (!el) return;
