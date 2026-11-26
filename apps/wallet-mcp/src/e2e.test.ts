@@ -265,7 +265,7 @@ describe("지갑 서비스: 그 밖의 거부", () => {
     });
     let signerCalls = 0;
     const signer: SignerPort = {
-      address: async () => ({ ok: true, op: "address", address: agent.address }),
+      address: async () => ({ ok: true, op: "address", address: agent.address, account_index: 1 }),
       signPayment: async () => {
         signerCalls++;
         throw new Error("호출되면 안 됨");
@@ -291,7 +291,7 @@ describe("지갑 서비스: 그 밖의 거부", () => {
     const w2 = new WalletService({
       ...base,
       hsp,
-      signer: { address: async () => ({ ok: true, op: "address", address: agent.address }), signPayment: async () => { throw new Error(); } },
+      signer: { address: async () => ({ ok: true, op: "address", address: agent.address, account_index: 1 }), signPayment: async () => { throw new Error(); } },
       ledger: new MemorySpendLedger(),
     });
     expect(await w2.payOrder({ order_ref: "nope", intent })).toMatchObject({ code: "HSP_ERROR" });

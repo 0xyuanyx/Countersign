@@ -57,3 +57,26 @@ export function isLoopbackHttp(u: string): boolean {
     return false;
   }
 }
+
+/** 공개 RPC (읽기·출금용). 다른 체인은 COUNTERSIGN_RPC_<chainId> 환경변수로 */
+export const KNOWN_RPC: Readonly<Record<number, string>> = {
+  11155111: "https://ethereum-sepolia-rpc.publicnode.com",
+  177: "https://mainnet.hsk.xyz",
+  133: "https://testnet.hsk.xyz",
+};
+
+/** 블록 탐색기 (주소·tx 링크용) */
+export const KNOWN_EXPLORER: Readonly<Record<number, string>> = {
+  11155111: "https://eth-sepolia.blockscout.com",
+  177: "https://hsk.blockscout.com",
+  133: "https://testnet-explorer.hskchain.net",
+};
+
+export function rpcUrlFor(chainId: number, env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return env[`COUNTERSIGN_RPC_${chainId}`] || KNOWN_RPC[chainId];
+}
+
+export function explorerUrl(chainId: number, kind: "tx" | "address", value: string): string | undefined {
+  const base = KNOWN_EXPLORER[chainId];
+  return base ? `${base}/${kind}/${value}` : undefined;
+}

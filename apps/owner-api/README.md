@@ -50,3 +50,24 @@ COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owne
 - 정책 요약에 `approval_mode`(`unknown_seller` 기본 / `every_payment`)가 있다. `PATCH /api/policy {approvalMode}`로 바꾼다.
 
 - 에이전트별 멈춤은 지갑 MCP(원격 연결 단위)에서 막는다. signer는 연결을 모르므로 전체 긴급 정지(`/api/pause`)만 직접 확인한다.
+
+## 에이전트별 계정 (11/26: 실서비스 구조)
+
+에이전트 연결 하나 = 계정 하나(니모닉 `m/44'/60'/0'/0/n`) + 정책 파일 하나 + 지출 기록 하나. 기존 1번 계정은 첫 에이전트이고 정책은 `COUNTERSIGN_POLICY` 파일 그대로다(11/26 이전에 만든 연결도 1번). 새 연결은 다음 번호를 받고, 기본 정책은 1회 0.5 · 하루 5 · 판매자 없음 · Ethereum Sepolia.
+
+| 메서드·경로 | 응답 |
+|---|---|
+| `GET /api/agents` | `{agents:[{id, name, account_index, address, chain_id, active, connected, paused, attached_at?, last_seen_at?, last_activity_at?, created_at, disconnected_at?}]}`. `connected`는 끊기지 않았고 그 토큰으로 MCP에 실제로 붙은 적이 있을 때 true, `attached_at`은 MCP initialize에 처음 성공한 시각 |
+| `POST /api/agents {name}` | 위 항목 + `token`, `connect{...}`, `deposit{address, chain_id, token, token_symbol, explorer_url}` |
+| `GET /api/agents/:id` | `{agent, policy, balance, deposit}` 상세 화면 한 번에 |
+| `GET /api/agents/:id/balance` | `{agent_id, address, chain_id, token, token_symbol, usdc, native, explorer_url}` 실제 RPC 잔액 (`native`는 가스용 ETH. 결제는 HSP가 가스를 내서 0이어도 됨) |
+| `GET /api/agents/:id/policy` · `/policy/file` · `PATCH /api/agents/:id/policy` | 그 에이전트 정책 (본문은 전역 `/api/policy`와 같음, PATCH는 주인 토큰) |
+| `GET /api/agents/:id/history?limit=` | 그 에이전트 내역만 |
+| `POST /api/agents/:id/withdraw {amount?}` | 주인 토큰. 그 에이전트 USDC를 **주인 0번 계정으로만** 보낸다(받는 곳 고정, 빼면 전액). 한도·정지와 상관없이 된다. 실제 체인 거래 `{ok, tx_hash, explorer_url, amount, from, to, chain_id, token}`. 내역에 `kind:"withdraw"` |
+
+- 전역 경로는 `?agent=<id>`(또는 `?agentId=`)를 받는다: `/api/policy`, `/api/policy/file`, `PATCH /api/policy`, `/api/balance`, `/api/history`, `/api/requests`, `/api/tasks`. 빼면 첫 에이전트(1번 계정).
+- `POST /api/tasks {text, maxAmount, agentId?}`: `agentId`가 있으면 그 에이전트만 `next_task`로 받아 간다.
+- 구매 요청 승인의 "다음부터 묻지 않기"는 요청한 에이전트의 정책 `sellers`에만 들어간다. 요청·내역 항목에 `agent_id`.
+- 내역 결제 항목(`status:"paid"`, `kind:"payment"`)에는 `tx_hash`, `chain_id`, `from`이 있다. HSP mock 결제는 `simulated:true`(tx_hash 가짜, 탐색기 링크 없음). 실제 체인 거래(출금, 실제 HSP 결제)에만 `explorer_url`.
+- 출금 거래: 에이전트 키로 EIP-3009 `TransferWithAuthorization`(→ 주인 0번)에 서명하고 주인 0번 계정이 가스를 내 제출한다. 그래서 주인 0번 계정에 Sepolia ETH가 조금 있어야 한다. 결제가 아니라서 HSP를 거치지 않는다.
+

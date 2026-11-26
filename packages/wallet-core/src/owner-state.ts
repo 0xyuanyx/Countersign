@@ -69,6 +69,8 @@ export const ApprovalRequestSchema = z.object({
   order_expires_at: z.number().int(),
   task_id: z.string().optional(),
   agent: z.string().optional(),
+  /** 요청한 에이전트 연결 id (승인 때 "다음부터 묻지 않기"는 이 에이전트 정책에 들어간다) */
+  agent_id: z.string().optional(),
   decided_at: z.number().int().optional(),
   /** 승인할 때 "다음부터 묻지 않기"를 켰는지 (켰으면 정책 sellers에 등록됨) */
   remember: z.boolean().optional(),
@@ -108,6 +110,7 @@ export class ApprovalStore {
     purpose: string;
     taskId?: string;
     agent?: string;
+    agentId?: string;
     now: number;
   }): ApprovalRequest {
     const existing = this.forOrder(args.order.orderRef);
@@ -128,6 +131,7 @@ export class ApprovalStore {
       order_expires_at: args.order.expiresAt,
       ...(args.taskId && { task_id: args.taskId }),
       ...(args.agent && { agent: args.agent }),
+      ...(args.agentId && { agent_id: args.agentId }),
     };
     this.rec.put(req.id, req);
     return req;
@@ -162,6 +166,8 @@ export const TaskSchema = z.object({
   /** open: 대기 / working: 에이전트가 받아 감 / paid: 결제됨 / done·failed: 에이전트 보고 / cancelled: 주인이 그만둠 */
   status: z.enum(["open", "working", "paid", "done", "failed", "cancelled"]),
   agent: z.string().optional(),
+  /** 주인이 이 일을 맡긴 에이전트 연결 id. 없으면 아무 에이전트나 받아 갈 수 있다 */
+  agent_id: z.string().optional(),
   order_refs: z.array(z.string()),
   note: z.string().max(1000).optional(),
 });
@@ -179,8 +185,9 @@ export class TaskStore {
   list() {
     return this.rec.list().sort((a, b) => b.created_at - a.created_at);
   }
-  create(text: string, maxAmount: bigint, now: number): Task {
+  create(text: string, maxAmount: bigint, now: number, agentId?: string): Task {
     const t: Task = {
+      ...(agentId && { agent_id: agentId }),
       id: newId("task"),
       text,
       max_amount_raw: uintToString(maxAmount),
@@ -207,17 +214,18 @@ export class TaskStore {
     return next;
   }
   /** 가장 오래된 대기 일 */
-  nextOpen(): Task | undefined {
+  nextOpen(agentId?: string): Task | undefined {
     return this.list()
-      .filter((t) => t.status === "open")
+      .filter((t) => t.status === "open" && (!t.agent_id || t.agent_id === agentId))
       .sort((a, b) => a.created_at - b.created_at)[0];
   }
   /** checkOrder에 넘길 일 정보 */
-  extraFor(id: string | undefined): CheckExtras["task"] {
+  extraFor(id: string | undefined, agentId?: string): CheckExtras["task"] {
     if (!id) return undefined;
     const t = this.rec.get(id);
     if (!t) return undefined;
-    return { id: t.id, maxAmount: parseUint(t.max_amount_raw), active: ACTIVE.includes(t.status) };
+    const mine = !t.agent_id || agentId === undefined || t.agent_id === agentId;
+    return { id: t.id, maxAmount: parseUint(t.max_amount_raw), active: mine && ACTIVE.includes(t.status) };
   }
 }
 
@@ -232,6 +240,8 @@ export const ConnectionSchema = z.object({
   disconnected_at: z.number().int().optional(),
   /** 이 에이전트 하나만 멈춘 시각 (없으면 동작 중). 멈춘 동안 이 연결로 들어온 pay_order는 WALLET_PAUSED */
   paused_at: z.number().int().optional(),
+  /** 이 에이전트의 계정 번호 (니모닉 m/44'/60'/0'/0/n). 11/26 이전 연결은 없음 → 1번 */
+  account_index: z.number().int().min(1).max(1000).optional(),
 });
 export type Connection = z.infer<typeof ConnectionSchema>;
 
@@ -247,9 +257,15 @@ export class ConnectionStore {
     return this.rec.list().sort((a, b) => b.created_at - a.created_at);
   }
   /** 새 연결: 토큰 원문은 이때 한 번만 돌려준다 */
-  create(name: string, now: number): { connection: Connection; token: string } {
+  create(name: string, now: number, accountIndex?: number): { connection: Connection; token: string } {
     const token = `cs_${randomBytes(24).toString("base64url")}`;
-    const connection: Connection = { id: newId("agent"), name, token_sha256: ConnectionStore.hash(token), created_at: now };
+    const connection: Connection = {
+      id: newId("agent"),
+      name,
+      token_sha256: ConnectionStore.hash(token),
+      created_at: now,
+      ...(accountIndex !== undefined && { account_index: accountIndex }),
+    };
     this.rec.put(connection.id, connection);
     return { connection, token };
   }
@@ -285,5 +301,34 @@ export class ConnectionStore {
     if (!/^cs_[A-Za-z0-9_-]{20,64}$/.test(token)) return undefined;
     const h = ConnectionStore.hash(token);
     return this.rec.list().find((c) => !c.disconnected_at && c.token_sha256 === h);
+  }
+}
+
+// ─── 에이전트가 실제로 붙었는지 (원격 MCP가 쓴다) ─────────────────────────────
+
+export const SeenSchema = z.object({
+  /** 그 토큰으로 MCP initialize에 처음 성공한 시각 */
+  attached_at: z.number().int().optional(),
+  /** 마지막 MCP 요청 시각 */
+  last_seen_at: z.number().int().optional(),
+});
+export type Seen = z.infer<typeof SeenSchema>;
+
+/** 연결 기록과 파일을 나눠, 주인 API(이름·멈춤)와 지갑 MCP(활동 시각)가 같은 파일을 동시에 쓰지 않게 한다 */
+export class SeenStore {
+  private readonly rec: RecordDir<Seen>;
+  private readonly lastWrite = new Map<string, number>();
+  constructor(dir: string) {
+    this.rec = new RecordDir(dir, SeenSchema);
+  }
+  get(id: string): Seen {
+    return this.rec.get(id) ?? {};
+  }
+  /** 요청이 올 때마다 부른다. initialize 성공이면 attached=true. 같은 연결은 10초에 한 번만 쓴다 */
+  touch(id: string, now: number, attached = false): void {
+    const prev = this.rec.get(id) ?? {};
+    if (!attached && prev.attached_at && now - (this.lastWrite.get(id) ?? 0) < 10) return;
+    this.rec.put(id, { ...prev, last_seen_at: now, ...(attached && !prev.attached_at && { attached_at: now }) });
+    this.lastWrite.set(id, now);
   }
 }

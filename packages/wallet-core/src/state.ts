@@ -139,8 +139,16 @@ export const HistoryEntrySchema = z.object({
     .optional(),
   /** 결제를 요청한 에이전트 연결 이름 (stdio면 "local") */
   agent: z.string().optional(),
-  /** 원격 연결 id (이름을 바꿔도 이어지게) */
+  /** 원격 연결 id (이름을 바꿔도 이어지게). stdio 로컬 에이전트는 "local" */
   agent_id: z.string().optional(),
+  /** payment(기본): 판매자 결제 / withdraw: 주인 0번 계정으로 출금 */
+  kind: z.enum(["payment", "withdraw"]).optional(),
+  /** true면 HSP mock 결제라 tx_hash가 가짜다 (체인에 없음) */
+  simulated: z.boolean().optional(),
+  /** 실제 체인 tx면 블록 탐색기 링크 */
+  explorer_url: z.string().optional(),
+  /** 결제한 에이전트 계정 주소 */
+  from: z.string().optional(),
   task_id: z.string().optional(),
   /** NEEDS_OWNER_APPROVAL일 때 주인 앱의 요청 id */
   request_id: z.string().optional(),
@@ -179,6 +187,7 @@ export interface StatePaths {
   approvals: string;
   tasks: string;
   connections: string;
+  seen: string;
 }
 
 export function statePaths(env: NodeJS.ProcessEnv = process.env): StatePaths {
@@ -195,6 +204,7 @@ export function statePaths(env: NodeJS.ProcessEnv = process.env): StatePaths {
     approvals: join(dir, "approvals"),
     tasks: join(dir, "tasks"),
     connections: join(dir, "connections"),
+    seen: join(dir, "connections-seen"),
   };
 }
 

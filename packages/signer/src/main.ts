@@ -1,5 +1,7 @@
 #!/usr/bin/env -S npx tsx
+import { timingSafeEqual } from "node:crypto";
 import {
+  AgentRegistry,
   ApprovalStore,
   FileSpendLedger,
   TaskStore,
@@ -13,6 +15,8 @@ import {
 import { loadSecret } from "./keysource.js";
 import { listen } from "./server.js";
 import { createSigner } from "./signer.js";
+import { makeWithdraw } from "./withdraw.js";
+import { registryAgents } from "./agents.js";
 
 /**
  * signer 실행: COUNTERSIGN_POLICY=정책.json pnpm --filter @countersign/signer start
@@ -30,9 +34,21 @@ async function main() {
   const ticketSecret = parseTicketSecret(
     process.env.COUNTERSIGN_TICKET_SECRET || readOrCreateSharedSecret(paths.ticketSecret, true),
   );
-  const account = deriveAccount(loadSecret("OURYN_DEV_MNEMONIC"), policy.accountIndex);
+  if (policy.accountIndex !== 1) throw new Error("COUNTERSIGN_POLICY는 첫 에이전트(1번 계정) 정책이어야 함");
+  // 니모닉은 이 프로세스 안에서만 들고, 에이전트 계정을 필요할 때 파생한다 (밖으로 내보내는 길은 없다)
+  const derive = (() => {
+    const mnemonic = loadSecret("OURYN_DEV_MNEMONIC");
+    const cache = new Map<number, ReturnType<typeof deriveAccount>>();
+    return (index: number) => {
+      let a = cache.get(index);
+      if (!a) cache.set(index, (a = deriveAccount(mnemonic, index)));
+      return a;
+    };
+  })();
+  const account = derive(1);
+  const owner = derive(0); // 주인 계정: 출금 받는 곳 + 출금 거래 가스
   const socketPath = paths.signerSocket;
-
+  const registry = new AgentRegistry(paths, policyPath);
   const approvals = new ApprovalStore(paths.approvals);
   const tasks = new TaskStore(paths.tasks);
   const signer = createSigner({
@@ -40,6 +56,14 @@ async function main() {
     policy: () => policyFile.get(),
     ticketSecret,
     ledger: new FileSpendLedger(paths.signerLedger),
+    agents: registryAgents(registry, derive),
+    withdraw: {
+      checkOwnerToken: (t) => {
+        const expected = process.env.COUNTERSIGN_OWNER_TOKEN || readOrCreateSharedSecret(paths.ownerToken, false);
+        return !!expected && t.length === expected.length && timingSafeEqual(Buffer.from(t), Buffer.from(expected));
+      },
+      run: makeWithdraw(owner),
+    },
     pause: () => readPause(paths.pause),
     extras: (orderRef, intent) => ({
       approval: approvals.approvalFor(orderRef),
@@ -48,7 +72,7 @@ async function main() {
   });
   const server = await listen(signer, socketPath);
   // 주소와 소켓 경로만 출력한다 (공개값)
-  console.log(`countersign-signer: ${policy.agent} 계정 #${policy.accountIndex} ${account.address}`);
+  console.log(`countersign-signer: 첫 에이전트 계정 #1 ${account.address}, 주인 #0 ${owner.address}`);
   console.log(`countersign-signer: ${socketPath} 에서 대기`);
   const stop = () => server.close(() => process.exit(0));
   process.on("SIGINT", stop);

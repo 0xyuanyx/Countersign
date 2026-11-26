@@ -31,6 +31,22 @@ const server = createOwnerApi({
   paths,
   ownerToken,
   account: accountOf,
+  agentOps: {
+    address: async (agentId) => {
+      const r = await signer.forAgent(agentId).address();
+      return r.ok && r.op === "address" ? r.address : undefined;
+    },
+    usdcBalance: (chainId, token, owner) => reader.usdcBalance(chainId, token, owner),
+    nativeBalance: (chainId, owner) => reader.nativeBalance(chainId, owner),
+    withdraw: async (agentId, amount) => {
+      const r = await signer.forAgent(agentId).withdrawToOwner(ownerToken, amount);
+      if (r.ok && r.op === "withdraw_to_owner") return r;
+      if (!r.ok) return { ok: false, code: r.code, reason: r.reason, next_action: r.next_action };
+      return { ok: false, code: "WITHDRAW_FAILED", reason: "signer 응답이 예상과 다름" };
+    },
+  },
+  // 앱 요청 (11/26): 새 에이전트(2번 계정부터) 기본 정책 — 1회 0.5, 하루 5, 판매자 없음, Ethereum Sepolia
+  newAgentPolicy: { perTxMax: "0.5", dailyMax: "5", chains: [11155111], sellers: {} },
   ...(process.env.COUNTERSIGN_PUBLIC_MCP_URL && { publicMcpUrl: process.env.COUNTERSIGN_PUBLIC_MCP_URL }),
   balances: async () => {
     const account = await accountOf();

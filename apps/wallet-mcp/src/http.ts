@@ -1,18 +1,23 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { ConnectionStore } from "@countersign/wallet-core";
+import type { ConnectionStore, SeenStore } from "@countersign/wallet-core";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { WalletService } from "./service.js";
 import { buildMcpServer } from "./setup.js";
 
 /**
- * 원격 지갑 MCP (Streamable HTTP, 상태 없음). 폰 앱이 만든 "에이전트 연결"마다 주소·토큰이 하나씩 있다.
+ * 원격 지갑 MCP (Streamable HTTP, 상태 없음). 폰 앱이 만든 "에이전트 연결"마다 주소·토큰이 하나씩 있고,
+ * 연결마다 자기 계정·정책·지출 기록을 가진 지갑으로 이어진다 (walletFor).
  *   POST /mcp/<토큰>                      Claude 커스텀 커넥터처럼 헤더를 못 넣는 앱용 (주소 자체가 비밀)
  *   POST /mcp  + Authorization: Bearer <토큰>   Codex --bearer-token-env-var, Claude Code --header
  * 토큰이 없거나, 끊긴 연결이면 401. 키는 여기 없다: 서명은 같은 기계의 signer 소켓에 부탁한다.
  * HTTPS는 앞단(리버스 프록시·터널)에서 끝낸다. 이 서버는 기본 127.0.0.1에만 연다.
  */
-export function createWalletHttp(wallet: WalletService, connections: ConnectionStore): Server {
+export function createWalletHttp(
+  walletFor: (agentId: string) => WalletService | undefined,
+  connections: ConnectionStore,
+  seen?: SeenStore,
+): Server {
   return createServer((req, res) => {
     void handle(req, res).catch(() => {
       if (!res.headersSent) res.writeHead(500).end();
@@ -34,6 +39,12 @@ export function createWalletHttp(wallet: WalletService, connections: ConnectionS
       res.writeHead(405, { Allow: "POST" }).end();
       return;
     }
+    const wallet = walletFor(conn.id);
+    if (!wallet) return json(res, 401, { error: "unknown agent" });
+    const body = await readBody(req);
+    if (body === undefined) return json(res, 400, { error: "JSON body required" });
+    const isInit = (Array.isArray(body) ? body : [body]).some((m) => m && typeof m === "object" && m.method === "initialize");
+
     const server = buildMcpServer(wallet, {
       name: conn.name,
       id: conn.id,
@@ -46,7 +57,23 @@ export function createWalletHttp(wallet: WalletService, connections: ConnectionS
       void server.close();
     });
     await server.connect(transport);
-    await transport.handleRequest(req, res);
+    await transport.handleRequest(req, res, body);
+    if (res.statusCode < 400) seen?.touch(conn.id, Math.floor(Date.now() / 1000), isInit);
+  }
+}
+
+async function readBody(req: IncomingMessage): Promise<any> {
+  let size = 0;
+  const chunks: Buffer[] = [];
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > 256 * 1024) return undefined;
+    chunks.push(c as Buffer);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    return undefined;
   }
 }
 

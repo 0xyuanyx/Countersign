@@ -29,6 +29,9 @@ importers:
 
   apps/owner-api:
     dependencies:
+      '@countersign/hsp':
+        specifier: workspace:*
+        version: link:../../packages/hsp
       '@countersign/signer':
         specifier: workspace:*
         version: link:../../packages/signer
@@ -42,9 +45,6 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
-      '@countersign/hsp':
-        specifier: workspace:*
-        version: link:../../packages/hsp
       '@countersign/seller':
         specifier: workspace:*
         version: link:../seller
@@ -128,6 +128,9 @@ importers:
 
   packages/signer:
     dependencies:
+      '@countersign/hsp':
+        specifier: workspace:*
+        version: link:../hsp
       '@countersign/wallet-core':
         specifier: workspace:*
         version: link:../wallet-core
@@ -137,10 +140,6 @@ importers:
       zod:
         specifier: ^4.6.7
         version: 4.6.7
-    devDependencies:
-      '@countersign/hsp':
-        specifier: workspace:*
-        version: link:../hsp
 
   packages/wallet-core:
     dependencies:

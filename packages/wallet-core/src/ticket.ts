@@ -31,6 +31,8 @@ const TicketBodySchema = z
     typedDataHash: z.string().regex(/^0x[0-9a-f]{64}$/),
     order: OrderJsonSchema,
     intent: z.unknown(),
+    /** 이 티켓을 쓸 에이전트 (원격 연결 id). 없으면 1번 로컬 에이전트 */
+    agent: z.string().regex(/^[a-z0-9_]{1,64}$/).optional(),
     issuedAt: z.number().int(),
     expiresAt: z.number().int(),
   })
@@ -50,7 +52,7 @@ function mac(secret: Buffer, body: unknown): string {
 
 export function issueTicket(
   secret: Buffer,
-  args: { typedDataHash: string; order: Order; intent: Intent; now: number; ttl?: number },
+  args: { typedDataHash: string; order: Order; intent: Intent; now: number; ttl?: number; agent?: string },
 ): Ticket {
   const body = {
     v: 1 as const,
@@ -58,6 +60,7 @@ export function issueTicket(
     typedDataHash: args.typedDataHash.toLowerCase(),
     order: orderToJson(args.order),
     intent: args.intent,
+    ...(args.agent && args.agent !== "local" && { agent: args.agent }),
     issuedAt: args.now,
     expiresAt: args.now + (args.ttl ?? TICKET_TTL_SECONDS),
   };
@@ -65,7 +68,7 @@ export function issueTicket(
 }
 
 export type TicketCheck =
-  | { ok: true; id: string; typedDataHash: string; order: Order; intent: unknown }
+  | { ok: true; id: string; typedDataHash: string; order: Order; intent: unknown; agent?: string }
   | { ok: false; reason: string };
 
 /** MAC·만료만 확인한다. 1회용 확인(id 재사용)은 signer가 상태를 들고 한다. */
@@ -83,5 +86,5 @@ export function verifyTicket(secret: Buffer, input: unknown, now: number): Ticke
   } catch {
     return { ok: false, reason: "티켓 주문 형식이 아님" };
   }
-  return { ok: true, id: body.id, typedDataHash: body.typedDataHash, order, intent: body.intent };
+  return { ok: true, id: body.id, typedDataHash: body.typedDataHash, order, intent: body.intent, ...(body.agent && { agent: body.agent }) };
 }

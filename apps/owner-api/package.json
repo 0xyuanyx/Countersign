@@ -16,7 +16,8 @@
     "@countersign/signer": "workspace:*",
     "@countersign/wallet-core": "workspace:*",
     "zod": "^4.6.7",
-    "@countersign/wallet-mcp": "workspace:*"
+    "@countersign/wallet-mcp": "workspace:*",
+    "@countersign/hsp": "workspace:*"
   },
   "devDependencies": {
     "@countersign/hsp": "workspace:*",

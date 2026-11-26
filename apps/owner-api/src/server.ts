@@ -1,17 +1,23 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { explorerUrl } from "@countersign/hsp";
 import {
+  AgentRegistry,
   ApprovalStore,
-  ConnectionStore,
   FileSpendLedger,
+  PolicyFile,
+  SeenStore,
+  formatAmount,
   HistoryStore,
   TaskStore,
   parseAmount,
   readPause,
   summarizePolicy,
   writePause,
-  type PolicyFile,
+  type AgentInfo,
+  type Connection,
+  type HistoryEntry,
   type StatePaths,
 } from "@countersign/wallet-core";
 import { z } from "zod";
@@ -54,6 +60,25 @@ export interface OwnerApiDeps {
   /** 에이전트 연결 주소의 공개 기준 주소 (예: 터널 https://xxx.trycloudflare.com). 기본 http://127.0.0.1:7440 */
   publicMcpUrl?: string;
   balances?: () => Promise<{ account?: string; balances: { chain_id: number; balance?: string; error?: string }[] }>;
+  /**
+   * 에이전트별 기능 (11/26): signer에게 계정 주소·출금을 묻고, RPC로 실잔액을 읽는다.
+   * 없으면 에이전트별 주소·잔액·출금 경로는 503.
+   */
+  agentOps?: {
+    address: (agentId: string) => Promise<string | undefined>;
+    usdcBalance: (chainId: number, token: `0x${string}`, owner: `0x${string}`) => Promise<bigint>;
+    nativeBalance: (chainId: number, owner: `0x${string}`) => Promise<bigint>;
+    /** amount: 최소 단위, 없으면 전액. 받는 곳은 주인 0번 계정 고정 */
+    withdraw: (
+      agentId: string,
+      amount: bigint | undefined,
+    ) => Promise<
+      | { ok: true; tx_hash: string; from: string; to: string; amount: string; chain_id: number; token: string }
+      | { ok: false; code: string; reason: string; next_action?: string }
+    >;
+  };
+  /** 새 에이전트 정책의 기본값 (2번 이상 계정). 없으면 1번 정책을 복사 */
+  newAgentPolicy?: { perTxMax: string; dailyMax: string; chains: number[]; sellers: Record<string, string> };
 }
 
 const PauseBodySchema = z.object({ reason: z.string().max(200).optional() }).strict();
@@ -65,7 +90,126 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
 
   const approvals = new ApprovalStore(d.paths.approvals);
   const tasks = new TaskStore(d.paths.tasks);
-  const connections = new ConnectionStore(d.paths.connections);
+  const registry = new AgentRegistry(d.paths, d.policy.path);
+  const connections = registry.connections;
+  const seen = new SeenStore(d.paths.seen);
+  const policyFiles = new Map<string, PolicyFile>([[d.policy.path, d.policy]]);
+  const policyOf = (info: AgentInfo) => {
+    let p = policyFiles.get(info.policyPath);
+    if (!p) policyFiles.set(info.policyPath, (p = new PolicyFile(info.policyPath)));
+    return p;
+  };
+  const addressCache = new Map<string, string>();
+  async function addressOf(agentId: string): Promise<string | undefined> {
+    const hit = addressCache.get(agentId);
+    if (hit) return hit;
+    const a = await d.agentOps?.address(agentId).catch(() => undefined);
+    if (a) addressCache.set(agentId, a);
+    return a;
+  }
+
+  /** ?agent=<id> (또는 /api/agents/:id/...) → 그 에이전트. 없으면 첫 에이전트(1번 계정, 기존 전역 경로) */
+  function scope(agentId: string | null | undefined): AgentInfo | undefined {
+    return registry.resolve(agentId ?? undefined);
+  }
+  /** 이 에이전트의 내역인지: 연결 id가 같거나, 1번 계정이면 연결 id 없는 옛 항목·로컬 항목도 포함 */
+  function belongs(e: HistoryEntry, info: AgentInfo): boolean {
+    if (e.agent_id === info.id) return true;
+    if (info.accountIndex !== 1) return false;
+    if (!e.agent_id || e.agent_id === "local") return true;
+    const other = connections.get(e.agent_id);
+    return !!other && AgentRegistry.indexOf(other) === 1 && info.id === "local";
+  }
+  function historyFor(info: AgentInfo | undefined, limit: number) {
+    const all = new HistoryStore(d.paths.history).list(info ? 2000 : limit);
+    return (info ? all.filter((e) => belongs(e, info)) : all).slice(0, limit);
+  }
+  async function summaryFor(info: AgentInfo) {
+    const ledger = new FileSpendLedger(info.signerLedger);
+    const account = info.id === "local" ? await d.account?.().catch(() => undefined) : await addressOf(info.id);
+    return { ...summarizePolicy(policyOf(info).get(), ledger, readPause(d.paths.pause), now(), account), agent_id: info.id };
+  }
+  async function balanceFor(info: AgentInfo) {
+    const policy = policyOf(info).get();
+    const chainId = [...policy.chains][0]!;
+    const token = policy.tokens.get(chainId)!;
+    const address = info.id === "local" ? await d.account?.().catch(() => undefined) : await addressOf(info.id);
+    if (!d.agentOps || !address) return { agent_id: info.id, chain_id: chainId, token, error: "signer가 꺼져 있어 주소를 모름" };
+    try {
+      const [usdc, native] = await Promise.all([
+        d.agentOps.usdcBalance(chainId, token, address as `0x${string}`),
+        d.agentOps.nativeBalance(chainId, address as `0x${string}`),
+      ]);
+      return {
+        agent_id: info.id,
+        address,
+        chain_id: chainId,
+        token,
+        token_symbol: "USDC",
+        usdc: formatAmount(usdc),
+        /** 가스용 기본 토큰 (Sepolia는 ETH). 에이전트 결제는 HSP가 가스를 대신 내서 0이어도 된다 */
+        native: formatAmount(native, 18),
+        explorer_url: explorerUrl(chainId, "address", address),
+      };
+    } catch {
+      return { agent_id: info.id, address, chain_id: chainId, token, error: "RPC 조회 실패" };
+    }
+  }
+  async function agentView(c: Connection) {
+    const info = registry.resolve(c.id)!;
+    const s = seen.get(c.id);
+    const { token_sha256: _h, ...pub } = c;
+    const last = historyFor(info, 1)[0]?.at;
+    const chainId = (() => {
+      try {
+        return [...policyOf(info).get().chains][0];
+      } catch {
+        return undefined;
+      }
+    })();
+    const address = await addressOf(c.id);
+    return {
+      ...pub,
+      account_index: info.accountIndex,
+      ...(address && { address }),
+      ...(chainId && { chain_id: chainId }),
+      /** 주인이 끊지 않았는지 */
+      active: !c.disconnected_at,
+      /** 실제로 붙었는지: 끊기지 않았고, 그 토큰으로 MCP에 한 번이라도 붙음 */
+      connected: !c.disconnected_at && !!(s.attached_at ?? s.last_seen_at),
+      paused: !!c.paused_at,
+      ...(s.attached_at && { attached_at: s.attached_at }),
+      ...(s.last_seen_at && { last_seen_at: s.last_seen_at }),
+      ...(last && { last_activity_at: last }),
+    };
+  }
+  function deposit(info: AgentInfo, address: string | undefined) {
+    const policy = policyOf(info).get();
+    const chainId = [...policy.chains][0]!;
+    return {
+      ...(address && { address }),
+      chain_id: chainId,
+      token: policy.tokens.get(chainId)!,
+      token_symbol: "USDC",
+      ...(address && { explorer_url: explorerUrl(chainId, "address", address) }),
+    };
+  }
+  async function patchPolicy(req: IncomingMessage, res: ServerResponse, info: AgentInfo) {
+    if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
+    const body = await readJson(req);
+    try {
+      policyOf(info).update(body);
+    } catch (e) {
+      const detail =
+        e instanceof z.ZodError
+          ? e.issues.map((i) => `${i.path.join(".") || "(본문)"}: ${i.message}`).join("; ")
+          : e instanceof Error
+            ? e.message
+            : "형식 오류";
+      return send(res, 400, { ok: false, error: `정책을 바꾸지 않음: ${detail}`.slice(0, 500) });
+    }
+    return send(res, 200, await summaryFor(info));
+  }
   const mcpBase = (d.publicMcpUrl ?? "http://127.0.0.1:7440").replace(/\/+$/, "");
 
   return createServer((req, res) => {
@@ -84,7 +228,9 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     if (route === "GET /api/requests") {
       const status = url.searchParams.get("status");
       const st = status === "pending" || status === "approved" || status === "rejected" ? status : undefined;
-      return send(res, 200, { requests: approvals.list(st) });
+      const agentId = url.searchParams.get("agentId") ?? url.searchParams.get("agent");
+      const list = approvals.list(st).map((r) => ({ ...r, agent_id: r.agent_id ?? "local" }));
+      return send(res, 200, { requests: agentId ? list.filter((r) => r.agent_id === agentId) : list });
     }
     if ((m = /^POST \/api\/requests\/([a-z0-9_]+)\/(approve|reject)$/.exec(route))) {
       const body = RequestDecisionSchema.safeParse(await readJson(req));
@@ -96,13 +242,16 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       if (approve && r.order_expires_at <= now()) return send(res, 410, { ok: false, error: "주문이 이미 만료됨" });
       if (approve && body.data.remember) {
         // "다음부터 묻지 않기": 판매자 이름 → 이 주문의 받는 주소로 정책에 등록. 같은 이름이 다른 주소로 있으면 거부
-        const cur = d.policy.json();
+        // 요청한 에이전트의 정책에 넣는다 (에이전트마다 판매자 목록이 따로다)
+        const info = scope(r.agent_id) ?? scope(undefined)!;
+        const pf = policyOf(info);
+        const cur = pf.json();
         const existing = cur.sellers[r.seller];
         if (existing && existing.toLowerCase() !== r.pay_to.toLowerCase()) {
           return send(res, 409, { ok: false, error: `"${r.seller}"은 이미 다른 주소로 등록됨` });
         }
         try {
-          d.policy.update({ sellers: { ...cur.sellers, [r.seller]: r.pay_to } });
+          pf.update({ sellers: { ...cur.sellers, [r.seller]: r.pay_to } });
         } catch {
           return send(res, 400, { ok: false, error: "판매자 이름을 정책에 넣을 수 없음 (1~64자)" });
         }
@@ -111,13 +260,18 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     }
 
     // ── 맡기기 ──
-    if (route === "GET /api/tasks") return send(res, 200, { tasks: tasks.list() });
+    if (route === "GET /api/tasks") {
+      const agentId = url.searchParams.get("agentId") ?? url.searchParams.get("agent");
+      const list = tasks.list();
+      return send(res, 200, { tasks: agentId ? list.filter((t) => t.agent_id === agentId) : list });
+    }
     if (route === "POST /api/tasks") {
       const body = TaskBodySchema.safeParse(await readJson(req));
       if (!body.success) return send(res, 400, { ok: false, error: '본문 형식: { text: string, maxAmount: "0.50" }' });
       const max = parseAmount(body.data.maxAmount);
       if (max === 0n) return send(res, 400, { ok: false, error: "maxAmount는 0보다 커야 함" });
-      return send(res, 201, tasks.create(body.data.text, max, now()));
+      if (body.data.agentId && !connections.get(body.data.agentId)) return send(res, 404, { ok: false, error: "없는 에이전트" });
+      return send(res, 201, tasks.create(body.data.text, max, now(), body.data.agentId));
     }
     if ((m = /^POST \/api\/tasks\/([a-z0-9_]+)\/cancel$/.exec(route))) {
       const t = tasks.get(m[1]!);
@@ -127,15 +281,7 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
 
     // ── 에이전트 연결 (원격 MCP 주소·토큰) ──
     if (route === "GET /api/agents") {
-      const hist = new HistoryStore(d.paths.history).list(500);
-      return send(res, 200, {
-        agents: connections.list().map(({ token_sha256: _h, ...c }) => ({
-          ...c,
-          connected: !c.disconnected_at,
-          paused: !!c.paused_at,
-          last_activity_at: hist.find((e) => e.agent_id === c.id || (!e.agent_id && e.agent === c.name))?.at,
-        })),
-      });
+      return send(res, 200, { agents: await Promise.all(connections.list().map(agentView)) });
     }
     if (route === "POST /api/agents") {
       const body = AgentBodySchema.safeParse(await readJson(req));
@@ -143,9 +289,18 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       if (connections.list().some((c) => c.name === body.data.name && !c.disconnected_at)) {
         return send(res, 409, { ok: false, error: "같은 이름의 연결이 이미 있음" });
       }
-      const { connection, token } = connections.create(body.data.name, now());
-      const { token_sha256: _h, ...pub } = connection;
-      return send(res, 201, { ...pub, token, connect: connectCommands(mcpBase, connection.name, token) });
+      const { connection, token, info } = registry.create(body.data.name, now());
+      if (info.accountIndex !== 1 && d.newAgentPolicy) {
+        // 새 에이전트 기본 정책 (앱 요청: 1회 0.5, 하루 5, 판매자 없음, Ethereum Sepolia)
+        policyOf(info).update(d.newAgentPolicy);
+      }
+      const view = await agentView(connection);
+      return send(res, 201, {
+        ...view,
+        token,
+        connect: connectCommands(mcpBase, connection.name, token),
+        deposit: deposit(info, view.address),
+      });
     }
     if ((m = /^PATCH \/api\/agents\/([a-z0-9_]+)$/.exec(route))) {
       if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
@@ -161,6 +316,34 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       if (!c) return send(res, 404, { ok: false, error: "없는 연결" });
       return send(res, 200, publicAgent(c));
     }
+    if ((m = /^(GET|PATCH|POST) \/api\/agents\/([a-z0-9_]+)\/(policy|policy\/file|balance|history|withdraw)$/.exec(route))) {
+      const c = connections.get(m[2]!);
+      const info = c && registry.resolve(c.id);
+      if (!c || !info) return send(res, 404, { ok: false, error: "없는 연결" });
+      const op = `${m[1]} ${m[3]}`;
+      if (op === "GET policy") return send(res, 200, await summaryFor(info));
+      if (op === "GET policy/file") return send(res, 200, policyOf(info).json());
+      if (op === "PATCH policy") return patchPolicy(req, res, info);
+      if (op === "GET balance") return send(res, 200, await balanceFor(info));
+      if (op === "GET history") {
+        const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 20) || 20, 1), 200);
+        return send(res, 200, { entries: historyFor(info, limit) });
+      }
+      if (op === "POST withdraw") return withdraw(req, res, info);
+      return send(res, 405, { ok: false, error: "지원하지 않는 메서드" });
+    }
+    if ((m = /^GET \/api\/agents\/([a-z0-9_]+)$/.exec(route))) {
+      const c = connections.get(m[1]!);
+      const info = c && registry.resolve(c.id);
+      if (!c || !info) return send(res, 404, { ok: false, error: "없는 연결" });
+      const agent = await agentView(c);
+      return send(res, 200, {
+        agent,
+        policy: await summaryFor(info),
+        balance: await balanceFor(info),
+        deposit: deposit(info, agent.address),
+      });
+    }
     if ((m = /^POST \/api\/agents\/([a-z0-9_]+)\/disconnect$/.exec(route))) {
       const c = connections.disconnect(m[1]!, now());
       if (!c) return send(res, 404, { ok: false, error: "없는 연결" });
@@ -170,10 +353,49 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     return send(res, 404, { ok: false, error: "없는 경로" });
   }
 
-  async function summary() {
-    const ledger = new FileSpendLedger(d.paths.signerLedger);
-    const account = await d.account?.().catch(() => undefined);
-    return summarizePolicy(d.policy.get(), ledger, readPause(d.paths.pause), now(), account);
+  /** 출금: 한도·정지와 상관없이, 받는 곳은 주인 0번 계정 고정. 실제 체인 거래라 내역에 kind:"withdraw"로 남긴다 */
+  async function withdraw(req: IncomingMessage, res: ServerResponse, info: AgentInfo) {
+    if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
+    if (!d.agentOps) return send(res, 503, { ok: false, error: "출금 기능이 꺼져 있음 (signer 연결 없음)" });
+    const body = WithdrawBodySchema.safeParse(await readJson(req));
+    if (!body.success) return send(res, 400, { ok: false, error: '본문 형식: { amount?: "1.5" } (빼면 전액)' });
+    const amount = body.data.amount === undefined ? undefined : parseAmount(body.data.amount);
+    if (amount === 0n) return send(res, 400, { ok: false, error: "amount는 0보다 커야 함" });
+    const r = await d.agentOps.withdraw(info.id, amount);
+    const history = new HistoryStore(d.paths.history);
+    const base = { id: `wd_${Date.now().toString(36)}`, at: now(), order_ref: "withdraw", kind: "withdraw" as const, agent_id: info.id };
+    if (!r.ok) {
+      history.append({ ...base, status: "failed", code: r.code, reason: r.reason });
+      return send(res, 502, { ok: false, error: r.reason, code: r.code });
+    }
+    const out = {
+      ok: true as const,
+      tx_hash: r.tx_hash,
+      explorer_url: explorerUrl(r.chain_id, "tx", r.tx_hash),
+      amount: formatAmount(BigInt(r.amount)),
+      from: r.from,
+      to: r.to,
+      chain_id: r.chain_id,
+      token: r.token,
+    };
+    history.append({
+      ...base,
+      status: "paid",
+      amount: out.amount,
+      from: r.from,
+      pay_to: r.to,
+      chain_id: r.chain_id,
+      tx_hash: r.tx_hash,
+      ...(out.explorer_url && { explorer_url: out.explorer_url }),
+      purpose: "주인 계정으로 출금",
+    });
+    return send(res, 200, out);
+  }
+
+  async function summary(agentId?: string | null) {
+    const info = scope(agentId);
+    if (!info) return undefined;
+    return summaryFor(info);
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -190,34 +412,34 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
 
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const route = `${req.method} ${url.pathname}`;
+    const agentParam = url.searchParams.get("agent") ?? url.searchParams.get("agentId");
     switch (route) {
-      case "GET /api/policy":
-        return send(res, 200, await summary());
-      case "GET /api/policy/file":
-        return send(res, 200, d.policy.json());
+      case "GET /api/policy": {
+        const sum = await summary(agentParam);
+        return sum ? send(res, 200, sum) : send(res, 404, { ok: false, error: "없는 에이전트" });
+      }
+      case "GET /api/policy/file": {
+        const info = scope(agentParam);
+        return info ? send(res, 200, policyOf(info).json()) : send(res, 404, { ok: false, error: "없는 에이전트" });
+      }
       case "PATCH /api/policy": {
-        if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
-        const body = await readJson(req);
-        try {
-          d.policy.update(body);
-        } catch (e) {
-          const detail =
-            e instanceof z.ZodError
-              ? e.issues.map((i) => `${i.path.join(".") || "(본문)"}: ${i.message}`).join("; ")
-              : e instanceof Error
-                ? e.message
-                : "형식 오류";
-          return send(res, 400, { ok: false, error: `정책을 바꾸지 않음: ${detail}`.slice(0, 500) });
-        }
-        return send(res, 200, await summary());
+        const info = scope(agentParam);
+        return info ? patchPolicy(req, res, info) : send(res, 404, { ok: false, error: "없는 에이전트" });
       }
       case "GET /api/history": {
         const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 20) || 20, 1), 200);
-        return send(res, 200, { entries: new HistoryStore(d.paths.history).list(limit) });
+        if (!agentParam) return send(res, 200, { entries: historyFor(undefined, limit) });
+        const info = scope(agentParam);
+        return info ? send(res, 200, { entries: historyFor(info, limit) }) : send(res, 404, { ok: false, error: "없는 에이전트" });
       }
-      case "GET /api/balance":
+      case "GET /api/balance": {
+        if (agentParam) {
+          const info = scope(agentParam);
+          return info ? send(res, 200, await balanceFor(info)) : send(res, 404, { ok: false, error: "없는 에이전트" });
+        }
         if (!d.balances) return send(res, 503, { ok: false, error: "잔액 조회기가 없음" });
         return send(res, 200, await d.balances());
+      }
       case "GET /api/pause":
         return send(res, 200, readPause(d.paths.pause));
       case "POST /api/pause": {
@@ -239,15 +461,21 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
   }
 }
 
-function publicAgent(c: import("@countersign/wallet-core").Connection) {
+function publicAgent(c: Connection) {
   const { token_sha256: _h, ...pub } = c;
   return { ...pub, connected: !c.disconnected_at, paused: !!c.paused_at };
 }
 
 const RequestDecisionSchema = z.object({ remember: z.boolean().optional() }).strict();
 const TaskBodySchema = z
-  .object({ text: z.string().min(1).max(2000), maxAmount: z.string().regex(/^(0|[1-9]\d*)(\.\d{1,6})?$/) })
+  .object({
+    text: z.string().min(1).max(2000),
+    maxAmount: z.string().regex(/^(0|[1-9]\d*)(\.\d{1,6})?$/),
+    /** 이 일을 맡길 에이전트 연결 id (없으면 아무 에이전트나) */
+    agentId: z.string().regex(/^[a-z0-9_]{1,64}$/).optional(),
+  })
   .strict();
+const WithdrawBodySchema = z.object({ amount: z.string().regex(/^(0|[1-9]\d*)(\.\d{1,6})?$/).optional() }).strict();
 const AgentBodySchema = z.object({ name: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/) }).strict();
 
 /**

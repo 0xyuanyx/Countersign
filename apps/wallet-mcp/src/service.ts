@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { HspError, type HspClient, type QueryResult } from "@countersign/hsp";
+import { HspError, explorerUrl, type HspClient, type QueryResult } from "@countersign/hsp";
 import type { SignerResponse } from "@countersign/signer";
 import {
   approvalMatches,
@@ -216,7 +216,7 @@ export class WalletService {
     ctx.order = order;
 
     // 2. 정책·의도 검사 (prepare 전에 한 번: 나쁜 주문이면 HSP에 서명 대상을 만들게 하지도 않는다)
-    const extras = this.extras(orderRef, intentInfo.task_id);
+    const extras = this.extras(orderRef, intentInfo.task_id, who.id);
     ctx.approved = approvalMatches(extras.approval, order);
     const pre = checkOrder(order, intent, policy, this.d.ledger, this.now(), extras);
     if (!pre.ok) {
@@ -242,7 +242,13 @@ export class WalletService {
     if (!v.ok) return this.rejected(id, orderRef, v, intentInfo, order, ctx);
 
     // 4. 검증 티켓과 함께 signer에 서명 요청 (signer는 같은 검사를 처음부터 다시 한다)
-    const ticket = issueTicket(this.d.ticketSecret, { typedDataHash: v.typedDataHash, order, intent: v.intent, now: t });
+    const ticket = issueTicket(this.d.ticketSecret, {
+      typedDataHash: v.typedDataHash,
+      order,
+      intent: v.intent,
+      now: t,
+      ...(who.id && { agent: who.id }),
+    });
     let signed: SignerResponse;
     try {
       signed = await this.d.signer.signPayment(ticket, typedData);
@@ -288,10 +294,15 @@ export class WalletService {
         at: this.now(),
         order_ref: orderRef,
         status: "paid",
+        kind: "payment",
         ...base,
+        from: agent,
         payment_id: paymentId,
         hsp_status: q.status,
         ...(txHash && { tx_hash: txHash }),
+        ...(this.d.hspMode === "mock"
+          ? { simulated: true }
+          : txHash && { explorer_url: explorerUrl(order.chainId, "tx", txHash) }),
         events,
       };
       this.d.history.append(entry);
@@ -333,8 +344,8 @@ export class WalletService {
     }
   }
 
-  private extras(orderRef: string, taskId: string | undefined): CheckExtras {
-    return { approval: this.d.approvals?.approvalFor(orderRef), task: this.d.tasks?.extraFor(taskId) };
+  private extras(orderRef: string, taskId: string | undefined, agentId: string | undefined): CheckExtras {
+    return { approval: this.d.approvals?.approvalFor(orderRef), task: this.d.tasks?.extraFor(taskId, agentId ?? "local") };
   }
 
   /** 처음 보는 판매자 등: 주인 앱에 구매 요청을 만들고(이미 있으면 그대로) 에이전트에게 기다리라고 알린다 */
@@ -361,17 +372,19 @@ export class WalletService {
         purpose: intent.purpose ?? "",
         ...(intent.task_id && { taskId: intent.task_id }),
         agent: ctx.caller,
+        ...(ctx.callerId && { agentId: ctx.callerId }),
         now: this.now(),
       });
     return this.rejected(id, orderRef, { ...r, request_id: req.id }, intent, order, ctx);
   }
 
   /** 에이전트용: 주인이 맡긴 일 하나를 받아 간다 (가장 오래된 대기 일) */
-  nextTask(caller = "local"): { task: Pick<Task, "id" | "text" | "max_amount"> | null; how_to?: string } {
+  nextTask(who: string | Caller = "local"): { task: Pick<Task, "id" | "text" | "max_amount"> | null; how_to?: string } {
+    const c: Caller = typeof who === "string" ? { name: who } : who;
     const store = this.d.tasks;
-    const t = store?.nextOpen();
+    const t = store?.nextOpen(c.id ?? "local");
     if (!store || !t) return { task: null };
-    store.update(t.id, { status: "working", agent: caller }, this.now());
+    store.update(t.id, { status: "working", agent: c.name }, this.now());
     return {
       task: { id: t.id, text: t.text, max_amount: t.max_amount },
       how_to: `When paying for this task, call pay_order with intent.task_id="${t.id}". The wallet caps it at ${t.max_amount} USDC no matter what you or a seller says. Call finish_task when done.`,
@@ -379,10 +392,14 @@ export class WalletService {
   }
 
   /** 에이전트용: 맡긴 일 결과 보고. 상태 말고는 아무것도 바꾸지 못한다 */
-  finishTask(taskId: string, status: "done" | "failed", note: string, caller = "local") {
+  finishTask(taskId: string, status: "done" | "failed", note: string, who: string | Caller = "local") {
+    const c: Caller = typeof who === "string" ? { name: who } : who;
+    const caller = c.name;
     const store = this.d.tasks;
     const t = store?.get(taskId);
-    if (!store || !t) return reject("INVALID_INPUT", "input", `맡긴 일 ${taskId}이 없음`);
+    if (!store || !t || (t.agent_id && t.agent_id !== (c.id ?? "local"))) {
+      return reject("INVALID_INPUT", "input", `맡긴 일 ${taskId}이 없음`);
+    }
     if (t.status === "cancelled") return reject("INVALID_INPUT", "input", "주인이 그만둔 일");
     const next = store.update(taskId, { status, note: note.slice(0, 1000), agent: caller }, this.now())!;
     return { ok: true as const, task: { id: next.id, status: next.status } };

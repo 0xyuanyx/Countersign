@@ -6,19 +6,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { KNOWN_USDC, McpHspClient, serveMockHsp, type MockHspServer } from "@countersign/hsp";
 import { createSeller, listenSeller } from "@countersign/seller";
-import { SignerClient, createSigner, listen } from "@countersign/signer";
+import { SignerClient, createSigner, listen, registryAgents } from "@countersign/signer";
 import {
+  AgentRegistry,
   ApprovalStore,
-  ConnectionStore,
   FileSpendLedger,
   HistoryStore,
   PolicyFile,
+  SeenStore,
   TaskStore,
+  deriveAccount,
   readPause,
   statePaths,
 } from "@countersign/wallet-core";
-import { SELLER, agent, policyJson } from "@countersign/wallet-core/testkit";
-import { WalletService, createWalletHttp, listenWalletHttp } from "@countersign/wallet-mcp";
+import { SELLER, TEST_WORDS, agent, policyJson } from "@countersign/wallet-core/testkit";
+import { createWalletHttp, listenWalletHttp, walletFactory } from "@countersign/wallet-mcp";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -38,6 +40,8 @@ const policyPath = join(home, "policy.json");
 writeFileSync(policyPath, JSON.stringify({ ...policyJson, dailyMax: "5.00" }));
 const policyFile = new PolicyFile(policyPath);
 
+const OWNER0 = deriveAccount(TEST_WORDS, 0).address;
+const withdrawCalls: { id: string; amount: bigint | undefined }[] = [];
 let hsp: MockHspServer;
 let signerSrv: NetServer;
 let walletSrv: Server;
@@ -52,10 +56,13 @@ beforeAll(async () => {
   hsp = await serveMockHsp({ chainId: 133, token: USDC });
   const approvals = new ApprovalStore(paths.approvals);
   const tasks = new TaskStore(paths.tasks);
+  const registry = new AgentRegistry(paths, policyPath);
+  const derive = (i: number) => deriveAccount(TEST_WORDS, i);
   signerSrv = await listen(
     createSigner({
       account: agent,
       policy: () => policyFile.get(),
+      agents: registryAgents(registry, derive),
       ticketSecret: secret,
       ledger: new FileSpendLedger(paths.signerLedger),
       pause: () => readPause(paths.pause),
@@ -72,12 +79,10 @@ beforeAll(async () => {
     closers.push(() => c.close());
     return c;
   };
-  const wallet = new WalletService({
+  const signerClient = new SignerClient(join(home, "s.sock"));
+  const walletFor = walletFactory(registry, signerClient, {
     hsp: await hspClient(),
-    signer: new SignerClient(join(home, "s.sock")),
-    policy: () => policyFile.get(),
     ticketSecret: secret,
-    ledger: new FileSpendLedger(paths.walletLedger),
     history: new HistoryStore(paths.history),
     pause: () => readPause(paths.pause),
     approvals,
@@ -85,9 +90,27 @@ beforeAll(async () => {
     hspMode: "mock",
     pollIntervalMs: 0,
   });
-  walletSrv = createWalletHttp(wallet, new ConnectionStore(paths.connections));
+  walletSrv = createWalletHttp(walletFor, registry.connections, new SeenStore(paths.seen));
   walletUrl = await listenWalletHttp(walletSrv, 0);
-  ownerSrv = createOwnerApi({ policy: policyFile, paths, ownerToken: OWNER, publicMcpUrl: walletUrl });
+  ownerSrv = createOwnerApi({
+    policy: policyFile,
+    paths,
+    ownerToken: OWNER,
+    publicMcpUrl: walletUrl,
+    agentOps: {
+      address: async (id) => {
+        const r = await signerClient.forAgent(id).address();
+        return r.ok && r.op === "address" ? r.address : undefined;
+      },
+      // 실제 RPC 대신 고정값 (에이전트 주소별로 다르게)
+      usdcBalance: async (_c, _t, owner) => (owner.toLowerCase() === agent.address.toLowerCase() ? 40_000_000n : 0n),
+      nativeBalance: async () => 0n,
+      withdraw: async (id, amount) => {
+        withdrawCalls.push({ id, amount });
+        return { ok: true, tx_hash: `0x${"ab".repeat(32)}`, from: agent.address, to: OWNER0, amount: String(amount ?? 40_000_000n), chain_id: 133, token: USDC };
+      },
+    },
+  });
   ownerUrl = await listenOwnerApi(ownerSrv, 0);
 
   for (const [key, name, payTo] of [
@@ -164,7 +187,7 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
   });
 
   it("처음 보는 판매자 → 주인 승인 대기 → 앱에서 승인(다음부터 묻지 않기) → 재시도하면 결제, 다음 주문은 바로 결제", async () => {
-    const { call, client } = await connectAgent("codex");
+    const { call, client, created: codex } = await connectAgent("codex");
     const first = await buyFrom(call, "news");
     expect(first.pay).toMatchObject({ ok: false, code: "NEEDS_OWNER_APPROVAL" });
     const reqId = first.pay.request_id;
@@ -182,7 +205,9 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
 
     expect((await owner("POST", `/api/requests/${reqId}/approve`, { remember: true }, false)).status).toBe(401);
     expect((await owner("POST", `/api/requests/${reqId}/approve`, { remember: true })).json).toMatchObject({ status: "approved", remember: true });
-    expect(policyFile.json().sellers["news-seller"]).toBe(NEW_SELLER);
+    // "다음부터 묻지 않기"는 요청한 에이전트의 정책에만 들어간다
+    expect((await owner("GET", `/api/agents/${codex.id}/policy/file`, undefined, false)).json.sellers["news-seller"]).toBe(NEW_SELLER);
+    expect(policyFile.json().sellers["news-seller"]).toBeUndefined();
 
     expect(await call("pay_order", { order_ref: first.offer.order_ref, intent: first.intent })).toMatchObject({
       ok: true,
@@ -274,6 +299,71 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
     expect(after).toMatchObject({ name: "renamed", paused: false, last_activity_at: expect.any(Number) });
     await a.client.close();
     await b.client.close();
+  });
+
+  it("에이전트마다 계정·정책·지출 기록이 따로: 주소가 다르고, 한 에이전트의 판매자 등록·한도가 다른 에이전트에 번지지 않는다", async () => {
+    const x = await connectAgent("multi-x");
+    const y = await connectAgent("multi-y");
+    expect(x.created.account_index).not.toBe(y.created.account_index);
+    expect(x.created.address).toBeTruthy();
+    expect(x.created.address).not.toBe(y.created.address);
+    expect(x.created.deposit).toMatchObject({ address: x.created.address, chain_id: 133, token_symbol: "USDC" });
+    // signer가 그 계정 번호로 파생한 주소와 같다
+    expect(x.created.address).toBe(deriveAccount(TEST_WORDS, x.created.account_index).address);
+
+    // 실제로 붙었는지: initialize 성공 시각
+    const listed = (await owner("GET", "/api/agents", undefined, false)).json.agents;
+    expect(listed.find((a: any) => a.id === x.created.id)).toMatchObject({ connected: true, attached_at: expect.any(Number) });
+
+    // x의 한도를 0.05로 내리면 x만 막힌다
+    expect((await owner("PATCH", `/api/agents/${x.created.id}/policy`, { perTxMax: "0.05" })).json).toMatchObject({ per_tx_max: "0.05", agent_id: x.created.id });
+    expect((await buyFrom(x.call, "profile")).pay).toMatchObject({ code: "OVER_LIMIT" });
+    const paid = await buyFrom(y.call, "profile");
+    expect(paid.pay).toMatchObject({ ok: true });
+
+    // 내역은 에이전트별로 나뉘고, 결제 항목에는 tx_hash·chain_id와 mock 표시가 있다
+    const yh = (await owner("GET", `/api/agents/${y.created.id}/history`, undefined, false)).json.entries;
+    expect(yh.every((e: any) => e.agent_id === y.created.id)).toBe(true);
+    expect(yh[0]).toMatchObject({ status: "paid", kind: "payment", chain_id: 133, simulated: true, from: y.created.address, tx_hash: expect.stringMatching(/^0x/) });
+    const xh = (await owner("GET", `/api/history?agent=${x.created.id}`, undefined, false)).json.entries;
+    expect(xh[0]).toMatchObject({ code: "OVER_LIMIT", agent_id: x.created.id });
+
+    // 상세 화면 한 번에: 에이전트·정책·잔액·입금
+    const detail = (await owner("GET", `/api/agents/${y.created.id}`, undefined, false)).json;
+    expect(detail).toMatchObject({
+      agent: { id: y.created.id, address: y.created.address },
+      policy: { spent_24h: "0.1", agent_id: y.created.id },
+      balance: { usdc: "0", native: "0", chain_id: 133 },
+      deposit: { address: y.created.address },
+    });
+    expect((await owner("GET", `/api/agents/${x.created.id}/policy`, undefined, false)).json.spent_24h).toBe("0");
+    await x.client.close();
+    await y.client.close();
+  });
+
+  it("출금: 주인 토큰 필요, 받는 곳은 주인 0번 계정 고정, 내역에 kind:withdraw로 남는다", async () => {
+    const z = await connectAgent("wd");
+    expect((await owner("POST", `/api/agents/${z.created.id}/withdraw`, {}, false)).status).toBe(401);
+    expect((await owner("POST", `/api/agents/${z.created.id}/withdraw`, { amount: "0" })).status).toBe(400);
+    expect((await owner("POST", `/api/agents/${z.created.id}/withdraw`, { to: "0xbad" })).status).toBe(400); // 받는 곳은 못 고른다
+    const r = await owner("POST", `/api/agents/${z.created.id}/withdraw`, { amount: "1.5" });
+    expect(r.json).toMatchObject({ ok: true, to: OWNER0, amount: "1.5", explorer_url: expect.stringContaining("/tx/0x") });
+    expect(withdrawCalls.at(-1)).toEqual({ id: z.created.id, amount: 1_500_000n });
+    const h = (await owner("GET", `/api/agents/${z.created.id}/history`, undefined, false)).json.entries[0];
+    expect(h).toMatchObject({ kind: "withdraw", status: "paid", pay_to: OWNER0, tx_hash: `0x${"ab".repeat(32)}` });
+    await z.client.close();
+  });
+
+  it("맡긴 일을 특정 에이전트에게: 그 에이전트만 받아 간다", async () => {
+    const a1 = await connectAgent("task-a");
+    const b1 = await connectAgent("task-b");
+    const t = await owner("POST", "/api/tasks", { text: "only a", maxAmount: "0.20", agentId: a1.created.id });
+    expect(t.json.agent_id).toBe(a1.created.id);
+    expect((await b1.call("next_task")).task).toBeNull();
+    expect((await a1.call("next_task")).task.id).toBe(t.json.id);
+    expect((await owner("GET", `/api/tasks?agentId=${a1.created.id}`, undefined, false)).json.tasks.map((x: any) => x.id)).toEqual([t.json.id]);
+    await a1.client.close();
+    await b1.client.close();
   });
 
   it("연결을 끊으면 그 주소는 바로 401, 연결 목록에 마지막 활동이 보인다", async () => {

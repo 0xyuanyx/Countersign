@@ -111,12 +111,61 @@ describe("signer", () => {
     expect(await broken.handle({ op: "sign_payment", ticket: w2.ticket, typedData: w2.typedData })).toMatchObject({ code: "POLICY_INVALID" });
   });
 
+  it("에이전트별 계정: 다른 에이전트에게 발급된 티켓은 거절, 모르는 에이전트·끊긴 에이전트도 거절", async () => {
+    const { deriveAccount, MemorySpendLedger } = await import("@countersign/wallet-core");
+    const { TEST_WORDS } = await import("@countersign/wallet-core/testkit");
+    const two = deriveAccount(TEST_WORDS, 2);
+    let blocked: "disconnected" | "paused" | undefined;
+    const s = createSigner({
+      account: agent,
+      policy,
+      ticketSecret: secret,
+      now: () => NOW,
+      agents: (id) =>
+        id === "agent_b"
+          ? { account: two, accountIndex: 2, policy: { ...policy, accountIndex: 2 }, ledger: new MemorySpendLedger(), blocked: () => blocked }
+          : undefined,
+    });
+    expect(await s.handle({ op: "address", agent: "agent_b" })).toMatchObject({ address: two.address, account_index: 2 });
+    expect(await s.handle({ op: "address", agent: "agent_zz" })).toMatchObject({ code: "INVALID_INPUT" });
+    const w = await walletSide(); // 로컬(1번) 에이전트용 티켓
+    expect(await s.handle({ op: "sign_payment", agent: "agent_b", ticket: w.ticket, typedData: w.typedData })).toMatchObject({
+      code: "TICKET_INVALID",
+    });
+    blocked = "paused";
+    expect(await s.handle({ op: "sign_payment", agent: "agent_b", ticket: w.ticket, typedData: w.typedData })).toMatchObject({
+      code: "WALLET_PAUSED",
+    });
+  });
+
+  it("출금은 주인 토큰이 맞아야 하고, 출금 기능이 없는 signer는 거절", async () => {
+    const calls: unknown[] = [];
+    const s = createSigner({
+      account: agent,
+      policy,
+      ticketSecret: secret,
+      now: () => NOW,
+      withdraw: {
+        checkOwnerToken: (t) => t === "owner-secret",
+        run: async (a, amount) => {
+          calls.push([a.account.address, amount]);
+          return { ok: true, op: "withdraw_to_owner", tx_hash: "0x01", from: a.account.address, to: a.account.address, amount: "1", chain_id: 133, token: a.account.address };
+        },
+      },
+    });
+    expect(await s.handle({ op: "withdraw_to_owner", ownerToken: "wrong" })).toMatchObject({ code: "INVALID_INPUT" });
+    expect(await s.handle({ op: "withdraw_to_owner", ownerToken: "owner-secret", amount: "100" })).toMatchObject({ ok: true });
+    expect(calls).toEqual([[agent.address, 100n]]);
+    expect(await s.handle({ op: "withdraw_to_owner", ownerToken: "owner-secret", to: "0xbad" })).toMatchObject({ code: "INVALID_INPUT" });
+    expect(await newSigner().handle({ op: "withdraw_to_owner", ownerToken: "x" })).toMatchObject({ code: "INVALID_INPUT" });
+  });
+
   it("임의 서명·키 내보내기 같은 요청은 없다", async () => {
     const s = newSigner();
     for (const op of ["sign_raw", "sign_message", "export_key", "set_policy"]) {
       expect(await s.handle({ op, data: "0x00" })).toMatchObject({ code: "INVALID_INPUT" });
     }
-    expect(await s.handle({ op: "address" })).toEqual({ ok: true, op: "address", address: agent.address });
+    expect(await s.handle({ op: "address" })).toEqual({ ok: true, op: "address", address: agent.address, account_index: 1 });
   });
 
   it("유닉스 소켓으로 왕복하고, 소켓 파일 권한은 0600", async () => {
