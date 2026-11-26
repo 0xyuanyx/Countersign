@@ -65,7 +65,10 @@ export function splash(): Promise<void> {
     video.height = 168;
     video.setAttribute("aria-label", "Countersign");
     video.style.cssText = "display:block;width:168px;height:168px;object-fit:contain";
-    video.innerHTML = `<source src="/splash/icon-animation.webm" type="video/webm"><source src="/splash/icon-animation.mp4" type="video/mp4">`;
+    // 사파리(아이폰)는 webm을 "재생할 수 있다"고 답하고도 제대로 못 틀 때가 있어 mp4(H.264)를 먼저 준다
+    video.innerHTML = isIOS() || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+      ? `<source src="/splash/icon-animation.mp4" type="video/mp4">`
+      : `<source src="/splash/icon-animation.webm" type="video/webm"><source src="/splash/icon-animation.mp4" type="video/mp4">`;
     box.append(video);
 
     let started = false;
@@ -248,7 +251,11 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
                 ${mode === "scan" ? `<video playsinline muted></video>` : ic.qr()}
               </div>
               <p class="muted t13" style="margin-top:16px;text-align:center;line-height:21px">${
-                mode === "scan" ? "지갑 서버 화면의 QR을 네모 안에 맞춰 주세요" : "지갑 서버를 켜면 화면에 QR이 떠요<br>카메라로 찍으면 바로 연결돼요"
+                busy && mode === "scan"
+                  ? "QR을 읽었어요 · 지갑 서버에 연결하는 중"
+                  : mode === "scan"
+                    ? "지갑 서버 화면의 QR을 네모 안에 맞춰 주세요 · 15~30cm 떨어져서"
+                    : "지갑 서버를 켜면 화면에 QR이 떠요<br>카메라로 찍으면 바로 연결돼요"
               }</p>`
         }
         <p class="err-text" style="margin-top:12px;text-align:center;min-height:20px" role="alert">${esc(error)}</p>
@@ -281,7 +288,14 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
         resolve(p);
       } catch (e) {
         busy = false;
-        error = e instanceof ApiError ? e.message : "연결하지 못했어요";
+        // QR은 읽었는데 서버에 못 닿은 경우를 QR 문제와 구분해서 알려 준다
+        const host = p.base ? new URL(p.base).host : location.host;
+        error =
+          e instanceof ApiError && e.status === 0
+            ? `QR은 읽었어요 · ${host}에 닿지 않아요. 맥의 지갑 서버와 터널이 켜져 있는지 확인해 주세요`
+            : e instanceof ApiError
+              ? e.message
+              : "연결하지 못했어요";
         if (mode === "scan") mode = "intro";
         draw();
       }
@@ -319,14 +333,16 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
             else if (jsQR) {
               // 아이폰(BarcodeDetector 없음): 가운데 정사각형을 줄이지 않고(최대 1080) 읽는다.
               // 480으로 줄이면 촘촘한 매칭 QR(주소·토큰)의 칸이 뭉개져 못 읽는다. 어두운 터미널용으로 반전도 시도
+              // 세 가지를 번갈아 시도: 원본 크기, 반전(어두운 터미널), 작게 줄인 것(QR이 크게 찍혀 흐릿할 때)
               const vw = video.videoWidth;
               const vh = video.videoHeight;
               const side = Math.min(vw, vh);
-              const out = Math.min(side, 1080);
+              const kind = scanFrame++ % 3;
+              const out = kind === 2 ? Math.min(side, 600) : Math.min(side, 1080);
               canvas.width = out;
               canvas.height = out;
               ctx.drawImage(video, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, out, out);
-              text = jsQR(ctx.getImageData(0, 0, out, out).data, out, out, { inversionAttempts: scanFrame++ % 2 ? "onlyInvert" : "dontInvert" })?.data;
+              text = jsQR(ctx.getImageData(0, 0, out, out).data, out, out, { inversionAttempts: kind === 1 ? "onlyInvert" : "dontInvert" })?.data;
             }
           }
           const p = text ? parsePairing(text) : undefined;
@@ -334,7 +350,7 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
             stopCam?.();
             navigator.vibrate?.(30);
             void attempt(p);
-          } else setTimeout(tick, 200);
+          } else setTimeout(tick, 120);
         };
         void tick();
       } catch {

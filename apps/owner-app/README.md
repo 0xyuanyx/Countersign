@@ -28,20 +28,21 @@ pnpm --filter @countersign/owner-app pair      # 터미널에 매칭 QR
 폰 (https://countersign-wallet.vercel.app) ──HTTPS·CORS──▶ 맥 터널 https://<고정 주소>/api/ ──▶ 127.0.0.1:7420 주인 API
 ```
 
-- **Vercel 프로젝트**: GitHub 저장소를 가져오고 Root Directory를 `apps/owner-app`로. 나머지는 `vercel.json`(설치·빌드·헤더)이 정한다. **환경변수는 넣지 않는다** (비밀 값 없음. 데모 모드는 연결 화면 "지갑 없이 데모로 둘러보기"로 Vercel만으로 동작). 선택: `VITE_OWNER_API_URL`(공개 값)을 넣으면 `api=`가 없는 연결 코드에도 그 주소를 쓴다.
+- **Vercel 프로젝트**: GitHub 저장소를 가져오고 Root Directory를 `apps/owner-app`로. 나머지는 `vercel.json`(설치·빌드·헤더)이 정한다. **환경변수는 넣지 않는다** (비밀 값 없음. 데모 모드는 연결 화면 "지갑 없이 데모로 둘러보기"로 Vercel만으로 동작). 배포본은 맥 고정 터널 주소를 기본 주인 API로 갖고 있어서(`src/auth.ts`의 `DEFAULT_OWNER_API`) 매칭 QR에는 토큰만 들어간다. 다른 주소를 쓰려면 Vercel에 `VITE_OWNER_API_URL`(공개 값)을 넣거나 `pair`에 `COUNTERSIGN_OWNER_API_URL`을 주면 QR에 `api=`로 들어간다.
 - **맥 쪽**: 고정 주소는 ngrok 무료 고정 주소(`https://gone-headscarf-unsoiled.ngrok-free.dev`, 처음 한 번 `ngrok config add-authtoken`과 `tunnel.sh ngrok-setup <주소>`). Cloudflare 도메인이 생기면 `tunnel.sh setup <호스트 이름>` / `run`으로 바꿀 수 있다. 저장소 폴더에서 세 줄을 차례로 (2번은 켜 둔 채로 새 탭에서 3번):
 
 ```bash
 COUNTERSIGN_APP_ORIGIN=https://countersign-wallet.vercel.app COUNTERSIGN_OWNER_API_PUBLIC=1 apps/demo/demo.sh up
 apps/demo/tunnel.sh ngrok
 # demo.sh는 지갑 데이터를 저장소 .countersign/에 두므로 매칭도 같은 곳의 주인 토큰을 읽게 한다
-COUNTERSIGN_HOME=$PWD/.countersign COUNTERSIGN_APP_URL=https://countersign-wallet.vercel.app COUNTERSIGN_OWNER_API_URL=$(apps/demo/tunnel.sh url) pnpm --filter @countersign/owner-app pair
+# QR에는 토큰만 (터널 주소는 앱에 들어 있음). 주소가 다른 터널이면 COUNTERSIGN_OWNER_API_URL=$(apps/demo/tunnel.sh url)을 앞에 붙인다
+COUNTERSIGN_HOME=$PWD/.countersign COUNTERSIGN_APP_URL=https://countersign-wallet.vercel.app pnpm --filter @countersign/owner-app pair
 ```
 
 - 주인 API는 **공개 모드**(`COUNTERSIGN_OWNER_API_PUBLIC=1`)로 띄운다: 읽기·긴급 정지까지 모든 요청에 주인 토큰, CORS는 Vercel 주소만. 앱은 모든 요청에 토큰을 붙인다.
 - 터널 주소가 고정이면 맥을 껐다 켜도 폰을 다시 매칭할 필요가 없다. 임시 주소(`quick`)는 켤 때마다 바뀌어 다시 매칭해야 한다.
 - 패스키는 Vercel 도메인(`<앱>.vercel.app`)에 묶인다. 주소를 바꾸면 Face ID를 다시 켜야 한다 (앱 비밀번호·매칭도 브라우저 저장소가 주소별이라 다시).
-- 연결 화면 맨 아래 "지갑 없이 데모로 둘러보기"로도 데모 데이터를 볼 수 있다.
+- 연결 화면 맨 아래 "지갑 없이 데모로 둘러보기"는 빈 지갑에서 시작한다: 에이전트 연결 → 기본 규칙 → 입금(몇 초 뒤 26.10 USDC가 들어온 것처럼) → 일을 맡기면 첫 일은 처음 보는 판매자 구매 요청, 다음 일은 바꿔치기 주소를 막고 진짜 주소로 다시 결제. 데모 값은 메모리에만 있어서 앱을 다시 열면 처음부터. 미리 채운 샘플 내역으로 보려면 주소에 `?sample`.
 
 ## 매칭 (가입 없음)
 

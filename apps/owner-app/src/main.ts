@@ -108,10 +108,10 @@ async function boot(): Promise<void> {
   if (!pairing) {
     pairing = await pairScreen(link);
     store.setPairing(pairing);
-    app.api = pairing.mock ? new MockOwnerApi(location.search.includes("fresh")) : new HttpOwnerApi(pairing.base, pairing.token);
+    app.api = pairing.mock ? new MockOwnerApi(!location.search.includes("sample")) : new HttpOwnerApi(pairing.base, pairing.token);
     if (!store.hasPin()) await pinSetup(pairing.mock ? "데모 지갑" : pairing.label);
   } else {
-    app.api = pairing.mock ? new MockOwnerApi(location.search.includes("fresh")) : new HttpOwnerApi(pairing.base, pairing.token);
+    app.api = pairing.mock ? new MockOwnerApi(!location.search.includes("sample")) : new HttpOwnerApi(pairing.base, pairing.token);
     if (!store.hasPin()) await pinSetup(pairing.mock ? "데모 지갑" : pairing.label);
     else {
       void refresh();

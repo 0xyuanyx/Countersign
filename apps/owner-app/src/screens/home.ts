@@ -9,6 +9,7 @@ import { chainName, shortReason, statusWord, tabs } from "./common.js";
 import { unlock } from "./gates.js";
 import { homeEmpty, isFresh, setupDone } from "./onboard.js";
 import { hideComposer, showComposer } from "../composer.js";
+import { MockOwnerApi } from "../mock.js";
 
 const RECENT_BLOCK_SEC = 60 * 60;
 let lastBalance: number | undefined;
@@ -181,6 +182,13 @@ export function home(): Screen {
 
 /** 입금 주소: QR, 주소, 주소 복사·공유 (공유는 Web Share API로 주소와 QR 그림을 보낸다) */
 export function deposit(): void {
+  // 데모: 빈 지갑이면 입금 주소를 연 뒤 몇 초 있다 USDC가 들어온 것처럼 보여 준다
+  if (app.api instanceof MockOwnerApi && app.api.demoDeposit()) {
+    setTimeout(() => {
+      toast("데모 · 26.10 USDC가 들어왔어요");
+      refreshSoon();
+    }, 3100);
+  }
   const acct = app.data.balance?.account ?? app.data.policy?.account;
   const net = chainName(chainIds(app.data.policy)[0]);
   openSheet(

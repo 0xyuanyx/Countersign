@@ -156,7 +156,6 @@ export class MockOwnerApi implements OwnerApi {
       this.hist = [];
       this.reqs = [];
       this.taskList = [];
-      this.sellers = {};
       this.startBalance = 0;
     }
   }
@@ -168,7 +167,7 @@ export class MockOwnerApi implements OwnerApi {
    * 홈을 잠깐 본 뒤(main.ts) 또는 일을 맡긴 뒤에 들어오게 한다. 한 번만.
    */
   demoRequest(taskId = "task_weather", maxAmount = "0.5"): void {
-    if (this.demoUsed || this.fresh) return;
+    if (this.demoUsed) return;
     const t = this.taskList.find((x) => x.id === taskId);
     if (!t || (t.status !== "open" && t.status !== "working")) return;
     this.demoUsed = true;
@@ -178,6 +177,7 @@ export class MockOwnerApi implements OwnerApi {
     const weather = taskId === "task_weather";
     const seller = weather ? "weather-feed" : "data-market";
     const purpose = weather ? "서울 7일 예보 1건" : "맡긴 일 자료 1건";
+    const agent = this.agentList.find((a) => a.connected)?.name ?? "purchase-agent-1";
     t.status = "working";
     t.order_refs = ["ord_weather"];
     this.reqs.unshift({
@@ -194,7 +194,7 @@ export class MockOwnerApi implements OwnerApi {
       token: USDC,
       order_expires_at: now + 300,
       task_id: taskId,
-      agent: "purchase-agent-1",
+      agent,
       created_at: now,
     });
     this.hist.unshift({
@@ -217,7 +217,7 @@ export class MockOwnerApi implements OwnerApi {
         ok("expiry"),
         { field: "signer", result: "unchecked" },
       ],
-      agent: "purchase-agent-1",
+      agent,
       task_id: taskId,
     });
   }
@@ -291,7 +291,7 @@ export class MockOwnerApi implements OwnerApi {
     // 에이전트가 같은 주문으로 다시 pay를 부르면 결제된다 (데모: 1.5초 뒤)
     setTimeout(() => {
       this.hist = this.hist.filter((e) => e.request_id !== id);
-      this.hist.unshift({ ...paid("pw", Math.floor(Date.now() / 1000), r.seller, r.purpose, r.amount, r.pay_to, r.task_id ?? "", 9), order_ref: r.order_ref });
+      this.hist.unshift({ ...paid("pw", Math.floor(Date.now() / 1000), r.seller, r.purpose, r.amount, r.pay_to, r.task_id ?? "", 9), order_ref: r.order_ref, agent: r.agent });
       const t = this.taskList.find((x) => x.id === r.task_id);
       if (t) t.status = "paid";
     }, 1500);
@@ -321,23 +321,69 @@ export class MockOwnerApi implements OwnerApi {
     const now = Math.floor(Date.now() / 1000);
     const t = task(`task_${now}`, text, maxAmount, "open", now, []);
     this.taskList.unshift(t);
-    // 데모: 에이전트가 청구서를 받아 오는 데 2.5초. 아직 데모 요청을 안 봤으면 이 일로 구매 요청이 온다
-    setTimeout(() => {
-      if (!this.demoUsed) {
-        const old = this.taskList.find((x) => x.id === "task_weather");
-        if (old && old.status === "open") old.status = "cancelled";
-        this.demoRequest(t.id, maxAmount);
-      } else if (t.status === "open") {
-        // 그다음부터는 등록된 판매자(area-report)라 묻지 않고 바로 결제된다
-        const n = Math.floor(Date.now() / 1000);
-        const amt = String(Math.min(0.1, Number(maxAmount)));
-        t.status = "paid";
-        t.order_refs = [`ord_${n}`];
-        this.hist.unshift({ ...paid(`p_${n}`, n, "area-report", "리포트 1건", amt, AREA, t.id, n % 97), order_ref: `ord_${n}` });
-      }
-    }, 2500);
+    // 데모 각본 (에이전트가 청구서를 받아 오는 데 2.5초):
+    // 첫 일 → 처음 보는 판매자라 구매 요청, 다음 일 → 등록된 판매자 이름에 다른 주소(바꿔치기)를 막고 진짜 주소로 다시 결제, 그다음부터는 바로 결제
+    setTimeout(() => this.runTask(t, maxAmount), 2500);
     return this.delay(t);
   }
+  private mismatchShown = false;
+  private runTask(t: Task, maxAmount: string): void {
+    if (t.status !== "open") return;
+    if (!this.demoUsed) {
+      const old = this.taskList.find((x) => x.id === "task_weather");
+      if (old && old.status === "open") old.status = "cancelled";
+      return this.demoRequest(t.id, maxAmount);
+    }
+    const agent = this.agentList.find((a) => a.connected)?.name ?? "purchase-agent-1";
+    const amt = String(Math.min(0.1, Number(maxAmount)));
+    const n = Math.floor(Date.now() / 1000);
+    const pay = () => {
+      const m = Math.floor(Date.now() / 1000);
+      t.status = "paid";
+      t.order_refs.push(`ord_p${m}`);
+      this.hist.unshift({ ...paid(`p${m}`, m, "area-report", "상권 리포트 1건", amt, AREA, t.id, m % 97), order_ref: `ord_p${m}`, agent });
+    };
+    t.status = "working";
+    if (this.mismatchShown) return pay();
+    this.mismatchShown = true;
+    t.order_refs.push(`ord_f${n}`);
+    this.hist.unshift({
+      id: `rej${n}`,
+      at: n,
+      order_ref: `ord_f${n}`,
+      status: "rejected",
+      seller: "area-report",
+      purpose: "상권 리포트 1건",
+      amount: amt,
+      pay_to: AREA_FAKE,
+      chain_id: 133,
+      code: "PAYEE_MISMATCH",
+      step: "payee",
+      reason: "pay_to가 area-report의 고정 주소가 아님",
+      next_action: "판매자에게 주문 재발급 요청",
+      order_hash: hex(64, n % 89),
+      checks: [
+        { field: "payee", result: "mismatch", expected: AREA, actual: AREA_FAKE },
+        { field: "amount", result: "unchecked" },
+        { field: "chain", result: "unchecked" },
+        { field: "token", result: "unchecked" },
+        { field: "expiry", result: "unchecked" },
+        { field: "signer", result: "unchecked" },
+      ],
+      agent,
+      task_id: t.id,
+    });
+    // 에이전트가 새 청구서를 받아 진짜 주소로 다시 결제
+    setTimeout(pay, 5000);
+  }
+
+  /** 데모 입금: 입금 주소를 열면 몇 초 뒤 USDC가 들어온 것처럼 (빈 지갑일 때만) */
+  demoDeposit(): boolean {
+    if (this.startBalance - this.spent() > 0) return false;
+    setTimeout(() => (this.startBalance = this.spent() + 26.1), 3000);
+    return true;
+  }
+
   async cancelTask(id: string) {
     const t = this.taskList.find((x) => x.id === id);
     if (!t) throw new ApiError(404, "없는 일");

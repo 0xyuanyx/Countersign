@@ -36,8 +36,9 @@ if (apiUrl && !/^https:\/\//.test(apiUrl)) {
   process.exit(1);
 }
 if (!apiUrl && /\.vercel\.app$/.test(new URL(appUrl).host)) {
-  console.error("Vercel 앱에는 주인 API 주소가 필요함: COUNTERSIGN_OWNER_API_URL=https://<맥 터널 주소>");
-  process.exit(1);
+  // QR을 짧게: 터널 주소를 Vercel 환경변수 VITE_OWNER_API_URL로 앱에 넣어 두면 QR에는 토큰만 들어간다
+  console.log("QR에는 토큰만 넣어요 · 앱에 든 기본 터널 주소(src/auth.ts DEFAULT_OWNER_API)로 연결돼요");
+  console.log("(다른 터널 주소면 COUNTERSIGN_OWNER_API_URL=https://<맥 터널 주소>로 다시 실행)\n");
 }
 const link = `${appUrl}/#pair=${encodeURIComponent(token)}${apiUrl ? `&api=${encodeURIComponent(apiUrl)}` : ""}`;
 

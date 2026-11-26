@@ -35,6 +35,13 @@ export const store = {
   reset: () => Object.values(K).forEach((k) => write(k, undefined)),
 };
 
+/**
+ * 기본 주인 API 주소 (공개 값, 비밀 아님). 배포본(Vercel)은 맥의 고정 터널 주소를 기본으로 써서
+ * 매칭 QR에 토큰만 넣는다 → QR이 짧아져 폰 카메라가 잘 읽는다. VITE_OWNER_API_URL로 바꿀 수 있다.
+ * 터널 주소를 바꾸면 여기와 apps/demo/tunnel.sh를 같이 바꾼다.
+ */
+const DEFAULT_OWNER_API: string = import.meta.env.VITE_OWNER_API_URL ?? (import.meta.env.PROD ? "https://gone-headscarf-unsoiled.ngrok-free.dev" : "");
+
 // ─── 매칭 링크 ───
 // 지갑 서버(pnpm --filter @countersign/owner-app pair)가 띄우는 QR = https://<앱 주소>/#pair=<주인 토큰>[&api=<주인 API 주소>]
 // Vercel에 올린 앱은 주인 API와 주소가 달라서 api=(맥의 HTTPS 터널 주소)가 꼭 있어야 한다.
@@ -58,8 +65,8 @@ export function parsePairing(input: string): Pairing | undefined {
   const params = new URLSearchParams(frag);
   const token = params.get("pair") ?? (/^[A-Za-z0-9_\-.~+/=]{16,200}$/.test(s) ? s : null);
   if (!token) return undefined;
-  // api=가 없으면 빌드 때 정한 기본 주인 API 주소(VITE_OWNER_API_URL, 공개 값), 그것도 없으면 같은 주소의 /api
-  const api = params.get("api") || (import.meta.env.VITE_OWNER_API_URL ?? "");
+  // api=가 없으면 기본 주인 API 주소, 그것도 없으면 같은 주소의 /api (Vite 개발 서버 프록시)
+  const api = params.get("api") || DEFAULT_OWNER_API;
   if (api && !/^https?:\/\//i.test(api)) return undefined;
   return { base: api.replace(/\/+$/, ""), token, label: api ? new URL(api).host : label };
 }
