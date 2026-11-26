@@ -13,7 +13,7 @@ Countersign은 AI 에이전트(Claude Code, Codex 등)가 MCP로 붙여 쓰는 �
 | 지갑 코어·서명 프로세스·지갑 MCP·주인 API·주인 폰 앱 | 구현됨, 로컬 HSP mock으로 끝에서 끝까지 동작 |
 | HSP 공식 Agentic Payment MCP 실연동 | 클라이언트 구현됨, **IP 허용 대기 중이라 실결제 전** |
 | 결제 체인 | **Ethereum Sepolia(11155111)**, Circle 공식 테스트 USDC. 해커톤 운영진 안내(11/26)에 따름. HSK 테스트넷(133)은 설정으로 전환 가능 |
-| `EvidenceRegistry` 컨트랙트 | HSK **테스트넷(133)** 배포·검증 완료, **Ethereum Sepolia 배포 준비됨**(가스 대기). 운영진 답(11/26): 제출은 테스트넷 배포로 충분하고 HSK 메인넷(177) 배포는 수상작 선정 뒤 |
+| `EvidenceRegistry` 컨트랙트 | HSK **테스트넷(133)** 배포·검증 완료, **Ethereum Sepolia 배포·검증 완료**(11/26). 운영진 답(11/26): 제출은 테스트넷 배포로 충분하고 HSK 메인넷(177) 배포는 수상작 선정 뒤 |
 
 모든 주장의 근거와 확인 수준은 [주장 구분표](#16-주장-구분표)에 정리했습니다.
 
@@ -428,7 +428,7 @@ Foundry 테스트 10개: 정상 기록, viem과 같은 digest, owner 아닌 호�
 | 네트워크 | 주소 | 상태 |
 |---|---|---|
 | HSK 테스트넷 (133) | [`0xb811f8bD9C6D6987009f56bc4796fE794a744290`](https://testnet-explorer.hskchain.net/address/0xb811f8bD9C6D6987009f56bc4796fE794a744290) | 배포·Blockscout 소스 검증 완료. [배포 tx](https://testnet-explorer.hskchain.net/tx/0x0fa2d84e1163382b9445e5fd5f5384ed7d63c491216a2888afa567191cf11e1f) · 연기 테스트 [`registerAgent`](https://testnet-explorer.hskchain.net/tx/0xa151d2797d8d4a2b5fb55ec19de1d03c4db6e363f22e1c58c6084268bd6c3c0d) · [`record`](https://testnet-explorer.hskchain.net/tx/0x5f4312a7138cf83cc0ffe2cc1e5ec6b413c6b470313bce80a7d8f75660faacea) |
-| Ethereum Sepolia (11155111) | _배포 후 기입_ | 시뮬레이션 통과, 0번 계정 가스(Sepolia ETH) 받으면 배포 |
+| Ethereum Sepolia (11155111) | [`0xb811f8bD9C6D6987009f56bc4796fE794a744290`](https://eth-sepolia.blockscout.com/address/0xb811f8bD9C6D6987009f56bc4796fE794a744290) | 배포·Blockscout 소스 검증 완료 (11/26). [배포 tx](https://eth-sepolia.blockscout.com/tx/0x998315a207728b087bcc47cb3d6b6c935446cec9bf8a37126e945b7e66571b3a). 같은 배포 계정의 첫 거래라 HSK 테스트넷과 주소가 같다 |
 | HSK 메인넷 (177) | _수상 후 기입_ | 운영진 안내에 따라 수상작 선정 뒤 배포 |
 
 연기 테스트의 `record`는 실제 결제가 아닌 표시용 값(`payTxHash = keccak256("smoke")`)으로 기록한 것입니다.
@@ -567,7 +567,7 @@ Face ID(패스키)와 카메라는 HTTPS에서만 동작하므로 폰 시연은 
 |---|---|---|
 | `EvidenceRegistry`가 HSK 테스트넷(133)에 배포·소스 검증됨 | VERIFIED | [Blockscout](https://testnet-explorer.hskchain.net/address/0xb811f8bD9C6D6987009f56bc4796fE794a744290) |
 | 컨트랙트가 등록된 에이전트의 EIP-3009 서명만 기록함 | VERIFIED | `contracts/test/EvidenceRegistry.t.sol` (퍼즈 포함 10개), 테스트넷 연기 테스트 tx |
-| `EvidenceRegistry`가 Ethereum Sepolia에 배포됨 | **NOT-CLAIMED** | 배포 전 (가스 대기). 배포하면 VERIFIED로 바꾸고 주소를 적음 |
+| `EvidenceRegistry`가 Ethereum Sepolia에 배포·소스 검증됨 | VERIFIED | [Blockscout](https://eth-sepolia.blockscout.com/address/0xb811f8bD9C6D6987009f56bc4796fE794a744290) |
 | `EvidenceRegistry`가 HSK **메인넷(177)**에 배포됨 | **NOT-CLAIMED** | 운영진 안내(11/26)에 따라 수상작 선정 뒤 배포 |
 | 변조된 수취인·금액·체인·토큰·만료·서명자를 서명 전에 거부함 | VERIFIED | `packages/wallet-core/src/evidence.test.ts`, `policy.test.ts` |
 | 키는 signer 프로세스에만 있고, 티켓 없이·위조·만료·재사용 티켓으로는 서명하지 않음 | VERIFIED | `packages/signer/src/signer.test.ts` |
@@ -592,7 +592,7 @@ Face ID(패스키)와 카메라는 HTTPS에서만 동작하므로 폰 시연은 
 | 항목 | 답 |
 |---|---|
 | **Track fit** | HSP 공식 Agentic Payment MCP의 비어 있는 자리(클라이언트 서명)를 채우는 지갑. 결제는 전부 HSP를 거치고, 증거는 컨트랙트로 모음(해커톤 기간 Sepolia, 수상 후 HSK 메인넷) |
-| **Completeness** | 키·정책·검증·서명 분리·지갑 MCP·주인 API·폰 앱·판매 서버·컨트랙트까지 한 저장소에서 끝에서 끝까지 동작(HSP mock). 남은 것: HSP 실결제, Sepolia 컨트랙트 배포, 자동 증거 기록 ([16장](#16-주장-구분표)) |
+| **Completeness** | 키·정책·검증·서명 분리·지갑 MCP·주인 API·폰 앱·판매 서버·컨트랙트까지 한 저장소에서 끝에서 끝까지 동작(HSP mock). 남은 것: HSP 실결제, 자동 증거 기록 ([16장](#16-주장-구분표)) |
 | **Solution value** | 어떤 MCP 에이전트에든 붙는 지갑 부품. 허용한 판매자는 사람 클릭 없이 결제하고, 사람은 새 판매자만 판단 |
 | **Authenticity** | 모든 주장에 VERIFIED / REPRODUCIBLE / NOT-CLAIMED 표시. mock과 실결제를 섞어 쓰지 않음 |
 | **Code quality** | TypeScript strict, 금액 bigint, 외부 입력 zod 검증, Canonical JSON, 변조 케이스 테스트, 컨트랙트 퍼즈 테스트 |

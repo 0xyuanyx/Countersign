@@ -379,7 +379,7 @@ countersign-agent/          (로컬 폴더: ~/Developer/Countersign)
 
 - [x] DoraHacks 등록·해커톤 제출 (2026-11-24, BUIDL https://dorahacks.io/build/51775, Track 2). 마감 전까지 본문 갱신
 - [ ] 공개 GitHub 저장소 + README: 문제, 구조, HSP 사용 위치를 파일 경로로, **Ouryn-Wallet 재구축 출처 명시**, 심사 6개 항목 자가 점검, 주장별 VERIFIED / REPRODUCIBLE / NOT-CLAIMED 표
-- [ ] Ethereum Sepolia `EvidenceRegistry` 주소 + 블록스카우트 검증 링크 (HSK 메인넷은 수상 뒤)
+- [x] Ethereum Sepolia `EvidenceRegistry` `0xb811f8bD9C6D6987009f56bc4796fE794a744290` 배포·Blockscout 검증 (11/26). HSK 메인넷은 수상 뒤
 - [ ] HSP 결제 tx 링크 (정상 1건 이상, Ethereum Sepolia) + 해당 결제의 증거 tx
 - [ ] 레드팀 결과 표 (LLM 2종, 지갑 유무, 오탐 수)
 - [ ] CI 배지와 테스트 수
