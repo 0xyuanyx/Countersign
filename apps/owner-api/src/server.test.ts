@@ -136,6 +136,7 @@ describe("주인 API 공개 모드 (터널로 인터넷에 열 때)", () => {
     expect(pre.status).toBe(204);
     expect(pre.headers.get("access-control-allow-origin")).toBe(APP);
     expect(pre.headers.get("access-control-allow-headers")).toContain("Authorization");
+    expect(pre.headers.get("access-control-allow-headers")).toContain("ngrok-skip-browser-warning");
     const evil = await call("/api/policy", { method: "OPTIONS", headers: { Origin: "https://evil.example" } });
     expect(evil.headers.get("access-control-allow-origin")).toBeNull();
   });

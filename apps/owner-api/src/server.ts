@@ -181,7 +181,8 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     if (origin && origins.has(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      // ngrok-skip-browser-warning: ngrok 무료 주소로 열 때 앱이 붙이는 헤더 (경고 페이지 건너뛰기)
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, ngrok-skip-browser-warning");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
     }
     if (req.method === "OPTIONS") return void res.writeHead(204).end();

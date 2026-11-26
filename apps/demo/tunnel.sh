@@ -6,6 +6,12 @@
 #   apps/demo/tunnel.sh quick                      # 도메인 없이 임시 주소(https://….trycloudflare.com). 켤 때마다 바뀜 → 매번 다시 짝짓기
 #   apps/demo/tunnel.sh url                        # 고정 주소 출력
 #
+# 도메인이 없을 때의 고정 주소: ngrok 무료 계정의 고정 주소 하나(https://<이름>.ngrok-free.app 등)
+#   ngrok config add-authtoken <토큰>                       # 처음 한 번 (토큰은 ngrok 설정 파일에만, 저장소엔 안 넣음)
+#   apps/demo/tunnel.sh ngrok-setup https://<이름>.ngrok-free.app   # 처음 한 번: 주소 기억
+#   apps/demo/tunnel.sh ngrok                      # 그 고정 주소로 열기
+# ngrok 무료 주소는 브라우저에 경고 페이지를 끼워 넣는데, 앱이 ngrok-skip-browser-warning 헤더를 붙여 건너뛴다.
+#
 # 터널 설정·인증서는 ~/.cloudflared/ 에만 둔다 (저장소에 넣지 않는다).
 # 밖에 열 때 주인 API는 공개 모드로 띄운다: 모든 요청에 주인 토큰, CORS는 Vercel 앱 주소만.
 #   COUNTERSIGN_APP_ORIGIN=https://<앱>.vercel.app COUNTERSIGN_OWNER_API_PUBLIC=1 apps/demo/demo.sh up
@@ -14,10 +20,12 @@ set -euo pipefail
 NAME="${COUNTERSIGN_TUNNEL_NAME:-countersign}"
 CFG="$HOME/.cloudflared/$NAME.yml"
 HOSTFILE="$HOME/.cloudflared/$NAME.hostname"
+NGROKFILE="$HOME/.config/countersign/ngrok.url"
 OWNER_API="http://127.0.0.1:${COUNTERSIGN_OWNER_API_PORT:-7420}"
 WALLET_MCP="http://127.0.0.1:${COUNTERSIGN_WALLET_HTTP_PORT:-7440}"
 
-command -v cloudflared >/dev/null || { echo "cloudflared가 없음: brew install cloudflared" >&2; exit 1; }
+need() { command -v "$1" >/dev/null || { echo "$1 이(가) 없음: $2" >&2; exit 1; }; }
+case "${1:-}" in ngrok*) need ngrok "brew install --cask ngrok" ;; *) need cloudflared "brew install cloudflared" ;; esac
 
 case "${1:-}" in
   setup)
@@ -60,8 +68,21 @@ case "${1:-}" in
     echo "임시 주소는 아래 로그의 https://….trycloudflare.com 이다. 끄면 사라지고, 다시 켜면 바뀐다."
     exec cloudflared tunnel --no-autoupdate --url "$OWNER_API"
     ;;
-  url)
-    [ -f "$HOSTFILE" ] && echo "https://$(cat "$HOSTFILE")" || { echo "고정 터널이 아직 없음" >&2; exit 1; }
+  ngrok-setup)
+    u="${2:-}"; u="${u%/}"
+    [[ "$u" =~ ^https://[a-z0-9.-]+\.[a-z]{2,}$ ]] || { echo "사용법: $0 ngrok-setup https://<이름>.ngrok-free.app (ngrok 대시보드 Domains의 주소)" >&2; exit 1; }
+    mkdir -p "$(dirname "$NGROKFILE")"; echo "$u" >"$NGROKFILE"
+    echo "고정 주소: $u   열기: $0 ngrok"
     ;;
-  *) echo "사용법: $0 setup <호스트 이름> | run | quick | url" >&2; exit 1 ;;
+  ngrok)
+    [ -f "$NGROKFILE" ] || { echo "ngrok 주소가 아직 없음: $0 ngrok-setup https://<이름>.ngrok-free.app" >&2; exit 1; }
+    echo "주인 API: $(cat "$NGROKFILE")/api/ → $OWNER_API"
+    exec ngrok http "$OWNER_API" --url "$(cat "$NGROKFILE")" --log stdout --log-level warn
+    ;;
+  url)
+    if [ -f "$HOSTFILE" ]; then echo "https://$(cat "$HOSTFILE")"
+    elif [ -f "$NGROKFILE" ]; then cat "$NGROKFILE"
+    else echo "고정 터널이 아직 없음" >&2; exit 1; fi
+    ;;
+  *) echo "사용법: $0 setup <호스트 이름> | run | quick | ngrok-setup <주소> | ngrok | url" >&2; exit 1 ;;
 esac

@@ -166,6 +166,8 @@ export class HttpOwnerApi implements OwnerApi {
         headers: {
           ...(body !== undefined && { "Content-Type": "application/json" }),
           Authorization: `Bearer ${this.token}`,
+          // ngrok 무료 주소는 브라우저 요청에 경고 페이지(HTML, CORS 헤더 없음)를 끼워 넣는다. 이 헤더가 있으면 건너뛴다
+          ...(this.base && { "ngrok-skip-browser-warning": "1" }),
         },
         ...(body !== undefined && { body: JSON.stringify(body) }),
         cache: "no-store",
