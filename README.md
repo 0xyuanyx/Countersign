@@ -612,7 +612,7 @@ Face ID(패스키)와 카메라는 HTTPS에서만 동작하므로 폰 시연은 
 **다음 단계**
 
 1. HSP QA 실결제 1건 이상과 그 tx 링크
-2. `EvidenceRegistry` Ethereum Sepolia 배포·검증 (수상 후 HSK 메인넷 이전)
+2. `EvidenceRegistry` HSK 메인넷 이전 (수상 뒤, Sepolia는 11/26 배포·검증 완료)
 3. 결제 후 증거 자동 기록 (주인 계정)
 4. 실제 LLM 레드팀 하니스와 결과 표 (지갑 없음 / 있음, 오탐 수)
 5. Evidence 뷰어 한 페이지, `npx` 설치 경로
