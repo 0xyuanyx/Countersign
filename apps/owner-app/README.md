@@ -14,7 +14,7 @@ pnpm --filter @countersign/owner-app dev:mock  # http://localhost:5173
 # 2) 실제 주인 API에 붙이기
 COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owner-api/src/main.ts   # 127.0.0.1:7420
 pnpm --filter @countersign/owner-app dev       # 0.0.0.0:5173, /api는 7420으로 넘김
-pnpm --filter @countersign/owner-app pair      # 터미널에 짝짓기 QR
+pnpm --filter @countersign/owner-app pair      # 터미널에 매칭 QR
 ```
 
 - 폰은 127.0.0.1에만 열린 주인 API에 직접 못 붙는다. 그래서 Vite가 `/api`를 주인 API로 넘긴다 (`vite.config.ts`, 주소는 `COUNTERSIGN_OWNER_API`). 폰 → 앱 주소 → `/api` → 주인 API.
@@ -22,7 +22,7 @@ pnpm --filter @countersign/owner-app pair      # 터미널에 짝짓기 QR
 
 ## Vercel 배포 (고정 주소)
 
-앱은 Vercel 고정 주소에서, 지갑 데이터는 맥의 주인 API에서 온다. Vercel에는 프록시가 없으므로 앱은 짝짓기 QR에 든 주인 API 주소(`api=`)로 직접 부른다.
+앱은 Vercel 고정 주소에서, 지갑 데이터는 맥의 주인 API에서 온다. Vercel에는 프록시가 없으므로 앱은 매칭 QR에 든 주인 API 주소(`api=`)로 직접 부른다.
 
 ```
 폰 (https://countersign-wallet.vercel.app) ──HTTPS·CORS──▶ 맥 터널 https://<고정 주소>/api/ ──▶ 127.0.0.1:7420 주인 API
@@ -34,20 +34,20 @@ pnpm --filter @countersign/owner-app pair      # 터미널에 짝짓기 QR
 ```bash
 COUNTERSIGN_APP_ORIGIN=https://countersign-wallet.vercel.app COUNTERSIGN_OWNER_API_PUBLIC=1 apps/demo/demo.sh up
 apps/demo/tunnel.sh ngrok
-# demo.sh는 지갑 데이터를 저장소 .countersign/에 두므로 짝짓기도 같은 곳의 주인 토큰을 읽게 한다
+# demo.sh는 지갑 데이터를 저장소 .countersign/에 두므로 매칭도 같은 곳의 주인 토큰을 읽게 한다
 COUNTERSIGN_HOME=$PWD/.countersign COUNTERSIGN_APP_URL=https://countersign-wallet.vercel.app COUNTERSIGN_OWNER_API_URL=$(apps/demo/tunnel.sh url) pnpm --filter @countersign/owner-app pair
 ```
 
 - 주인 API는 **공개 모드**(`COUNTERSIGN_OWNER_API_PUBLIC=1`)로 띄운다: 읽기·긴급 정지까지 모든 요청에 주인 토큰, CORS는 Vercel 주소만. 앱은 모든 요청에 토큰을 붙인다.
-- 터널 주소가 고정이면 맥을 껐다 켜도 폰을 다시 짝지을 필요가 없다. 임시 주소(`quick`)는 켤 때마다 바뀌어 다시 짝지어야 한다.
-- 패스키는 Vercel 도메인(`<앱>.vercel.app`)에 묶인다. 주소를 바꾸면 Face ID를 다시 켜야 한다 (앱 비밀번호·짝짓기도 브라우저 저장소가 주소별이라 다시).
+- 터널 주소가 고정이면 맥을 껐다 켜도 폰을 다시 매칭할 필요가 없다. 임시 주소(`quick`)는 켤 때마다 바뀌어 다시 매칭해야 한다.
+- 패스키는 Vercel 도메인(`<앱>.vercel.app`)에 묶인다. 주소를 바꾸면 Face ID를 다시 켜야 한다 (앱 비밀번호·매칭도 브라우저 저장소가 주소별이라 다시).
 - 연결 화면 맨 아래 "지갑 없이 데모로 둘러보기"로도 데모 데이터를 볼 수 있다.
 
-## 짝짓기 (가입 없음)
+## 매칭 (가입 없음)
 
 QR = `<앱 주소>/#pair=<주인 토큰>[&api=<주인 API 주소>]`. 토큰은 `#` 뒤라 서버로 전송되지 않고, 앱이 읽자마자 주소창에서 지운다.
 앱은 `GET /api/policy`로 서버에 닿는지(공개 모드면 여기서 401 = 토큰 틀림), 없는 요청을 거절해 보는 걸로(401이면 틀림, 404면 맞음) 토큰이 맞는지 확인한다. `api=`가 빠진 코드를 Vercel 앱에 넣으면 "지갑 서버 주소가 없어요"로 막는다.
-아이폰은 Safari와 홈 화면 앱의 저장소가 따로라, 브라우저로 열면 먼저 홈 화면 추가 안내를 보여 주고 짝짓기는 홈 화면 앱 안에서 한다 (앱 안 카메라는 BarcodeDetector, 없으면 jsQR).
+아이폰은 Safari와 홈 화면 앱의 저장소가 따로라, 브라우저로 열면 먼저 홈 화면 추가 안내를 보여 주고 매칭은 홈 화면 앱 안에서 한다 (앱 안 카메라는 BarcodeDetector, 없으면 jsQR).
 
 ## 화면 (이번 버전)
 
@@ -63,7 +63,7 @@ QR = `<앱 주소>/#pair=<주인 토큰>[&api=<주인 API 주소>]`. 토큰은 `
 | 거절 상세 (6칸 띠 한 칸씩, 두 주소 비교, 다시 결제한 결과로 이어짐, 기록 접힘) | 됨 |
 | 결제 상세 (승인) | 간단히 (띠·거래 링크) |
 | 내역 (맡긴 일 단위, 접기, 거절 행만 띠) | 됨 |
-| 정책 (한도 시트 → 저장 → 비밀번호, 판매자 보기, 메인넷 스위치 "HSP 결제 확인 중"으로 비활성) · 설정 (Face ID·알림 켜기·다시 짝짓기) | 됨 |
+| 정책 (한도 시트 → 저장 → 비밀번호, 판매자 보기, 메인넷 스위치 "HSP 결제 확인 중"으로 비활성) · 설정 (Face ID·알림 켜기·다시 매칭) | 됨 |
 | 홈 상태 줄 (서버 끊김 > 잔액이 1회 한도보다 적음 > 에이전트 꺼짐, 가장 급한 것 하나) · 빈 내역 문구 | 됨 |
 | 알림 (구매 요청 → 비밀번호 → 구매 요청 시트, 막은 결제 → 거절 상세) | 앱이 살아 있을 때만. 아래 한계 참고 |
 | 맡길 일 (글 + 최대 금액 → `POST /api/tasks`) | 시트 하나로. 진행 단계 카드(Working)는 아직 |

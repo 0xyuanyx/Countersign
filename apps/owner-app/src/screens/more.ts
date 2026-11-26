@@ -1,4 +1,4 @@
-// 정책 탭과 설정 탭 (첫 버전: 한도 바꾸기·판매자 보기·메인넷은 "확인 중", 설정은 연결·Face ID·다시 짝짓기)
+// 정책 탭과 설정 탭 (첫 버전: 한도 바꾸기·판매자 보기·메인넷은 "확인 중", 설정은 연결·Face ID·다시 매칭)
 
 import { ApiError, chainIds } from "../api.js";
 import { app, openSheet, refreshSoon, type Screen } from "../app.js";
@@ -153,9 +153,9 @@ export function settings(): Screen {
       <div class="divider"></div>
       ${row("에이전트 계정", app.data.policy?.account ? addrHtml(app.data.policy.account, { short: true }) : "—")}
       <div class="divider"></div>
-      <button type="button" class="list-row" data-act="repair" style="width:100%;min-height:56px;color:var(--bad)">이 폰 연결 끊고 다시 짝짓기</button>
+      <button type="button" class="list-row" data-act="repair" style="width:100%;min-height:56px;color:var(--bad)">이 폰 연결 끊고 다시 매칭</button>
     </section>
-    <p class="dim t12" style="margin-top:8px;line-height:18px">폰에는 키가 없어요. 폰을 잃어버리면 지갑 서버에서 새 QR을 띄워 다시 짝지어요</p>
+    <p class="dim t12" style="margin-top:8px;line-height:18px">폰에는 키가 없어요. 폰을 잃어버리면 지갑 서버에서 새 QR을 띄워 다시 매칭해요</p>
   </div>
   ${tabs("settings")}`;
   return {

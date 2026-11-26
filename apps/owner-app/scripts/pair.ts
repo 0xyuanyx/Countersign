@@ -1,10 +1,10 @@
 #!/usr/bin/env -S npx tsx
 /**
- * 폰 짝짓기 QR을 터미널에 띄운다. 폰 카메라(또는 앱의 "QR 찍기")로 찍으면 그 폰이 주인으로 등록된다.
+ * 폰 매칭 QR을 터미널에 띄운다. 폰 카메라(또는 앱의 "QR 찍기")로 찍으면 그 폰이 주인으로 등록된다.
  *
  *   pnpm --filter @countersign/owner-app pair                     # 같은 와이파이: http://<이 맥 IP>:5173 (Vite가 /api를 넘겨 줌)
  *   COUNTERSIGN_APP_URL=https://<앱>.vercel.app COUNTERSIGN_OWNER_API_URL=https://<맥 터널 주소> pnpm --filter @countersign/owner-app pair
- *     → Vercel 앱 + 맥 주인 API(HTTPS 터널). Face ID 가능. 터널 주소가 고정이면 한 번만 짝지으면 된다 (apps/demo/tunnel.sh)
+ *     → Vercel 앱 + 맥 주인 API(HTTPS 터널). Face ID 가능. 터널 주소가 고정이면 한 번만 매칭하면 된다 (apps/demo/tunnel.sh)
  *
  * 맥에서는 큰 QR 그림도 미리보기로 띄운다 (3분 뒤 지움, --no-image로 끔). 앱의 "QR 찍기"로 그 그림을 찍으면 잘 읽힌다.
  * QR 안에는 주인 토큰이 들어 있다 (비밀번호와 같다). 화면 공유·녹화 중에는 띄우지 않는다.

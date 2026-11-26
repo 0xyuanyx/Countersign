@@ -98,11 +98,11 @@ async function boot(): Promise<void> {
   await splash();
 
   let pairing = FORCE_MOCK ? { base: "", token: "", label: "데모", mock: true } : store.pairing();
-  // 새 QR로 열었으면 다시 짝짓기
+  // 새 QR로 열었으면 다시 매칭
   if (link && pairing && !pairing.mock && link.token !== pairing.token) pairing = undefined;
 
-  // 처음 여는 거면(짝짓기나 비밀번호 전) 브라우저에서는 홈 화면 추가 안내부터.
-  // 아이폰은 Safari와 홈 화면 앱이 저장소를 따로 쓴다 → 홈 화면 앱 안에서 짝지어야 한다
+  // 처음 여는 거면(매칭이나 비밀번호 전) 브라우저에서는 홈 화면 추가 안내부터.
+  // 아이폰은 Safari와 홈 화면 앱이 저장소를 따로 쓴다 → 홈 화면 앱 안에서 매칭해야 한다
   if ((!pairing || !store.hasPin()) && !isStandalone()) await installGuide({ hadPairLink: !!link });
 
   if (!pairing) {

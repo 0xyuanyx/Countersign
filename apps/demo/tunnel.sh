@@ -2,8 +2,8 @@
 # 맥의 주인 API(127.0.0.1:7420)를 HTTPS로 밖에 연다. Vercel에 올린 주인 앱이 이 주소를 부른다.
 #
 #   apps/demo/tunnel.sh setup wallet.example.com   # 처음 한 번: 고정 주소(이름 붙인 터널) 만들기. Cloudflare에 도메인이 있어야 함
-#   apps/demo/tunnel.sh run                        # 고정 주소로 열기 (주소가 안 바뀌어서 폰을 다시 짝지을 필요 없음)
-#   apps/demo/tunnel.sh quick                      # 도메인 없이 임시 주소(https://….trycloudflare.com). 켤 때마다 바뀜 → 매번 다시 짝짓기
+#   apps/demo/tunnel.sh run                        # 고정 주소로 열기 (주소가 안 바뀌어서 폰을 다시 매칭할 필요 없음)
+#   apps/demo/tunnel.sh quick                      # 도메인 없이 임시 주소(https://….trycloudflare.com). 켤 때마다 바뀜 → 매번 다시 매칭
 #   apps/demo/tunnel.sh url                        # 고정 주소 출력
 #
 # 도메인이 없을 때의 고정 주소: ngrok 무료 계정의 고정 주소 하나(https://<이름>.ngrok-free.app 등)

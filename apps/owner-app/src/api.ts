@@ -111,7 +111,7 @@ export type PauseState = { paused: boolean; at: number; reason?: string };
 
 export interface OwnerApi {
   readonly mock: boolean;
-  /** 짝짓기 확인: 주소에 닿는지 + 토큰이 맞는지 */
+  /** 매칭 확인: 주소에 닿는지 + 토큰이 맞는지 */
   verify(): Promise<void>;
   policy(): Promise<PolicySummary>;
   policyFile(): Promise<PolicyFileJson>;
@@ -149,7 +149,7 @@ export class ApiError extends Error {
 export class HttpOwnerApi implements OwnerApi {
   readonly mock = false;
   /**
-   * base = 주인 API 주소 (짝짓기 QR의 api=, 예: 맥 터널 https://wallet.example.com).
+   * base = 주인 API 주소 (매칭 QR의 api=, 예: 맥 터널 https://wallet.example.com).
    * 빈 문자열이면 앱과 같은 주소의 /api (로컬 Vite 개발 서버가 주인 API로 넘겨 줌). Vercel에 올린 앱은 항상 base가 있어야 한다.
    */
   constructor(
@@ -175,7 +175,7 @@ export class HttpOwnerApi implements OwnerApi {
     } catch {
       throw new ApiError(0, "지갑 서버에 닿지 않아요");
     }
-    // 앱과 같은 주소에 /api가 없으면(Vercel 등) JSON이 아닌 페이지가 온다 → 짝짓기 링크에 주인 API 주소(api=)가 빠진 것
+    // 앱과 같은 주소에 /api가 없으면(Vercel 등) JSON이 아닌 페이지가 온다 → 매칭 링크에 주인 API 주소(api=)가 빠진 것
     if (!this.base && !(res.headers.get("content-type") ?? "").includes("json")) throw new ApiError(0, NO_SERVER_URL);
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     // 앱 서버(Vite 프록시·터널)는 살아 있는데 주인 API가 꺼져 있으면 502~504가 온다

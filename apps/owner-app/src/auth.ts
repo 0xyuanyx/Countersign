@@ -31,11 +31,11 @@ export const store = {
   setPasskeyId: (id: string | undefined) => write(K.passkey, id),
   seen: () => read<string[]>(K.seen) ?? [],
   markSeen: (id: string) => write(K.seen, [id, ...(read<string[]>(K.seen) ?? []).filter((x) => x !== id)].slice(0, 50)),
-  /** 다시 짝짓기: 이 폰의 모든 값을 지운다 */
+  /** 다시 매칭: 이 폰의 모든 값을 지운다 */
   reset: () => Object.values(K).forEach((k) => write(k, undefined)),
 };
 
-// ─── 짝짓기 링크 ───
+// ─── 매칭 링크 ───
 // 지갑 서버(pnpm --filter @countersign/owner-app pair)가 띄우는 QR = https://<앱 주소>/#pair=<주인 토큰>[&api=<주인 API 주소>]
 // Vercel에 올린 앱은 주인 API와 주소가 달라서 api=(맥의 HTTPS 터널 주소)가 꼭 있어야 한다.
 // 토큰은 # 뒤에 있어서 앱 서버로 전송되지 않는다. 읽은 뒤 주소창에서 바로 지운다.
