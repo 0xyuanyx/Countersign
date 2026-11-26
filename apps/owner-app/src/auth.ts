@@ -31,8 +31,14 @@ export const store = {
   setPasskeyId: (id: string | undefined) => write(K.passkey, id),
   seen: () => read<string[]>(K.seen) ?? [],
   markSeen: (id: string) => write(K.seen, [id, ...(read<string[]>(K.seen) ?? []).filter((x) => x !== id)].slice(0, 50)),
-  /** 다시 매칭: 이 폰의 모든 값을 지운다 */
+  /** 모든 값을 지운다 (지금은 쓰지 않음: 다시 매칭해도 앱 비밀번호·Face ID는 이 폰의 잠금이라 남긴다) */
   reset: () => Object.values(K).forEach((k) => write(k, undefined)),
+  /** 다시 매칭: 지갑 서버 연결만 지운다. 앱 비밀번호·Face ID는 이 폰의 잠금이라 그대로 */
+  unpair: () => {
+    write(K.pair, undefined);
+    write(K.seen, undefined);
+    for (const k of ["cs.agent", "cs.lastRoute", "cs.hiddenAgents"]) write(k, undefined);
+  },
 };
 
 /**

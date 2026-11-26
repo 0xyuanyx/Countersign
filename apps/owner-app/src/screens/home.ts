@@ -222,14 +222,14 @@ export function home(): Screen {
         if (act === "resume") void resume();
         if (act === "agents") agentsSheet();
         const t = e.target as HTMLElement;
+        // 상태 줄을 누르면: 승인 기다리는 결제는 그 구매 요청 시트, 하는 일은 내역에서 그 일을 펼쳐서
         const goto = t.closest<HTMLElement>("[data-goto]")?.dataset.goto;
-        if (goto) {
-          const el = document.getElementById(goto);
-          const det = el?.closest("details");
-          if (det) det.open = true;
-          el?.scrollIntoView({ behavior: "smooth", block: "center" });
-          el?.classList.add("flash-once");
-          setTimeout(() => el?.classList.remove("flash-once"), 900);
+        if (goto?.startsWith("req-")) {
+          const r = app.data.requests.find((x) => x.id === goto.slice(4));
+          if (r) openApproval(r);
+        } else if (goto?.startsWith("task-")) {
+          app.focusTask = goto.slice(5);
+          go("activity");
         }
         const pauseBtn = t.closest<HTMLElement>("[data-task-pause]");
         if (pauseBtn) {

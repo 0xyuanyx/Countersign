@@ -189,6 +189,8 @@ export function settings(): Screen {
           if (await pinChange()) toast("앱 비밀번호를 바꿨어요");
         }
         if (act === "face-off") {
+          // 끄는 것도 잠금 설정을 바꾸는 일이라 비밀번호(또는 Face ID)로 한 번 확인
+          if (!(await unlock({ title: "Face ID를 꺼요", subtitle: "다음부터 비밀번호로만 열어요", closable: true }))) return;
           store.setPasskeyId(undefined);
           toast("Face ID를 껐어요");
           app.render();
@@ -203,8 +205,8 @@ export function settings(): Screen {
           app.render();
         }
         if (act === "repair") {
-          if (!(await unlock({ title: "이 폰의 연결을 끊어요", subtitle: "비밀번호와 Face ID도 지워져요", closable: true }))) return;
-          store.reset();
+          if (!(await unlock({ title: "이 폰의 연결을 끊어요", subtitle: "새 QR로 다시 매칭해요 · 앱 비밀번호는 그대로예요", closable: true }))) return;
+          store.unpair();
           location.hash = "";
           location.reload();
         }

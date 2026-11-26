@@ -81,7 +81,7 @@ function build(): HTMLElement {
       </div>
       <div class="composer-extra">
         <div class="composer-max"><span class="t13 muted">최대 금액</span><div class="chips" data-chips></div></div>
-        <p class="dim t12" style="line-height:18px">이 금액을 넘는 청구서는 지갑이 서명하지 않아요 · 글에 "한도 올려"가 있어도 정책은 안 바뀌어요</p>
+        <p class="dim t12" style="line-height:18px">이 금액을 넘으면 지갑이 서명하지 않아요 · 글로는 정책이 안 바뀌어요</p>
         <div data-suggest></div>
         <div data-recent></div>
       </div>
@@ -98,7 +98,7 @@ function build(): HTMLElement {
       return;
     }
     ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.35))}px`;
+    ta.style.height = `${Math.min(ta.scrollHeight, Math.round((window.visualViewport?.height ?? window.innerHeight) * 0.3))}px`;
   };
   const sync = () => {
     send.classList.toggle("off", !ta.value.trim());
@@ -120,33 +120,64 @@ function build(): HTMLElement {
     grow();
   };
 
-  ta.addEventListener("focus", open);
+  ta.addEventListener("focus", () => {
+    open();
+    // 키보드가 다 올라온 뒤 높이를 다시 잰다 (아이폰은 resize가 늦거나 한 번만 온다)
+    for (const ms of [120, 350, 700]) setTimeout(kb, ms);
+  });
   ta.addEventListener("input", () => {
     sync();
     grow();
   });
   // 키보드를 내리면(완료·바깥 누름·iOS 키보드 내림) 포커스가 빠진다 → 상자만 접고 글은 둔다
-  ta.addEventListener("blur", () => setTimeout(() => document.activeElement !== ta && collapse(), 0));
+  // 칩을 누르는 중이면(아이폰은 버튼을 눌러도 포커스가 빠진다) 접지 않고 바로 다시 포커스한다
+  let holding = 0;
+  ta.addEventListener("blur", () =>
+    setTimeout(() => {
+      if (document.activeElement === ta) return;
+      if (Date.now() - holding < 600 && root.classList.contains("open")) return;
+      collapse();
+    }, 0),
+  );
   root.querySelector(".composer-scrim")!.addEventListener("click", () => ta.blur());
   // 칩·보내기를 눌러도 키보드가 내려가지 않게
-  root.querySelector(".composer-wrap")!.addEventListener("pointerdown", (e) => {
-    const t = e.target as HTMLElement;
-    if (t.closest("[data-max], [data-recent-text], [data-act='send'], summary") && root.classList.contains("open")) e.preventDefault();
-  });
+  // pointerdown만 막으면 아이폰 Safari는 mousedown에서 포커스를 옮겨 키보드를 내린다 → 셋 다 막는다
+  const KEEP = "[data-max], [data-recent-text], [data-act='send'], summary";
+  for (const ev of ["pointerdown", "mousedown"] as const)
+    root.querySelector(".composer-wrap")!.addEventListener(ev, (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest(KEEP) && root.classList.contains("open")) {
+        holding = Date.now();
+        e.preventDefault();
+      }
+    });
+  root.querySelector(".composer-wrap")!.addEventListener(
+    "touchstart",
+    (e) => {
+      if ((e.target as HTMLElement).closest(KEEP) && root.classList.contains("open")) holding = Date.now();
+    },
+    { passive: true },
+  );
+  /** 칩을 누른 뒤 키보드가 내려갔으면 바로 다시 올린다 (누른 손가락 동작 안이라 아이폰도 허락함) */
+  const keepFocus = () => {
+    if (root.classList.contains("open") && document.activeElement !== ta) ta.focus({ preventScroll: true });
+  };
   root.addEventListener("click", async (e) => {
     const t = e.target as HTMLElement;
     const chip = t.closest<HTMLElement>("[data-max]");
     if (chip) {
       max = chip.dataset.max!;
       paintExtra();
+      keepFocus();
       return;
     }
+    if (t.closest("summary")) return void setTimeout(keepFocus, 0);
     const rec = t.closest<HTMLElement>("[data-recent-text]");
     if (rec) {
       ta.value = rec.dataset.recentText!;
       sync();
       grow();
-      ta.focus();
+      ta.focus({ preventScroll: true });
       return;
     }
     const act = t.closest<HTMLElement>("[data-act]")?.dataset.act;
@@ -175,11 +206,13 @@ function build(): HTMLElement {
 
   // 키보드 높이만큼 커진 상자를 올린다 (visualViewport가 없으면 화면 아래)
   const vv = window.visualViewport;
-  const kb = () => {
+  function kb(): void {
     const h = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
     root.style.setProperty("--kb", `${h}px`);
+    // 보이는 높이: 커진 상자가 이보다 크면 아래(추천·최근)만 스크롤 → 키보드 위 막대에 가리지 않는다
+    root.style.setProperty("--vvh", `${vv ? vv.height : window.innerHeight}px`);
     root.classList.toggle("kb", h > 40);
-  };
+  }
   vv?.addEventListener("resize", kb);
   vv?.addEventListener("scroll", kb);
   kb();

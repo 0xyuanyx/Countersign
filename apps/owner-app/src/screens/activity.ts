@@ -66,7 +66,8 @@ export function activity(): Screen {
     const s = groupStatus(g);
     const waiting = g.task && (g.task.status === "open" || g.task.status === "working") && !g.entries.some((e) => e.status === "paid");
     const entries = [...g.entries].sort((a, b) => a.at - b.at);
-    return `<details class="task" data-k="${esc(g.key)}" ${s.open ? "open" : ""}>
+    const focus = app.focusTask === g.key;
+    return `<details class="task ${focus ? "flash-once" : ""}" data-k="${esc(g.key)}" id="g-${esc(g.key)}" ${s.open || focus ? "open" : ""}>
       <summary>
         <span class="time">${hhmm(g.at)}</span>
         <span class="stack"><span class="t15 ellipsis" style="font-weight:500">${esc(g.title)}</span><span class="t13 muted" style="display:flex;align-items:center;gap:6px"><span class="dot ${s.dot}" style="width:6px;height:6px"></span>${esc(s.text)}</span></span>
@@ -98,5 +99,17 @@ export function activity(): Screen {
     </div>
     ${tabs("activity")}`;
   app.data.history.forEach((e) => app.animated.add(`row:${e.id}`));
-  return { html };
+  const focus = app.focusTask;
+  return {
+    html,
+    bind: (root) => {
+      if (!focus) return;
+      app.focusTask = undefined;
+      const el = root.querySelector<HTMLDetailsElement>(`[data-k="${CSS.escape(focus)}"]`);
+      if (el) {
+        el.open = true;
+        requestAnimationFrame(() => el.scrollIntoView({ block: "center" }));
+      }
+    },
+  };
 }

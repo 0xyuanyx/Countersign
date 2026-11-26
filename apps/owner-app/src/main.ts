@@ -155,7 +155,9 @@ async function boot(): Promise<void> {
     pairing = await pairScreen(link);
     store.setPairing(pairing);
     app.api = pairing.mock ? new MockOwnerApi(!location.search.includes("sample")) : new HttpOwnerApi(pairing.base, pairing.token);
+    // 다시 매칭한 폰은 앱 비밀번호가 이미 있다 → 새로 만들지 않고 그 비밀번호로 연다
     if (!store.hasPin()) await pinSetup(pairing.mock ? "데모 지갑" : pairing.label);
+    else while (!(await unlock({ title: "앱 비밀번호를 입력해 주세요", subtitle: `${pairing.mock ? "데모 지갑" : pairing.label}에 다시 연결했어요 · 비밀번호는 그대로예요`, autoFace: true })));
   } else {
     app.api = pairing.mock ? new MockOwnerApi(!location.search.includes("sample")) : new HttpOwnerApi(pairing.base, pairing.token);
     if (!store.hasPin()) await pinSetup(pairing.mock ? "데모 지갑" : pairing.label);

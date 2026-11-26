@@ -47,6 +47,8 @@ export const app = {
   /** 이번 실행에서 자동으로 띄운 구매 요청 */
   prompted: new Set<string>(),
   render: () => {},
+  /** 내역 화면을 열 때 펼치고 보여 줄 맡긴 일 (홈 상태 줄에서 누름) */
+  focusTask: undefined as string | undefined,
   /** 새로고침이 끝날 때마다 (알림 확인) */
   afterRefresh: () => {},
 };
