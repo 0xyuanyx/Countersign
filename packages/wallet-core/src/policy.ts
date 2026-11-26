@@ -122,7 +122,7 @@ export interface CheckExtras {
   /** 주인이 앱에서 승인한 이 주문 (order_ref·받는 주소·금액·체인·토큰이 모두 같아야 효력) */
   approval?: { orderRef: string; payTo: string; amount: bigint; chainId: number; token: string };
   /** intent.task_id가 가리키는 맡긴 일. 없거나 끝난 일이면 undefined */
-  task?: { id: string; maxAmount: bigint; active: boolean };
+  task?: { id: string; maxAmount: bigint; active: boolean; status?: string };
 }
 
 export function approvalMatches(a: CheckExtras["approval"], o: Order): boolean {
@@ -173,8 +173,11 @@ export function checkOrder(
   if (order.amount === 0n) return reject("INVALID_INPUT", step, "0원 주문");
   if (intent.task_id !== undefined) {
     const t = extras.task;
+    if (t && t.id === intent.task_id && t.status === "paused") {
+      return reject("TASK_PAUSED", step, `주인이 맡긴 일 ${intent.task_id}을 멈춤`);
+    }
     if (!t || t.id !== intent.task_id || !t.active) {
-      return reject("INVALID_INPUT", step, `맡긴 일 ${intent.task_id}이 없거나 이미 끝남`);
+      return reject("INVALID_INPUT", step, `맡긴 일 ${intent.task_id}이 없거나, 주인이 멈추거나 취소했거나, 이미 끝남`);
     }
     if (order.amount > t.maxAmount) {
       return reject("AMOUNT_OVER_INTENT", step, `주문 ${formatAmount(order.amount)} USDC > 맡긴 일의 최대 ${formatAmount(t.maxAmount)} USDC`);

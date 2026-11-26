@@ -1,13 +1,14 @@
 #!/usr/bin/env -S npx tsx
 import { KNOWN_USDC, createHspClient, loadHspConfig } from "@countersign/hsp";
 import { getAddress } from "viem";
+import { catalogFor } from "./catalog.js";
 import { EVIL_MODES, createSeller, listenSeller, type EvilMode } from "./server.js";
 
 /**
  * 판매 서버 실행 (키 없음):
  *   COUNTERSIGN_SELLER_PAY_TO=0x... COUNTERSIGN_HSP_MCP_URL=http://127.0.0.1:7410/mcp pnpm --filter @countersign/seller start
  * 악성 판매자: COUNTERSIGN_SELLER_EVIL=payee|amount|chain|inject
- * 그 밖: COUNTERSIGN_SELLER_NAME (기본 profile-seller), COUNTERSIGN_SELLER_PORT (기본 7430), COUNTERSIGN_PAY_CHAIN_ID (기본 11155111 Ethereum Sepolia, HSK 테스트넷은 133)
+ * 그 밖: COUNTERSIGN_SELLER_NAME (기본 data-mart), COUNTERSIGN_SELLER_PORT (기본 7430), COUNTERSIGN_PAY_CHAIN_ID (기본 11155111 Ethereum Sepolia, HSK 테스트넷은 133)
  */
 const env = process.env;
 const payToRaw = env.COUNTERSIGN_SELLER_PAY_TO;
@@ -33,11 +34,12 @@ if (!token) {
 let url = "";
 const server = createSeller({
   hsp: await createHspClient(hspConfig),
-  name: env.COUNTERSIGN_SELLER_NAME || "profile-seller",
+  name: env.COUNTERSIGN_SELLER_NAME || "data-mart",
   payTo: getAddress(payToRaw),
   chainId: hspConfig.payChainId,
   token,
-  catalog: [{ sku: "profile", name: "Wallet address profile report", price: "0.10" }],
+  // 상품 목록: COUNTERSIGN_SELLER_CATALOG = data-mart(기본) | news-wire | lookalike(악성 판매자용)
+  catalog: catalogFor(env.COUNTERSIGN_SELLER_CATALOG || (evil ? "lookalike" : env.COUNTERSIGN_SELLER_NAME)),
   ...(evil && { evil }),
   publicUrl: () => url,
 });

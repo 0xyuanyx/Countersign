@@ -38,7 +38,9 @@ COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owne
 | `POST /api/requests/:id/reject` | 거절. 에이전트가 같은 주문으로 다시 부르면 `OWNER_REJECTED` |
 | `GET /api/tasks` | `{tasks:[{id, text, max_amount, max_amount_raw, status(open/working/paid/done/failed/cancelled), agent?, order_refs[], note?, created_at, updated_at}]}` |
 | `POST /api/tasks {text, maxAmount}` | 맡기기. 지갑과 signer가 이 일로 하는 결제를 `maxAmount`로 막는다 (에이전트가 적은 값은 안 믿음). 글은 부탁일 뿐 정책을 못 바꾼다 |
-| `POST /api/tasks/:id/cancel` | 그만두기 (이후 그 일로는 결제 거절) |
+| `POST /api/tasks/:id/pause` | 이 일만 멈추기 → `status:"paused"`(바뀐 Task). 멈춘 일은 `next_task`로 안 주고, 그 `task_id`로 온 `pay_order`는 `TASK_PAUSED`, 그 일의 구매 요청 승인은 409 |
+| `POST /api/tasks/:id/resume` | 다시 켜기: 결제가 끝난 일은 `paid`, 청구서(주문)가 이미 있으면 `working`, 없으면 `open` |
+| `POST /api/tasks/:id/cancel` | 그만두기. 이후 그 일로는 결제 거절(`INVALID_INPUT`), 그 일에서 생긴 대기 중 구매 요청도 거절로 바꾼다 |
 | `GET /api/agents` | `{agents:[{id, name, created_at, disconnected_at?, connected, paused, paused_at?, last_activity_at?}]}` (토큰은 안 줌) |
 | `POST /api/agents {name}` | 새 연결. `{id, name, token, connect:{url, claude_connector, claude_code, codex, cursor}}` — **토큰이 든 주소는 이때 한 번만** 준다 |
 | `POST /api/agents/:id/disconnect` | 연결 끊기. 그 주소는 바로 401 |
@@ -72,3 +74,12 @@ COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owne
 - 내역 결제 항목(`status:"paid"`, `kind:"payment"`)에는 `tx_hash`, `chain_id`, `from`이 있다. HSP mock 결제는 `simulated:true`(tx_hash 가짜, 탐색기 링크 없음). 실제 체인 거래(출금, 실제 HSP 결제)에만 `explorer_url`.
 - 출금 거래: 에이전트 키로 EIP-3009 `TransferWithAuthorization`(→ 주인 0번)에 서명하고 주인 0번 계정이 가스를 내 제출한다. 그래서 주인 0번 계정에 Sepolia ETH가 조금 있어야 한다. 결제가 아니라서 HSP를 거치지 않는다.
 
+
+## 맡기기 추천 칩 (11/26)
+
+`GET /api/catalog[?agent=<id>]` → `{sellers:[{name, url, scenario, scenario_label, reachable, items[]}], chips:[{id, label, item, sku, price, seller, seller_url, scenario, scenario_label, exceeds_per_tx?, task_text}]}`
+
+- `label`: 칩에 보일 한국어 부탁 문장 (예: "내일 서울 날씨 예보 사 와"), `task_text`: `POST /api/tasks`의 `text`로 그대로 쓰면 되는 문장(판매자 주소·상품·가격이 붙어 있어 에이전트가 어디서 살지 안다).
+- `scenario`: 그 칩을 맡기면 지갑이 보여 줄 장면. `normal`(등록 판매자, 바로 결제), `new_seller`(처음 보는 판매자 → 승인 요청), `over_limit`(그 에이전트 1회 한도를 넘는 가격 → 거절, `?agent=`를 줄 때만 계산), `payee_swap`·`amount_swap`·`chain_swap`·`injection`(악성 판매자 → 거절).
+- 판매자 목록은 `demo.sh`가 띄우는 6곳: data-mart :7430(상품 10개, 0.01~0.8), news-wire :7435(처음 보는 판매자, 3개), data-mart 사칭 악성 :7431~7434(3개씩). 다른 곳은 `COUNTERSIGN_CATALOG_SELLERS`로.
+- 상품 납품물은 견본 데이터다(`sample:true`). 결제는 HSP 허용 전까지 mock.

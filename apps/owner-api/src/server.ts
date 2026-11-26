@@ -21,6 +21,7 @@ import {
   type StatePaths,
 } from "@countersign/wallet-core";
 import { z } from "zod";
+import { loadCatalog, type CatalogSource } from "./catalog.js";
 
 /**
  * 주인(사람)용 로컬 HTTP API. PWA 앱이 정책·내역을 보고 결제를 정지·재개한다.
@@ -77,6 +78,8 @@ export interface OwnerApiDeps {
       | { ok: false; code: string; reason: string; next_action?: string }
     >;
   };
+  /** 맡기기 추천 칩용 판매자 목록 (없으면 GET /api/catalog는 빈 목록) */
+  catalogSellers?: CatalogSource[];
   /** 새 에이전트 정책의 기본값 (2번 이상 계정). 없으면 1번 정책을 복사 */
   newAgentPolicy?: { perTxMax: string; dailyMax: string; chains: number[]; sellers: Record<string, string> };
 }
@@ -241,6 +244,12 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       if (r.status !== "pending") return send(res, 409, { ok: false, error: `이미 결정됨 (${r.status})` });
       const approve = m[2] === "approve";
       if (approve && r.order_expires_at <= now()) return send(res, 410, { ok: false, error: "주문이 이미 만료됨" });
+      if (approve && r.task_id) {
+        const t = tasks.get(r.task_id);
+        if (!t || t.status === "paused" || t.status === "cancelled") {
+          return send(res, 409, { ok: false, error: `맡긴 일이 ${t?.status === "paused" ? "멈춘" : "취소된"} 상태라 승인할 수 없음` });
+        }
+      }
       if (approve && body.data.remember) {
         // "다음부터 묻지 않기": 판매자 이름 → 이 주문의 받는 주소로 정책에 등록. 같은 이름이 다른 주소로 있으면 거부
         // 요청한 에이전트의 정책에 넣는다 (에이전트마다 판매자 목록이 따로다)
@@ -274,9 +283,22 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       if (body.data.agentId && !connections.get(body.data.agentId)) return send(res, 404, { ok: false, error: "없는 에이전트" });
       return send(res, 201, tasks.create(body.data.text, max, now(), body.data.agentId));
     }
-    if ((m = /^POST \/api\/tasks\/([a-z0-9_]+)\/cancel$/.exec(route))) {
+    if ((m = /^POST \/api\/tasks\/([a-z0-9_]+)\/(pause|resume|cancel)$/.exec(route))) {
       const t = tasks.get(m[1]!);
       if (!t) return send(res, 404, { ok: false, error: "없는 일" });
+      if (m[2] === "pause") {
+        const r = tasks.pause(t.id, now());
+        if (r === "invalid") return send(res, 409, { ok: false, error: `멈출 수 없는 상태 (${t.status})` });
+        return send(res, 200, r);
+      }
+      if (m[2] === "resume") {
+        const r = tasks.resume(t.id, now());
+        if (r === "invalid") return send(res, 409, { ok: false, error: `멈춘 일이 아님 (${t.status})` });
+        return send(res, 200, r);
+      }
+      if (t.status === "cancelled") return send(res, 200, t);
+      // 취소: 이 일에서 생긴 대기 중 구매 요청도 같이 거절한다
+      for (const r of approvals.list("pending")) if (r.task_id === t.id) approvals.decide(r.id, false, now());
       return send(res, 200, tasks.update(t.id, { status: "cancelled" }, now()));
     }
 
@@ -456,6 +478,17 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
         }
         if (!d.balances) return send(res, 503, { ok: false, error: "잔액 조회기가 없음" });
         return send(res, 200, await d.balances());
+      }
+      case "GET /api/catalog": {
+        const info = agentParam ? scope(agentParam) : undefined;
+        if (agentParam && !info) return send(res, 404, { ok: false, error: "없는 에이전트" });
+        let policy;
+        try {
+          policy = info ? policyOf(info).get() : undefined;
+        } catch {
+          policy = undefined;
+        }
+        return send(res, 200, await loadCatalog(d.catalogSellers ?? [], policy));
       }
       case "GET /api/pause":
         return send(res, 200, readPause(d.paths.pause));

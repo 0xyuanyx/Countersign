@@ -163,8 +163,10 @@ export const TaskSchema = z.object({
   max_amount: z.string(),
   created_at: z.number().int(),
   updated_at: z.number().int(),
-  /** open: 대기 / working: 에이전트가 받아 감 / paid: 결제됨 / done·failed: 에이전트 보고 / cancelled: 주인이 그만둠 */
-  status: z.enum(["open", "working", "paid", "done", "failed", "cancelled"]),
+  /** open: 대기 / working: 에이전트가 받아 감 / paid: 결제됨 / done·failed: 에이전트 보고 / paused: 주인이 멈춤 / cancelled: 주인이 그만둠 */
+  status: z.enum(["open", "working", "paid", "done", "failed", "paused", "cancelled"]),
+  /** 멈추기 전 상태 (다시 켜면 돌아간다) */
+  paused_from: z.enum(["open", "working", "paid"]).optional(),
   agent: z.string().optional(),
   /** 주인이 이 일을 맡긴 에이전트 연결 id. 없으면 아무 에이전트나 받아 갈 수 있다 */
   agent_id: z.string().optional(),
@@ -200,6 +202,26 @@ export class TaskStore {
     this.rec.put(t.id, t);
     return t;
   }
+  /** 주인이 멈춤: 대기·진행·결제됨 상태만. 멈춘 동안 next_task로 주지 않고, 이 일로는 결제·승인이 안 된다 */
+  pause(id: string, now: number): Task | "invalid" | undefined {
+    const t = this.rec.get(id);
+    if (!t) return undefined;
+    if (t.status !== "open" && t.status !== "working" && t.status !== "paid") return "invalid";
+    const next: Task = { ...t, status: "paused", paused_from: t.status, updated_at: now };
+    this.rec.put(id, next);
+    return next;
+  }
+  resume(id: string, now: number): Task | "invalid" | undefined {
+    const t = this.rec.get(id);
+    if (!t) return undefined;
+    if (t.status !== "paused") return "invalid";
+    const { paused_from, ...rest } = t;
+    // 결제까지 끝난 일은 그대로, 청구서(주문)가 이미 있으면 진행 중, 없으면 대기로
+    const status: Task["status"] = paused_from === "paid" ? "paid" : t.order_refs.length > 0 ? "working" : "open";
+    const next: Task = { ...rest, status, updated_at: now };
+    this.rec.put(id, next);
+    return next;
+  }
   update(id: string, patch: Partial<Pick<Task, "status" | "agent" | "note">> & { addOrder?: string }, now: number) {
     const t = this.rec.get(id);
     if (!t) return undefined;
@@ -225,7 +247,7 @@ export class TaskStore {
     const t = this.rec.get(id);
     if (!t) return undefined;
     const mine = !t.agent_id || agentId === undefined || t.agent_id === agentId;
-    return { id: t.id, maxAmount: parseUint(t.max_amount_raw), active: mine && ACTIVE.includes(t.status) };
+    return { id: t.id, maxAmount: parseUint(t.max_amount_raw), active: mine && ACTIVE.includes(t.status), status: t.status };
   }
 }
 

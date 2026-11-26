@@ -22,6 +22,7 @@ export const REJECTION_CODES = {
     "주인 확인을 기다린다. 결제는 아직 안 됐다. 1~2분 뒤 같은 order_ref·intent로 pay_order를 다시 부르거나, 다른 판매자를 찾는다",
   OWNER_REJECTED: "주인이 이 주문을 거절했다. 같은 주문은 결제하지 말고 다른 판매자를 찾거나 사람(주인)에게 묻는다",
   WITHDRAW_FAILED: "출금이 되지 않았다. 잔액·가스(주인 0번 계정 ETH)를 확인하고 다시 시도한다",
+  TASK_PAUSED: "주인이 이 일을 멈췄다. 결제하지 말고 기다리거나, 다시 켜지면 같은 일로 이어서 한다",
   POLICY_INVALID: "정책 파일을 읽을 수 없다. 결제하지 말고 사람(주인)에게 알린다",
 } as const;
 

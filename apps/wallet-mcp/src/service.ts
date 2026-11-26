@@ -214,6 +214,13 @@ export class WalletService {
       return this.rejected(id, orderRef, reject("TYPED_DATA_MISMATCH", "hsp", "HSP가 다른 주문을 돌려줌"), intentInfo, order, ctx);
     }
     ctx.order = order;
+    // 맡긴 일로 받은 청구서는 그 일에 붙여 둔다 (상태는 바꾸지 않는다: 멈춘 일은 멈춘 채로)
+    if (intentInfo.task_id) {
+      const t = this.d.tasks?.get(intentInfo.task_id);
+      if (t && (!t.agent_id || t.agent_id === (who.id ?? "local"))) {
+        this.d.tasks!.update(t.id, { addOrder: orderRef }, this.now());
+      }
+    }
 
     // 2. 정책·의도 검사 (prepare 전에 한 번: 나쁜 주문이면 HSP에 서명 대상을 만들게 하지도 않는다)
     const extras = this.extras(orderRef, intentInfo.task_id, who.id);

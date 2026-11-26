@@ -47,7 +47,7 @@ console.log(`지갑: ${pol.agent} ${pol.account} · 건당 ${pol.per_tx_max} / 2
 
 for (const [label, port] of SELLERS) {
   const base = `http://127.0.0.1:${port}`;
-  const offer = (await post(`${base}/orders`, { sku: "profile", subject: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" })).json;
+  const offer = (await post(`${base}/orders`, { sku: "weather-seoul" })).json;
   // 인젝션 판매자에게는 "속은 에이전트"를 흉내 낸다: notice가 시키는 대로 max_amount를 올린다
   const maxAmount = offer.notice ? "5.00" : offer.price;
   const pay = await call("pay_order", {

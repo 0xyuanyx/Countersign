@@ -18,7 +18,9 @@ esac
 export COUNTERSIGN_POLICY="${COUNTERSIGN_POLICY:-$default_policy}"
 export COUNTERSIGN_HSP_MODE=mock
 export COUNTERSIGN_HSP_MCP_URL="http://127.0.0.1:7410/mcp"
-SELLER_PAY_TO="0xfC903F3Daffcb36EEE255f534D11d3e4Bf20545A"   # 개발 니모닉 2번 계정 (공개 주소)
+# 판매자 받는 주소: 개발 니모닉 901·902번 (공개 주소). 2번부터는 에이전트 계정이라 겹치지 않게 900번대를 쓴다
+SELLER_PAY_TO="0x928CED58e2b79aA60ACd3Df2F3cA2037C92E1978"   # data-mart (#901)
+NEWS_PAY_TO="0x36C4d4C2026C4814FEBf98759d1B97E2B201D4Bb"     # news-wire (#902, 처음 보는 판매자 데모)
 logs="$COUNTERSIGN_HOME/logs"; pids="$COUNTERSIGN_HOME/demo.pids"
 
 start() { # 이름 명령...
@@ -38,18 +40,20 @@ case "${1:-}" in
     start signer "$tsx" "$root/packages/signer/src/main.ts"
     for _ in $(seq 1 50); do [ -S "$COUNTERSIGN_HOME/signer.sock" ] && break; sleep 0.2; done
     [ -S "$COUNTERSIGN_HOME/signer.sock" ] || { echo "signer 시작 실패: $logs/signer.log" >&2; exit 1; }
-    COUNTERSIGN_SELLER_PAY_TO=$SELLER_PAY_TO COUNTERSIGN_SELLER_PORT=7430 start seller "$tsx" "$root/apps/seller/src/main.ts"
+    COUNTERSIGN_SELLER_PAY_TO=$SELLER_PAY_TO COUNTERSIGN_SELLER_NAME=data-mart COUNTERSIGN_SELLER_PORT=7430 start seller "$tsx" "$root/apps/seller/src/main.ts"
+    COUNTERSIGN_SELLER_PAY_TO=$NEWS_PAY_TO COUNTERSIGN_SELLER_NAME=news-wire COUNTERSIGN_SELLER_PORT=7435 start news-wire "$tsx" "$root/apps/seller/src/main.ts"
     port=7431
     for m in payee amount chain inject; do
-      COUNTERSIGN_SELLER_PAY_TO=$SELLER_PAY_TO COUNTERSIGN_SELLER_PORT=$port COUNTERSIGN_SELLER_EVIL=$m \
+      # 악성 판매자는 data-mart 이름을 사칭한다 (받는 주소·금액·체인은 HSP 주문에서 바꿔치기)
+      COUNTERSIGN_SELLER_PAY_TO=$SELLER_PAY_TO COUNTERSIGN_SELLER_NAME=data-mart COUNTERSIGN_SELLER_PORT=$port COUNTERSIGN_SELLER_EVIL=$m \
         start "evil-$m" "$tsx" "$root/apps/seller/src/main.ts"
       port=$((port + 1))
     done
     start wallet-http "$tsx" "$root/apps/wallet-mcp/src/main-http.ts"
     start owner-api "$tsx" "$root/apps/owner-api/src/main.ts"
-    for p in 7430 7431 7432 7433 7434 7420 7440; do wait_port $p demo; done
+    for p in 7430 7431 7432 7433 7434 7435 7420 7440; do wait_port $p demo; done
     cat "$logs/signer.log"
-    echo "판매자: 정상 http://127.0.0.1:7430  악성 payee 7431 · amount 7432 · chain 7433 · inject 7434"
+    echo "판매자: 정상 data-mart :7430, 처음 보는 판매자 news-wire :7435, 악성(data-mart 사칭) payee :7431 · amount :7432 · chain :7433 · inject :7434"
     echo "주인 API: http://127.0.0.1:7420/api/policy   원격 지갑 MCP: http://127.0.0.1:7440/mcp/<토큰> (토큰은 POST /api/agents)"
     ;;
   down)

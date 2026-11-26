@@ -3,6 +3,7 @@ import { SignerClient } from "@countersign/signer/client";
 import { PolicyFile, readOrCreateSharedSecret, statePaths } from "@countersign/wallet-core";
 import { rpcBalanceReader } from "@countersign/wallet-mcp";
 import { formatAmount } from "@countersign/wallet-core";
+import { DEMO_SELLERS } from "./catalog.js";
 import { createOwnerApi, listenOwnerApi } from "./server.js";
 
 /**
@@ -46,6 +47,8 @@ const server = createOwnerApi({
     },
   },
   // 앱 요청 (11/26): 새 에이전트(2번 계정부터) 기본 정책 — 1회 0.5, 하루 5, 판매자 없음, Ethereum Sepolia
+  // 맡기기 추천 칩: demo.sh 판매자들 (COUNTERSIGN_CATALOG_SELLERS='[{"url":"...","scenario":"normal"}]'로 바꿈)
+  catalogSellers: process.env.COUNTERSIGN_CATALOG_SELLERS ? JSON.parse(process.env.COUNTERSIGN_CATALOG_SELLERS) : DEMO_SELLERS,
   newAgentPolicy: { perTxMax: "0.5", dailyMax: "5", chains: [11155111], sellers: {} },
   ...(process.env.COUNTERSIGN_PUBLIC_MCP_URL && { publicMcpUrl: process.env.COUNTERSIGN_PUBLIC_MCP_URL }),
   balances: async () => {

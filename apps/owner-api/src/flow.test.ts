@@ -41,6 +41,7 @@ writeFileSync(policyPath, JSON.stringify({ ...policyJson, dailyMax: "5.00" }));
 const policyFile = new PolicyFile(policyPath);
 
 const OWNER0 = deriveAccount(TEST_WORDS, 0).address;
+const catalogSellers: { url: string; scenario: "normal" | "new_seller" }[] = [];
 const withdrawCalls: { id: string; amount: bigint | undefined }[] = [];
 let hsp: MockHspServer;
 let signerSrv: NetServer;
@@ -97,6 +98,7 @@ beforeAll(async () => {
     paths,
     ownerToken: OWNER,
     publicMcpUrl: walletUrl,
+    catalogSellers,
     agentOps: {
       address: async (id) => {
         const r = await signerClient.forAgent(id).address();
@@ -124,11 +126,15 @@ beforeAll(async () => {
       payTo,
       chainId: 133,
       token: USDC,
-      catalog: [{ sku: "item", name: `${name} item`, price: "0.10" }],
+      catalog: [
+        { sku: "item", name: `${name} item`, price: "0.10", example: `${name} 상품 사 와` },
+        { sku: "big", name: `${name} big item`, price: "0.60", example: `${name} 큰 상품 사 와` },
+      ],
       publicUrl: () => url,
     });
     url = await listenSeller(srv, 0);
     sellers[key] = url;
+    catalogSellers.push({ url, scenario: key === "profile" ? "normal" : "new_seller" });
     closers.push(() => srv.close());
   }
 });
@@ -388,6 +394,45 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
     expect(r.status).toBe(400);
     expect(r.json.error).toMatch(/잔액이 40/);
     await h.client.close();
+  });
+
+  it("상품 목록(추천 칩): 판매자별 상품·가격·예시 문장, 에이전트 한도를 넘는 상품은 over_limit 표시", async () => {
+    const cat = (await owner("GET", "/api/catalog", undefined, false)).json;
+    expect(cat.sellers.map((x: any) => x.scenario)).toEqual(["normal", "new_seller"]);
+    const chip = cat.chips.find((c: any) => c.seller === "profile-seller" && c.sku === "item");
+    expect(chip).toMatchObject({ label: "profile-seller 상품 사 와", price: "0.10", scenario: "normal", seller_url: sellers.profile });
+    expect(chip.task_text).toContain(sellers.profile);
+    const first = (await owner("GET", "/api/agents", undefined, false)).json.agents.find((x: any) => x.account_index === 1);
+    const scoped = (await owner("GET", `/api/catalog?agent=${first.id}`, undefined, false)).json.chips;
+    expect(scoped.find((c: any) => c.sku === "big" && c.seller === "profile-seller")).toMatchObject({ scenario: "over_limit", exceeds_per_tx: true });
+  });
+
+  it("맡긴 일 하나씩 멈춤·재개·취소: 멈춘 일은 next_task로 안 주고 결제·승인도 막힌다, 취소하면 대기 요청도 거절", async () => {
+    const ag = await connectAgent("task-ctl");
+    const t = await owner("POST", "/api/tasks", { text: "news 사 와", maxAmount: "0.20", agentId: ag.created.id });
+    expect((await owner("POST", `/api/tasks/${t.json.id}/pause`, {}, false)).status).toBe(401);
+    expect((await owner("POST", `/api/tasks/${t.json.id}/pause`, {})).json).toMatchObject({ status: "paused", paused_from: "open" });
+    expect((await ag.call("next_task")).task).toBeNull();
+    expect((await owner("POST", `/api/tasks/${t.json.id}/resume`, {})).json.status).toBe("open");
+    expect((await ag.call("next_task")).task.id).toBe(t.json.id);
+
+    // 진행 중에 처음 보는 판매자 → 승인 대기. 그 사이 일을 멈추면 승인도 결제도 안 된다
+    const a = await buyFrom(ag.call, "news", { task_id: t.json.id });
+    expect(a.pay).toMatchObject({ code: "NEEDS_OWNER_APPROVAL" });
+    await owner("POST", `/api/tasks/${t.json.id}/pause`, {});
+    expect((await owner("POST", `/api/requests/${a.pay.request_id}/approve`, {})).status).toBe(409);
+    expect(await ag.call("pay_order", { order_ref: a.offer.order_ref, intent: a.intent })).toMatchObject({ code: "TASK_PAUSED" });
+    expect((await owner("GET", `/api/tasks?agentId=${ag.created.id}`, undefined, false)).json.tasks[0].status).toBe("paused");
+
+    // 청구서가 이미 있는 일은 다시 켜면 working
+    expect((await owner("POST", `/api/tasks/${t.json.id}/resume`, {})).json.status).toBe("working");
+    // 취소하면 대기 요청도 거절된다
+    expect((await owner("POST", `/api/tasks/${t.json.id}/cancel`, {})).json.status).toBe("cancelled");
+    const req = (await owner("GET", `/api/requests?agentId=${ag.created.id}`, undefined, false)).json.requests.find((r: any) => r.id === a.pay.request_id);
+    expect(req.status).toBe("rejected");
+    expect((await owner("POST", `/api/tasks/${t.json.id}/resume`, {})).status).toBe(409);
+    expect(await ag.call("pay_order", { order_ref: a.offer.order_ref, intent: a.intent })).toMatchObject({ code: "INVALID_INPUT" });
+    await ag.client.close();
   });
 
   it("연결을 끊으면 그 주소는 바로 401, 연결 목록에 마지막 활동이 보인다", async () => {
