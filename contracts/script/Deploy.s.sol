@@ -5,7 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {EvidenceRegistry} from "../src/EvidenceRegistry.sol";
 
 /// @notice EvidenceRegistry 배포. 키는 script/deploy.sh가 맥 키체인에서 환경변수로만 넘긴다.
-///  - 테스트넷(133): OURYN_DEV_MNEMONIC 0번 계정 (0x0BcB…3ecF)
+///  - 테스트넷(Ethereum Sepolia 11155111, HSK 133): OURYN_DEV_MNEMONIC 0번 계정 (0x0BcB…3ecF)
 ///  - 메인넷(177):   OURYN_DEPLOYER_KEY (0x6842…b114). **실행은 태민만.**
 ///  체인과 키가 엇갈리면(메인넷에 개발 키, 테스트넷에 메인넷 키) 멈춘다.
 contract Deploy is Script {

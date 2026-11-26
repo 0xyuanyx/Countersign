@@ -1,0 +1,11 @@
+{
+  "agent": "buyer-1",
+  "accountIndex": 1,
+  "chains": [11155111],
+  "token": "USDC",
+  "perTxMax": "2.5",
+  "dailyMax": "10",
+  "sellers": {
+    "profile-seller": "0xfC903F3Daffcb36EEE255f534D11d3e4Bf20545A"
+  }
+}

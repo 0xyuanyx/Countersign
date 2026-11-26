@@ -3,6 +3,7 @@ import type { BalanceReader } from "./service.js";
 
 /** 공개 RPC (PROJECT.md §4.3). 다른 체인은 COUNTERSIGN_RPC_<chainId> 환경변수로. 읽기만 한다. */
 const KNOWN_RPC: Record<number, string> = {
+  11155111: "https://ethereum-sepolia-rpc.publicnode.com",
   177: "https://mainnet.hsk.xyz",
   133: "https://testnet.hsk.xyz",
 };

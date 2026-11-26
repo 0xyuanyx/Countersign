@@ -56,8 +56,8 @@ describe("MockHsp 흐름 (§4.1)", () => {
 });
 
 describe("설정값", () => {
-  it("기본은 mock + 체인 133", () => {
-    expect(loadHspConfig({})).toEqual({ mode: "mock", payChainId: 133 });
+  it("기본은 mock + Ethereum Sepolia (운영진 11/26 안내)", () => {
+    expect(loadHspConfig({})).toEqual({ mode: "mock", payChainId: 11155111 });
   });
   it("결제 체인은 환경변수로 바꾼다", () => {
     expect(loadHspConfig({ COUNTERSIGN_PAY_CHAIN_ID: "177" })).toEqual({ mode: "mock", payChainId: 177 });

@@ -7,7 +7,7 @@ import { EVIL_MODES, createSeller, listenSeller, type EvilMode } from "./server.
  * 판매 서버 실행 (키 없음):
  *   COUNTERSIGN_SELLER_PAY_TO=0x... COUNTERSIGN_HSP_MCP_URL=http://127.0.0.1:7410/mcp pnpm --filter @countersign/seller start
  * 악성 판매자: COUNTERSIGN_SELLER_EVIL=payee|amount|chain|inject
- * 그 밖: COUNTERSIGN_SELLER_NAME (기본 profile-seller), COUNTERSIGN_SELLER_PORT (기본 7430), COUNTERSIGN_PAY_CHAIN_ID (기본 133)
+ * 그 밖: COUNTERSIGN_SELLER_NAME (기본 profile-seller), COUNTERSIGN_SELLER_PORT (기본 7430), COUNTERSIGN_PAY_CHAIN_ID (기본 11155111 Ethereum Sepolia, HSK 테스트넷은 133)
  */
 const env = process.env;
 const payToRaw = env.COUNTERSIGN_SELLER_PAY_TO;

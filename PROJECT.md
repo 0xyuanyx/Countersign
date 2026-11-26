@@ -24,6 +24,7 @@
 **일정**: 등록·제출 마감 **2026-12-03 13:00 KST** (동시 마감) · 12/4 데모팀 안내 · **12/5 서울 Demo Day** · 12/6 수상 발표
 **상금**: 트랙당 6,000 USDT (1등 3,000 / 2등 2,000 / 3등 1,000). 상금 수령도 메인넷 배포가 조건.
 **운영진 확인 완료**: 한 사람이 같은 트랙에 프로젝트 2개 제출 가능 (팀 출품과 병행 OK).
+**운영진 답 (2026-11-26)**: 공식 테스트 USDC가 Ethereum Sepolia에서 제공되므로 해커톤 기간에는 **Ethereum Sepolia에 배포·테스트**하면 된다. **제출은 테스트넷 배포만으로 충분**하고, 수상작은 선정 뒤 HSK Chain 메인넷으로 옮겨 배포한다. (위 "메인넷 배포 필수" 원문 규칙은 이 답으로 완화됨)
 
 ### 규칙 → 이 프로젝트에서 지키는 방법
 
@@ -32,7 +33,7 @@
 | 기간 중 새로 개발/재구축 | Ouryn-Wallet(iOS, Swift)의 지갑 코어 **설계와 검증 로직을 TypeScript로 재구축**. Swift 코드를 그대로 쓰지 않는다. README에 출처를 명시한다 |
 | HSK Chain 생태계 | 증거 컨트랙트는 HSK Chain 메인넷(177). 결제는 HSP가 열어 준 네트워크에서 (§4.2, 서울 메인넷 HSP 여부 확인 중) |
 | HSP 필수 | 모든 결제는 **HSP 공식 Agentic Payment MCP 서버**를 거친다. 직접 `transfer`로 우회하지 않는다 |
-| 메인넷 컨트랙트 | `EvidenceRegistry` 컨트랙트를 HSK Chain 메인넷에 배포 (§6) |
+| 메인넷 컨트랙트 | 해커톤 기간: `EvidenceRegistry`를 Ethereum Sepolia에 배포·검증해 제출. 수상하면 HSK Chain 메인넷(177)에 배포 (§6, 운영진 11/26 답) |
 | 공식 권장 제품 가산점 | HSP 공식 Agentic Payment MCP 서버를 핵심 경로로 사용 (§4.1) |
 | 현장 발표 우선 | 12/5 서울 현장 발표 전제로 데모 준비 |
 
@@ -110,7 +111,7 @@
 - [x] 지갑 MCP 서버 (§5.3): 구매 도구 4개 (11/24). 판매 쪽은 MCP 도구 대신 판매 서버가 HSP를 직접 부른다 (`apps/seller`)
 - [ ] 데모 에이전트: 구매 에이전트(실제 LLM) — Claude Code `claude -p`로 정상·인젝션 1회씩 확인(11/24), 레드팀 수치는 아직 / [x] 정상 판매 서버, 악성 판매 서버 4종 (11/24)
 - [ ] 레드팀 하니스: 공격 시나리오 × LLM 2종 × (지갑 없음/있음), 정상 시나리오 오탐 확인
-- [ ] `EvidenceRegistry` 컨트랙트: HSK 메인넷 배포 + 블록스카우트 검증
+- [ ] `EvidenceRegistry` 컨트랙트: Ethereum Sepolia 배포 + 블록스카우트 검증 (HSK 메인넷은 수상 뒤)
 - [ ] Evidence 뷰어 (웹 한 페이지, 읽기 전용): 결제별 3칸 대조 카드(에이전트 요청 / 주문 / 서명 바이트)와 탐색기 링크
 - [ ] README: 심사 6개 항목 자가 점검 표, 주장별 VERIFIED / REPRODUCIBLE / NOT-CLAIMED 표
 
@@ -160,6 +161,7 @@
 | hashkey (메인넷) | 177 | USDC | `0x054ed45810DbBAb8B27668922D110669c9D88D0a` | 6 | EIP-3009 |
 | hashkey (메인넷) | 177 | USDT | `0xf1b50ed67a9e2cc94ad3c477779e2d4cbfff9029` | 6 | Permit2 |
 | hashkey-testnet | 133 | USDC | `0x8FE3cB719Ee4410E236Cd6b72ab1fCDC06eF53c6` | 6 | EIP-3009 |
+| **Ethereum Sepolia** (해커톤 기간 기본) | 11155111 | USDC (Circle 공식, domain name `USDC`, version `2`) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` | 6 | EIP-3009 |
 | hashkey-testnet | 133 | USDT | `0x372325443233fEbaC1F6998aC750276468c83CC6` | 6 | Permit2 |
 
 | | 메인넷 | 테스트넷 |
@@ -291,7 +293,7 @@
 
 ---
 
-## 6. 스마트 컨트랙트 (메인넷 필수)
+## 6. 스마트 컨트랙트 (제출: Ethereum Sepolia, 수상 뒤 HSK 메인넷)
 
 `EvidenceRegistry.sol` — 작게 유지한다. **폐기·한도 로직은 넣지 않는다**(팀 작품 영역).
 
@@ -304,7 +306,7 @@
 - 이벤트: `AgentRegistered`, `EvidenceRecorded`
 - 결제가 다른 체인(HSP QA 테스트넷)에서 일어나도 증거는 HSK 메인넷에 모인다. "결제는 HSP가 연 곳 어디서든, 증거는 HSK Chain에"
 
-도구: Foundry. 테스트넷(133) 검증 → 메인넷(177) 배포 → 블록스카우트 소스 검증. **11/26에 일찍 끝내서** 데모 탈락 위험을 없앤다.
+도구: Foundry. HSK 테스트넷(133) 배포·검증 완료(11/24) → **Ethereum Sepolia 배포·검증**(`contracts/script/deploy.sh sepolia`, 제출용) → 수상하면 HSK 메인넷(177) 배포(태민만 실행).
 
 ---
 
@@ -377,8 +379,8 @@ countersign-agent/          (로컬 폴더: ~/Developer/Countersign)
 
 - [x] DoraHacks 등록·해커톤 제출 (2026-11-24, BUIDL https://dorahacks.io/build/51775, Track 2). 마감 전까지 본문 갱신
 - [ ] 공개 GitHub 저장소 + README: 문제, 구조, HSP 사용 위치를 파일 경로로, **Ouryn-Wallet 재구축 출처 명시**, 심사 6개 항목 자가 점검, 주장별 VERIFIED / REPRODUCIBLE / NOT-CLAIMED 표
-- [ ] HSK Chain 메인넷 `EvidenceRegistry` 주소 + 블록스카우트 검증 링크
-- [ ] HSP 결제 tx 링크 (정상 1건 이상) + 해당 결제의 메인넷 증거 tx
+- [ ] Ethereum Sepolia `EvidenceRegistry` 주소 + 블록스카우트 검증 링크 (HSK 메인넷은 수상 뒤)
+- [ ] HSP 결제 tx 링크 (정상 1건 이상, Ethereum Sepolia) + 해당 결제의 증거 tx
 - [ ] 레드팀 결과 표 (LLM 2종, 지갑 유무, 오탐 수)
 - [ ] CI 배지와 테스트 수
 - [ ] 데모 영상 3분: ① Claude가 지갑으로 결제 ② 악성 판매자 인젝션에 속은 에이전트를 지갑이 거부, 에이전트가 거부 코드를 읽고 스스로 복구 ③ 레드팀 수치

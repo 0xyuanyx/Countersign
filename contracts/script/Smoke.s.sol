@@ -15,10 +15,12 @@ contract Smoke is Script {
         uint256 agentPk = vm.deriveKey(m, 1);
         address agent = vm.addr(agentPk);
 
+        // 체인별 USDC (Sepolia: Circle 공식 테스트 USDC, domain name "USDC" / HSK 테스트넷 133: "USD Coin")
+        bool sepolia = block.chainid == 11155111;
         EvidenceRegistry.Authorization memory a = EvidenceRegistry.Authorization({
-            token: 0x8FE3cB719Ee4410E236Cd6b72ab1fCDC06eF53c6,
-            payChainId: 133,
-            name: "USD Coin",
+            token: sepolia ? 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 : 0x8FE3cB719Ee4410E236Cd6b72ab1fCDC06eF53c6,
+            payChainId: block.chainid,
+            name: sepolia ? "USDC" : "USD Coin",
             version: "2",
             from: agent,
             to: 0x000000000000000000000000000000000000dEaD,

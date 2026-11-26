@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 로컬 데모 묶음 (HSP mock + signer + 판매 서버 정상·악성 4종 + 주인 API)
-#   apps/demo/demo.sh up      # 띄우기 (signer는 키체인 OURYN_DEV_MNEMONIC의 1번 계정, 테스트넷 133 설정)
+#   apps/demo/demo.sh up      # 띄우기 (signer는 키체인 OURYN_DEV_MNEMONIC의 1번 계정, 결제 체인 Ethereum Sepolia)
+#   COUNTERSIGN_NET=hsk-testnet apps/demo/demo.sh up   # HSK 테스트넷(133) 설정으로
 #   apps/demo/demo.sh down    # 끄기
 #   apps/demo/demo.sh env     # 지갑 MCP를 붙일 때 쓸 환경변수 출력
 # 돈은 움직이지 않는다 (HSP mock). 메인넷 키는 읽지 않는다.
@@ -9,8 +10,12 @@ here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 tsx="$root/node_modules/.bin/tsx"
 export COUNTERSIGN_HOME="${COUNTERSIGN_HOME:-$root/.countersign}"
-export COUNTERSIGN_POLICY="${COUNTERSIGN_POLICY:-$here/policy.testnet.json}"
-export COUNTERSIGN_PAY_CHAIN_ID=133
+case "${COUNTERSIGN_NET:-sepolia}" in
+  sepolia)     default_policy="$here/policy.sepolia.json"; export COUNTERSIGN_PAY_CHAIN_ID=11155111 ;;
+  hsk-testnet) default_policy="$here/policy.testnet.json"; export COUNTERSIGN_PAY_CHAIN_ID=133 ;;
+  *) echo "COUNTERSIGN_NET은 sepolia 또는 hsk-testnet" >&2; exit 1 ;;
+esac
+export COUNTERSIGN_POLICY="${COUNTERSIGN_POLICY:-$default_policy}"
 export COUNTERSIGN_HSP_MODE=mock
 export COUNTERSIGN_HSP_MCP_URL="http://127.0.0.1:7410/mcp"
 SELLER_PAY_TO="0xfC903F3Daffcb36EEE255f534D11d3e4Bf20545A"   # 개발 니모닉 2번 계정 (공개 주소)
@@ -56,7 +61,7 @@ case "${1:-}" in
     echo "COUNTERSIGN_POLICY=$COUNTERSIGN_POLICY"
     echo "COUNTERSIGN_HSP_MODE=mock"
     echo "COUNTERSIGN_HSP_MCP_URL=$COUNTERSIGN_HSP_MCP_URL"
-    echo "COUNTERSIGN_PAY_CHAIN_ID=133"
+    echo "COUNTERSIGN_PAY_CHAIN_ID=$COUNTERSIGN_PAY_CHAIN_ID"
     ;;
   *) echo "사용법: $0 up|down|env" >&2; exit 1 ;;
 esac

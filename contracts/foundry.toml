@@ -8,10 +8,13 @@ optimizer = true
 optimizer_runs = 200
 
 [rpc_endpoints]
+# 해커톤 기간 테스트·제출 체인 (운영진 11/26: 공식 테스트 USDC가 Ethereum Sepolia에 있음)
+sepolia = "https://ethereum-sepolia-rpc.publicnode.com"
 hsk_testnet = "https://testnet.hsk.xyz"
 hsk_mainnet = "https://mainnet.hsk.xyz"
 
 [etherscan]
 # Blockscout 검증 (API 키 불필요)
+sepolia = { key = "blockscout", url = "https://eth-sepolia.blockscout.com/api", chain = 11155111 }
 hsk_testnet = { key = "blockscout", url = "https://testnet-explorer.hskchain.net/api", chain = 133 }
 hsk_mainnet = { key = "blockscout", url = "https://hsk.blockscout.com/api", chain = 177 }

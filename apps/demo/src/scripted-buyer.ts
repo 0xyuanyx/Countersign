@@ -22,10 +22,10 @@ const env: Record<string, string> = {};
 for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
 Object.assign(env, {
   COUNTERSIGN_HOME: process.env.COUNTERSIGN_HOME || join(root, ".countersign"),
-  COUNTERSIGN_POLICY: process.env.COUNTERSIGN_POLICY || join(root, "apps/demo/policy.testnet.json"),
+  COUNTERSIGN_POLICY: process.env.COUNTERSIGN_POLICY || join(root, "apps/demo/policy.sepolia.json"),
   COUNTERSIGN_HSP_MODE: "mock",
   COUNTERSIGN_HSP_MCP_URL: "http://127.0.0.1:7410/mcp",
-  COUNTERSIGN_PAY_CHAIN_ID: "133",
+  COUNTERSIGN_PAY_CHAIN_ID: process.env.COUNTERSIGN_PAY_CHAIN_ID || "11155111",
   COUNTERSIGN_POLL_MS: "200",
 });
 
