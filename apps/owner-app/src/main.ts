@@ -1,7 +1,7 @@
 import "./styles.css";
 import { HttpOwnerApi } from "./api.js";
 import { app, closeAllSheets, paint, parseHash, refresh, startPolling } from "./app.js";
-import { isMobile, isStandalone, parsePairing, store, type Pairing } from "./auth.js";
+import { isStandalone, parsePairing, store, type Pairing } from "./auth.js";
 import { MockOwnerApi } from "./mock.js";
 import { activity } from "./screens/activity.js";
 import { autoPrompt } from "./screens/approval.js";
@@ -19,8 +19,15 @@ const FORCE_MOCK = import.meta.env.VITE_MOCK === "1";
 /** 알림으로 열었는데 요청 목록을 아직 못 받았을 때 기다리는 요청 id */
 let pendingReq: string | undefined;
 
+/** 데모: 홈을 6초쯤 본 뒤에 "처음 보는 판매자" 구매 요청이 온다 (일을 맡기면 그 일로 더 일찍) */
+let demoTimer: number | undefined;
+
 function render(): void {
   const r = app.route;
+  if (app.api instanceof MockOwnerApi && r.name === "home" && demoTimer === undefined) {
+    const api = app.api;
+    demoTimer = window.setTimeout(() => api.demoRequest(), 6000);
+  }
   const screen =
     r.name === "activity"
       ? activity()
@@ -94,9 +101,11 @@ async function boot(): Promise<void> {
   // 새 QR로 열었으면 다시 짝짓기
   if (link && pairing && !pairing.mock && link.token !== pairing.token) pairing = undefined;
 
+  // 처음 여는 거면(짝짓기나 비밀번호 전) 브라우저에서는 홈 화면 추가 안내부터.
+  // 아이폰은 Safari와 홈 화면 앱이 저장소를 따로 쓴다 → 홈 화면 앱 안에서 짝지어야 한다
+  if ((!pairing || !store.hasPin()) && !isStandalone()) await installGuide({ hadPairLink: !!link });
+
   if (!pairing) {
-    // 아이폰은 Safari와 홈 화면 앱이 저장소를 따로 쓴다 → 홈 화면 앱 안에서 짝지어야 한다
-    if (isMobile() && !isStandalone()) await installGuide({ hadPairLink: !!link });
     pairing = await pairScreen(link);
     store.setPairing(pairing);
     app.api = pairing.mock ? new MockOwnerApi(location.search.includes("fresh")) : new HttpOwnerApi(pairing.base, pairing.token);

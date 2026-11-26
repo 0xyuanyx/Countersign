@@ -2,7 +2,7 @@
 
 import { mountIconAnimation } from "../icon-animation.js";
 import { ApiError, HttpOwnerApi } from "../api.js";
-import { checkPin, createPasskey, isIOS, parsePairing, passkeySupported, setPin, store, verifyPasskey, type Pairing } from "../auth.js";
+import { checkPin, createPasskey, isIOS, isMobile, parsePairing, passkeySupported, setPin, store, verifyPasskey, type Pairing } from "../auth.js";
 import { esc, ic, reducedMotion, transition } from "../ui.js";
 
 const root = () => document.getElementById("app")!;
@@ -182,6 +182,7 @@ export function installGuide(opts: { hadPairLink: boolean; closable?: boolean })
         <p class="muted" style="margin-top:10px;line-height:22px">알림을 받고 앱처럼 쓰려면 홈 화면에 있어야 해요.${
           os === "ios" ? " 아이폰은 Safari와 홈 화면 앱이 저장소를 따로 써서, 연결은 홈 화면 앱에서 해요" : ""
         }</p>
+        ${isMobile() ? "" : `<p class="dim t13" style="margin-top:8px;line-height:20px">폰에서 이 주소를 열어 홈 화면에 추가해 주세요 · 컴퓨터에서는 아래 "이 브라우저에서 계속"으로 둘러볼 수 있어요</p>`}
         ${opts.hadPairLink ? `<div class="banner-off">${ic.qr(18)}<span>QR은 확인했어요. 홈 화면 앱을 연 뒤 한 번 더 찍어 주세요</span></div>` : ""}
         <div class="seg" role="group" aria-label="폰 종류">
           <button type="button" data-os="ios" aria-pressed="${os === "ios"}">아이폰</button>

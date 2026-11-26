@@ -81,14 +81,14 @@ export class MockOwnerApi implements OwnerApi {
   private startBalance = 26.1;
 
   /** fresh: 처음 연결 흐름을 보려고 에이전트·내역·잔액 없이 시작 (주소에 ?fresh) */
-  constructor(fresh = false) {
+  constructor(private fresh = false) {
     const now = Math.floor(Date.now() / 1000);
     this.agentList = fresh ? [] : [{ id: "conn_1", name: "purchase-agent-1", created_at: at(9, 0), connected: true, last_activity_at: now - 30 }];
     // 데모 흐름이 "방금" 일어난 것처럼 보이게 시각을 지금 기준으로 둔다
     const t0 = now - 70;
     this.taskList = [
       task("task_gangnam", "강남역 상권 리포트 사 와", "0.25", "paid", t0 - 60, ["ord_rej1", "ord_p5"]),
-      task("task_weather", "내일 서울 날씨 데이터 사 와", "0.50", "working", now - 30, ["ord_weather"]),
+      task("task_weather", "내일 서울 날씨 데이터 사 와", "0.50", "open", now - 30, []),
       task("task_news", "오늘 뉴스 3건 요약해 와", "0.50", "done", at(16, 55), ["ord_p4"]),
       task("task_week", "이번 주 뉴스 묶음 사 와", "2.00", "failed", at(15, 0), ["ord_rej2"]),
       task("task_seongsu", "성수동 상권 리포트 사 와", "0.25", "done", at(14, 38), ["ord_p2"]),
@@ -151,48 +151,7 @@ export class MockOwnerApi implements OwnerApi {
       paid("p2", at(14, 40), "area-report", "성수동 상권 리포트 1건", "0.1", AREA, "task_seongsu", 2),
       paid("p1", at(11, 2), "map-tiles", "지도 타일 묶음", "0.5", MAPS, "task_maps", 1),
     ];
-    this.reqs = [
-      {
-        id: "req_weather",
-        order_ref: "ord_weather",
-        status: "pending",
-        reason: "unknown_seller",
-        seller: "weather-feed",
-        purpose: "서울 7일 예보 1건",
-        amount: "0.3",
-        amount_raw: "300000",
-        pay_to: WEATHER,
-        chain_id: 133,
-        token: USDC,
-        order_expires_at: now + 272,
-        task_id: "task_weather",
-        agent: "purchase-agent-1",
-        created_at: now - 28,
-      },
-    ];
-    this.hist.unshift({
-      id: "pend1",
-      at: now - 28,
-      order_ref: "ord_weather",
-      status: "pending",
-      seller: "weather-feed",
-      purpose: "서울 7일 예보 1건",
-      amount: "0.3",
-      pay_to: WEATHER,
-      chain_id: 133,
-      code: "NEEDS_OWNER_APPROVAL",
-      request_id: "req_weather",
-      checks: [
-        { field: "payee", result: "needs_approval", actual: WEATHER },
-        ok("amount", "0.30 USDC"),
-        ok("chain", "133"),
-        ok("token", "USDC"),
-        ok("expiry"),
-        { field: "signer", result: "unchecked" },
-      ],
-      agent: "purchase-agent-1",
-      task_id: "task_weather",
-    });
+    this.reqs = [];
     if (fresh) {
       this.hist = [];
       this.reqs = [];
@@ -200,6 +159,67 @@ export class MockOwnerApi implements OwnerApi {
       this.sellers = {};
       this.startBalance = 0;
     }
+  }
+
+  private demoUsed = false;
+
+  /**
+   * 데모의 "처음 보는 판매자" 구매 요청. 처음부터 있으면 비밀번호를 만들자마자 승인 시트가 떠서,
+   * 홈을 잠깐 본 뒤(main.ts) 또는 일을 맡긴 뒤에 들어오게 한다. 한 번만.
+   */
+  demoRequest(taskId = "task_weather", maxAmount = "0.5"): void {
+    if (this.demoUsed || this.fresh) return;
+    const t = this.taskList.find((x) => x.id === taskId);
+    if (!t || (t.status !== "open" && t.status !== "working")) return;
+    this.demoUsed = true;
+    const now = Math.floor(Date.now() / 1000);
+    const amount = String(Math.min(0.3, Number(maxAmount)));
+    // 맡긴 일이 날씨가 아니면 판매자·설명도 그 일에 맞춘다
+    const weather = taskId === "task_weather";
+    const seller = weather ? "weather-feed" : "data-market";
+    const purpose = weather ? "서울 7일 예보 1건" : "맡긴 일 자료 1건";
+    t.status = "working";
+    t.order_refs = ["ord_weather"];
+    this.reqs.unshift({
+      id: "req_weather",
+      order_ref: "ord_weather",
+      status: "pending",
+      reason: "unknown_seller",
+      seller,
+      purpose,
+      amount,
+      amount_raw: String(Math.round(Number(amount) * 1e6)),
+      pay_to: WEATHER,
+      chain_id: 133,
+      token: USDC,
+      order_expires_at: now + 300,
+      task_id: taskId,
+      agent: "purchase-agent-1",
+      created_at: now,
+    });
+    this.hist.unshift({
+      id: "pend1",
+      at: now,
+      order_ref: "ord_weather",
+      status: "pending",
+      seller,
+      purpose,
+      amount,
+      pay_to: WEATHER,
+      chain_id: 133,
+      code: "NEEDS_OWNER_APPROVAL",
+      request_id: "req_weather",
+      checks: [
+        { field: "payee", result: "needs_approval", actual: WEATHER },
+        ok("amount", `${Number(amount).toFixed(2)} USDC`),
+        ok("chain", "133"),
+        ok("token", "USDC"),
+        ok("expiry"),
+        { field: "signer", result: "unchecked" },
+      ],
+      agent: "purchase-agent-1",
+      task_id: taskId,
+    });
   }
 
   private spent(): number {
@@ -301,6 +321,21 @@ export class MockOwnerApi implements OwnerApi {
     const now = Math.floor(Date.now() / 1000);
     const t = task(`task_${now}`, text, maxAmount, "open", now, []);
     this.taskList.unshift(t);
+    // 데모: 에이전트가 청구서를 받아 오는 데 2.5초. 아직 데모 요청을 안 봤으면 이 일로 구매 요청이 온다
+    setTimeout(() => {
+      if (!this.demoUsed) {
+        const old = this.taskList.find((x) => x.id === "task_weather");
+        if (old && old.status === "open") old.status = "cancelled";
+        this.demoRequest(t.id, maxAmount);
+      } else if (t.status === "open") {
+        // 그다음부터는 등록된 판매자(area-report)라 묻지 않고 바로 결제된다
+        const n = Math.floor(Date.now() / 1000);
+        const amt = String(Math.min(0.1, Number(maxAmount)));
+        t.status = "paid";
+        t.order_refs = [`ord_${n}`];
+        this.hist.unshift({ ...paid(`p_${n}`, n, "area-report", "리포트 1건", amt, AREA, t.id, n % 97), order_ref: `ord_${n}` });
+      }
+    }, 2500);
     return this.delay(t);
   }
   async cancelTask(id: string) {
