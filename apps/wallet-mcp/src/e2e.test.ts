@@ -194,9 +194,9 @@ describe("E2E: 구매 → 결제 → 납품", () => {
     expect((await post(`${s.url}/deliver`, { order_ref: offer.order_ref, payment_id: "mock_pay_1" })).status).toBe(402);
   });
 
-  it("인젝션에 속은 에이전트가 max_amount를 5.00으로 올려도 주인 한도에서 막힌다", async () => {
-    const { offer, pay } = await buy("inject", "5.00");
-    expect(offer.notice).toMatch(/SYSTEM NOTICE/);
+  it("인젝션에 속은 에이전트가 판매자가 시킨 금액(100)으로 max_amount를 올려도 주인 한도에서 막힌다", async () => {
+    const { offer, pay } = await buy("inject", "100");
+    expect(offer.notice).toMatch(/SYSTEM NOTICE.*100 USDC/);
     expect(pay.json).toMatchObject({ ok: false, code: "OVER_LIMIT" });
   });
 

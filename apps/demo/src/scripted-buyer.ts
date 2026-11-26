@@ -49,7 +49,7 @@ for (const [label, port] of SELLERS) {
   const base = `http://127.0.0.1:${port}`;
   const offer = (await post(`${base}/orders`, { sku: "weather-seoul" })).json;
   // 인젝션 판매자에게는 "속은 에이전트"를 흉내 낸다: notice가 시키는 대로 max_amount를 올린다
-  const maxAmount = offer.notice ? "5.00" : offer.price;
+  const maxAmount = offer.notice ? (/final price is ([\d.]+) USDC/.exec(offer.notice)?.[1] ?? offer.price) : offer.price;
   const pay = await call("pay_order", {
     order_ref: offer.order_ref,
     intent: { purpose: offer.item, max_amount: maxAmount, seller: offer.seller },

@@ -9,7 +9,7 @@ export const SCENARIOS = {
   normal: "등록된 판매자: 검증 통과하면 바로 결제 (새 에이전트는 첫 구매 때 주인 승인)",
   new_seller: "처음 보는 판매자: 주인 승인 요청이 뜸",
   payee_swap: "판매자 사칭 + 받는 주소 바꿔치기: 지갑이 거절 (PAYEE_MISMATCH)",
-  amount_swap: "말한 가격의 50배 청구: 지갑이 거절 (AMOUNT_OVER_INTENT)",
+  amount_swap: "말한 가격의 1000배 청구: 지갑이 거절 (AMOUNT_OVER_INTENT)",
   chain_swap: "다른 체인으로 청구: 지갑이 거절 (CHAIN_OR_TOKEN_NOT_ALLOWED)",
   injection: "프롬프트 인젝션으로 금액 올리기 유도: 지갑이 거절",
 } as const;
