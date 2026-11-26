@@ -97,7 +97,9 @@ export function home(): Screen {
 
   // 맡긴 일 진행 중 (Working): 청구서 받음 → 지갑이 확인 중 → 결제. 가장 최근 일 하나는 펼쳐 두고, 나머지는 "진행 중인 일 n개 더"에 접어 둔다
   const actives = [...d.tasks].sort((a, b) => b.created_at - a.created_at).filter((t) => t.status === "open" || t.status === "working" || t.status === "paused");
-  const taskStep = (t: Task) => (d.history.some((e) => e.task_id === t.id && e.status === "paid") ? 3 : t.order_refs.length > 0 ? 1 : 0);
+  // 결제 확인 중(confirming)이면 "결제" 단계 진행 중
+  const taskStep = (t: Task) =>
+    d.history.some((e) => e.task_id === t.id && e.status === "paid") ? 3 : d.history.some((e) => e.task_id === t.id && e.status === "confirming") ? 2 : t.order_refs.length > 0 ? 1 : 0;
   const taskCard = (t: Task) => {
     const cur = taskStep(t);
     const held = t.status === "paused";
@@ -131,7 +133,7 @@ export function home(): Screen {
   else if (me?.paused) state = { dot: "bad", word: "이 에이전트 멈춤", sub: "다른 에이전트는 계속 결제해요" };
   else if (pending[0]) state = { dot: "ask", word: "결제 승인 기다리는 중", sub: `${pending[0].seller} · ${usdc(pending[0].amount)} USDC`, target: `req-${pending[0].id}` };
   else if (working) {
-    const stepWord = ["청구서 기다리는 중", "지갑이 확인하는 중", "결제 끝"][Math.min(taskStep(working), 2)];
+    const stepWord = ["청구서 기다리는 중", "지갑이 확인하는 중", "결제 확정 기다리는 중", "결제 끝"][taskStep(working)];
     state = { dot: "ask working", word: "일하는 중", sub: `${working.text} · ${stepWord}${actives.length > 1 ? ` · 외 ${actives.length - 1}개` : ""}`, target: `task-${working.id}` };
   } else
     state = {
@@ -142,9 +144,9 @@ export function home(): Screen {
 
   const row = (e: HistoryEntry) => `
     <a href="#/p/${esc(e.id)}" class="list-row">
-      <span class="round-ic">${e.status === "paid" ? ic.check(16, "#A0A0AA") : ic.blocked(16, e.status === "rejected" ? "#FF5C5C" : "#A0A0AA")}</span>
+      <span class="round-ic">${e.status === "paid" ? ic.check(16, "#A0A0AA") : e.status === "confirming" ? '<span class="dot ask working"></span>' : ic.blocked(16, e.status === "rejected" ? "#FF5C5C" : "#A0A0AA")}</span>
       <div class="stack"><span class="t15" style="font-weight:500">${esc(entryTitle(e))}</span><span class="dim t13 ellipsis">${esc(shortReason(e))} · ${hhmm(e.at)}</span></div>
-      <div class="right"><span class="t15" ${e.status === "paid" ? "" : 'style="color:var(--fg3)"'}>${e.status === "paid" && e.kind !== "withdraw" ? "−" : ""}${usdc(e.amount)}</span><span class="t12" style="color:${e.status === "rejected" ? "var(--bad-text)" : "var(--fg2)"}">${statusWord(e)}</span></div>
+      <div class="right"><span class="t15" ${e.status === "paid" ? "" : 'style="color:var(--fg3)"'}>${e.status === "paid" && e.kind !== "withdraw" ? "−" : ""}${usdc(e.amount)}</span><span class="t12" style="color:${e.status === "rejected" ? "var(--bad-text)" : e.status === "confirming" ? "var(--ask)" : "var(--fg2)"}">${statusWord(e)}</span></div>
     </a>`;
 
   const html = `

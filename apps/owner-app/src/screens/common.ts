@@ -34,7 +34,8 @@ export function shortReason(e: HistoryEntry): string {
   if (e.kind === "withdraw") return "주인 계정으로 출금";
   if (e.status === "paid") return e.purpose ?? "결제";
   if (e.status === "pending") return "결제 전에 물어보는 중";
-  if (e.status === "failed") return "HSP 단계에서 실패";
+  if (e.status === "confirming") return e.code === "PAYMENT_UNCONFIRMED" ? "결제 확인이 끊겨서 다시 확인하는 중" : "결제 확인 중";
+  if (e.status === "failed") return "HSP 단계에서 실패 · 돈은 안 나감";
   if (e.code === "OVER_LIMIT" && e.reason) return e.reason;
   return CODE_TEXT[e.code ?? ""]?.short ?? e.reason ?? "거절됨";
 }
@@ -46,7 +47,7 @@ export function entryTitle(e: HistoryEntry): string {
 
 export function statusWord(e: HistoryEntry): string {
   if (e.kind === "withdraw") return "출금";
-  return { paid: "결제됨", rejected: "거절", pending: "확인 대기", failed: "실패" }[e.status];
+  return { paid: "결제됨", rejected: "거절", pending: "확인 대기", failed: "실패", confirming: "확인 중" }[e.status];
 }
 
 /**

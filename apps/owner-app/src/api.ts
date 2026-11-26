@@ -8,7 +8,8 @@ export type HistoryEntry = {
   id: string;
   at: number;
   order_ref: string;
-  status: "paid" | "rejected" | "pending" | "failed";
+  /** paid = HSP payment-finalized까지 확인, confirming = 서명·제출은 됐고 확정 전(돈이 나갔을 수 있음), failed = 돈이 나가지 않음 */
+  status: "paid" | "rejected" | "pending" | "failed" | "confirming";
   seller?: string;
   purpose?: string;
   amount?: string;
@@ -371,6 +372,8 @@ export const CODE_TEXT: Record<string, { title: string; short: string }> = {
   HSP_ERROR: { title: "HSP에서 주문을 확인하지 못했어요", short: "HSP 확인 실패" },
   SIGNER_UNAVAILABLE: { title: "서명기가 꺼져 있어요", short: "서명기 꺼짐" },
   POLICY_INVALID: { title: "정책 파일에 문제가 있어요", short: "정책 오류" },
+  PAYMENT_UNCONFIRMED: { title: "결제를 확인하는 중에 연결이 끊겼어요", short: "확인이 끊김" },
+  TASK_PAUSED: { title: "멈춘 일이라 결제하지 않았어요", short: "멈춘 일" },
   NEEDS_OWNER_APPROVAL: { title: "처음 보는 판매자예요", short: "주인 확인 대기" },
   OWNER_REJECTED: { title: "내가 거절한 구매예요", short: "내가 거절함" },
 };

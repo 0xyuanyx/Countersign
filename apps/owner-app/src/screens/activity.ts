@@ -32,6 +32,7 @@ function groupStatus(g: Group): { dot: string; text: string; open: boolean } {
   const pending = g.entries.some((e) => e.status === "pending" && app.data.requests.some((r) => r.id === e.request_id));
   const st = g.task?.status;
   if (pending) return { dot: "ask", text: "결제 전에 물어보는 중", open: true };
+  if (g.entries.some((e) => e.status === "confirming")) return { dot: "ask", text: "결제 확인 중 · 돈이 나갔을 수 있어요", open: true };
   if (st === "open" || st === "working") return { dot: "ask", text: `진행 중${blocked ? ` · ${blocked}건 막음` : ""}`, open: true };
   if (st === "cancelled") return { dot: "off", text: "그만둠", open: false };
   if (st === "paused") return { dot: "ask", text: "멈춤", open: true };
@@ -42,7 +43,7 @@ function groupStatus(g: Group): { dot: string; text: string; open: boolean } {
 }
 
 function row(e: HistoryEntry): string {
-  const rej = e.status !== "paid";
+  const rej = e.status !== "paid" && e.status !== "confirming";
   return `<a href="#/p/${esc(e.id)}" class="pay-row ${rej ? "rej" : ""} ${!app.animated.has(`row:${e.id}`) && e.status === "rejected" && Date.now() / 1000 - e.at < 30 ? "flash" : ""}">
     <span class="stack"><span class="t15" style="font-weight:500">${esc(entryTitle(e))}</span><span class="dim t13 ellipsis" style="${e.status === "rejected" ? "color:var(--bad-text)" : ""}">${hhmm(e.at)} · ${esc(shortReason(e))}</span></span>
     <span style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none">

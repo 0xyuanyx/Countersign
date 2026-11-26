@@ -33,7 +33,15 @@ export function detail(id: string): Screen {
   const when = `${dayLabel(e.at)} ${hhmm(e.at)}`;
   const head = `<div class="topbar">${back}<span class="t13 dim">${esc(when)}</span></div>`;
 
-  const body = isWithdraw(e) ? withdrawBody(e) : e.status === "paid" ? paidBody(e, firstView) : e.status === "pending" ? pendingBody(e) : rejectedBody(e, firstView);
+  const body = isWithdraw(e)
+    ? withdrawBody(e)
+    : e.status === "paid"
+      ? paidBody(e, firstView)
+      : e.status === "confirming"
+        ? confirmingBody(e)
+        : e.status === "pending"
+          ? pendingBody(e)
+          : rejectedBody(e, firstView);
   return {
     html: `<div class="screen">${head}${body}${records(e)}</div>`,
     bind: (root) => {
@@ -71,7 +79,7 @@ function rejectedBody(e: HistoryEntry, animate: boolean): string {
   }
   const owner = e.code === "OWNER_REJECTED";
   return `
-    <span class="t13" style="margin-top:12px;color:var(--bad)">거절됨 · 돈은 나가지 않았어요</span>
+    <span class="t13" style="margin-top:12px;color:var(--bad)">${e.status === "failed" ? "실패" : "거절됨"} · 돈은 나가지 않았어요</span>
     <h1 class="title" style="margin-top:8px">${esc(t?.title ?? "서명하지 않았어요")}</h1>
     <p class="muted" style="margin-top:8px;line-height:22px">${esc(e.seller ?? "알 수 없는 판매자")}${e.amount ? ` · ${usdc(e.amount)} USDC` : ""}</p>
     <section class="card" style="margin-top:24px;padding:20px 16px 8px;display:flex;flex-direction:column">
@@ -136,6 +144,24 @@ function withdrawBody(e: HistoryEntry): string {
     <h1 class="title" style="margin-top:8px">주인 계정으로 ${usdc(e.amount)} USDC를 옮겼어요</h1>
     <p class="muted" style="margin-top:8px;line-height:22px">${e.chain_id ? esc(chainName(e.chain_id)) : ""}${e.to ? ` · 받는 곳 ${esc(e.to.slice(0, 6))}…${esc(e.to.slice(-4))}` : ""}</p>
     ${txRow(e, "출금 거래")}`;
+}
+
+/** 서명·제출은 됐는데 HSP 확정 전이거나 확인이 끊긴 결제. 돈이 나갔을 수 있다 */
+function confirmingBody(e: HistoryEntry): string {
+  const cut = e.code === "PAYMENT_UNCONFIRMED";
+  return `
+    <span class="t13" style="margin-top:12px;color:var(--ask)">확인 중 · 돈이 나갔을 수 있어요</span>
+    <h1 class="title" style="margin-top:8px">${esc(e.seller ?? "판매자")}에 ${usdc(e.amount)} USDC 결제를 ${cut ? "확인하다 연결이 끊겼어요" : "확정하는 중이에요"}</h1>
+    <p class="muted" style="margin-top:8px;line-height:22px">${
+      cut
+        ? "지갑은 서명하고 HSP에 보냈지만 확정 소식을 아직 못 받았어요. 지갑 서버가 같은 결제를 다시 확인하면 결제됨으로 바뀌어요"
+        : "지갑이 여섯 칸을 맞춰 보고 서명해서 HSP에 보냈어요. 확정되면 결제됨으로 바뀌어요"
+    }</p>
+    <section class="card" style="margin-top:24px;padding:20px 16px 16px">
+      ${strip({ status: "paid", checks: e.checks }, { size: "lg" })}
+      <p class="muted" style="margin-top:16px;font-size:14px">여섯 칸을 모두 맞춰 보고 서명했어요</p>
+    </section>
+    ${e.tx_hash ? txRow(e, "결제 거래") : ""}`;
 }
 
 function paidBody(e: HistoryEntry, animate: boolean): string {
