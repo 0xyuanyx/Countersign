@@ -1,13 +1,12 @@
 // 결제 상세. 거절이면 "무슨 일이 있었나" 한 문장 → 대조 띠 → 근거(두 주소) → 에이전트가 다시 시도한 결과 → 기록은 접어 둔다.
 
-import { CODE_TEXT, type HistoryEntry } from "../api.js";
+import { CODE_TEXT, txUrl, type HistoryEntry } from "../api.js";
 import { app, FIELD_LABEL, stripCells, strip, type Screen } from "../app.js";
 import { store } from "../auth.js";
 import { addrHtml, dayLabel, esc, hhmm, hhmmss, ic, usdc } from "../ui.js";
 import { openApproval } from "./approval.js";
 import { chainName } from "./common.js";
 
-const EXPLORER: Record<number, string> = { 11155111: "https://sepolia.etherscan.io", 133: "https://testnet-explorer.hskchain.net", 177: "https://hsk.blockscout.com" };
 const ORDINAL = ["첫", "두 번째", "세 번째", "네 번째", "다섯 번째", "여섯 번째"];
 const STAGE: Record<string, string> = {
   signed: "서명",
@@ -34,7 +33,7 @@ export function detail(id: string): Screen {
   const when = `${dayLabel(e.at)} ${hhmm(e.at)}`;
   const head = `<div class="topbar">${back}<span class="t13 dim">${esc(when)}</span></div>`;
 
-  const body = e.status === "paid" ? paidBody(e, firstView) : e.status === "pending" ? pendingBody(e) : rejectedBody(e, firstView);
+  const body = isWithdraw(e) ? withdrawBody(e) : e.status === "paid" ? paidBody(e, firstView) : e.status === "pending" ? pendingBody(e) : rejectedBody(e, firstView);
   return {
     html: `<div class="screen">${head}${body}${records(e)}</div>`,
     bind: (root) => {
@@ -110,8 +109,38 @@ function followUp(e: HistoryEntry): string {
   return `<section class="card" style="margin-top:12px;padding:4px 16px">${row}</section>`;
 }
 
+export function isWithdraw(e: HistoryEntry): boolean {
+  return e.kind === "withdraw";
+}
+
+/** 거래 줄: 실제 체인 거래(explorer_url)는 탐색기로, HSP 연결 전 테스트 결제는 번호만 */
+function txRow(e: HistoryEntry, label: string): string {
+  // 지갑 서버는 실제 체인 거래에만 explorer_url을 붙인다 (출금은 tx_hash만 와도 실제 거래)
+  const url = e.explorer_url ?? (isWithdraw(e) && !app.api.mock ? txUrl(e) : undefined);
+  if (url)
+    return `<section class="card" style="margin-top:12px;padding:4px 16px">
+      <a class="list-row" href="${esc(url)}" target="_blank" rel="noopener noreferrer">
+        <span class="stack"><span class="t15">${label} · 탐색기에서 보기</span><span class="dim t12 mono ellipsis">${esc(e.tx_hash ?? url)}</span></span>${ic.chevR()}
+      </a>
+    </section>`;
+  if (!e.tx_hash) return "";
+  return `<section class="card" style="margin-top:12px;padding:12px 16px">
+      <span class="stack"><span class="t15">${label}</span><span class="dim t12 mono ellipsis">${esc(e.tx_hash)}</span>
+      <span class="dim t12" style="margin-top:4px">${app.api.mock ? "데모라 체인에 없는 번호예요" : "HSP 연결 전 테스트 결제라 탐색기에는 아직 없어요"}</span></span>
+    </section>`;
+}
+
+function withdrawBody(e: HistoryEntry): string {
+  return `
+    <span class="t13" style="margin-top:12px;color:var(--ok)">출금</span>
+    <h1 class="title" style="margin-top:8px">주인 계정으로 ${usdc(e.amount)} USDC를 옮겼어요</h1>
+    <p class="muted" style="margin-top:8px;line-height:22px">${e.chain_id ? esc(chainName(e.chain_id)) : ""}${e.to ? ` · 받는 곳 ${esc(e.to.slice(0, 6))}…${esc(e.to.slice(-4))}` : ""}</p>
+    ${txRow(e, "출금 거래")}`;
+}
+
 function paidBody(e: HistoryEntry, animate: boolean): string {
-  const exp = e.chain_id !== undefined ? EXPLORER[e.chain_id] : undefined;
+  // HSP 연결 전이라 결제는 지갑 서버의 테스트 결제다. 실제 체인 거래가 있을 때만 탐색기 링크
+  const real = !!e.explorer_url;
   return `
     <span class="t13" style="margin-top:12px;color:var(--ok)">결제됨</span>
     <h1 class="title" style="margin-top:8px">${esc(e.seller ?? "판매자")}에 ${usdc(e.amount)} USDC를 냈어요</h1>
@@ -120,15 +149,7 @@ function paidBody(e: HistoryEntry, animate: boolean): string {
       ${strip(e, { size: "lg", animate })}
       <p class="muted" style="margin-top:16px;font-size:14px">여섯 칸을 모두 맞춰 보고 서명했어요</p>
     </section>
-    ${
-      e.tx_hash && exp
-        ? `<section class="card" style="margin-top:12px;padding:4px 16px">
-            <a class="list-row" href="${exp}/tx/${esc(e.tx_hash)}" target="_blank" rel="noopener noreferrer">
-              <span class="stack"><span class="t15">결제 거래</span><span class="dim t12 mono ellipsis">${esc(e.tx_hash)}</span></span>${ic.chevR()}
-            </a>
-          </section>`
-        : ""
-    }`;
+    ${real || e.tx_hash ? txRow(e, "결제 거래") : ""}`;
 }
 
 function pendingBody(e: HistoryEntry): string {

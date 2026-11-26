@@ -1,11 +1,11 @@
 // 홈: 상태, 잔액, 오늘 한도, 입금·긴급 정지, 구매 요청, 방금 막은 결제, 최근 결제, 맡길 일 입력칸
 
-import { ApiError, chainIds, type Agent, type HistoryEntry } from "../api.js";
-import { app, go, openSheet, refresh, refreshSoon, strip, type Screen } from "../app.js";
+import { addressUrl, ApiError, chainIds, txUrl, type Agent, type HistoryEntry } from "../api.js";
+import { app, currentAgent, go, openSheet, refresh, refreshSoon, selectAgent, strip, type Screen } from "../app.js";
 import { store } from "../auth.js";
 import { addrHtml, countTo, esc, hhmm, ic, toast, usdc } from "../ui.js";
 import { openApproval } from "./approval.js";
-import { attached, chainName, chainShort, shortReason, statusWord, tabs } from "./common.js";
+import { agentState, attached, chainName, chainShort, entryTitle, shortReason, statusWord, tabs } from "./common.js";
 import { unlock } from "./gates.js";
 import { homeEmpty, isFresh, setupDone } from "./onboard.js";
 import { hideComposer, showComposer } from "../composer.js";
@@ -31,7 +31,10 @@ export function home(): Screen {
   const p = d.policy;
   const paused = p?.paused ?? false;
   const connected = d.agents.filter((a) => a.connected);
-  const agentName = connected[0]?.name ?? p?.agent ?? "에이전트";
+  const me = currentAgent();
+  const agentName = me?.name ?? p?.agent ?? "에이전트";
+  const others = d.agents.filter((a) => a.connected && a.id !== me?.id).length;
+  const native = d.balance?.native !== undefined ? Number(d.balance.native) : undefined;
   const bal = d.balance?.balances.find((b) => b.balance !== undefined);
   const balNum = bal?.balance !== undefined ? Number(bal.balance) : undefined;
   const spent = Number(p?.spent_24h ?? 0);
@@ -40,7 +43,7 @@ export function home(): Screen {
   const blocked = justBlocked();
   const pending = d.requests.filter((r) => r.status === "pending");
   const recent = d.history.filter((e) => e.id !== blocked?.id && e.status !== "pending").slice(0, 3);
-  const runnerOff = connected.length === 0 && !app.api.mock;
+  const runnerOff = !app.api.mock && !me?.connected;
   const needsRules = !setupDone();
   const lowBalance = balNum !== undefined && p !== undefined && balNum < Number(p.per_tx_max);
 
@@ -57,7 +60,7 @@ export function home(): Screen {
       <span class="banner-act">입금</span></button>`;
   } else if (!paused && runnerOff) {
     banner = `<div class="banner" role="status"><span class="dot off"></span>
-      <span class="stack"><span class="t14">에이전트가 꺼져 있어요</span><span class="dim t12">맡길 일 입력칸이 잠겨요 · 에이전트를 켜면 풀려요</span></span></div>`;
+      <span class="stack"><span class="t14">${esc(agentName)} 연결이 끊겼어요</span><span class="dim t12">맡길 일 입력칸이 잠겨요 · 에이전트를 바꾸거나 다시 연결하면 풀려요</span></span></div>`;
   }
 
   const blockedCard = blocked
@@ -104,8 +107,8 @@ export function home(): Screen {
   const row = (e: HistoryEntry) => `
     <a href="#/p/${esc(e.id)}" class="list-row">
       <span class="round-ic">${e.status === "paid" ? ic.check(16, "#A0A0AA") : ic.blocked(16, e.status === "rejected" ? "#FF5C5C" : "#A0A0AA")}</span>
-      <div class="stack"><span class="t15" style="font-weight:500">${esc(e.seller ?? "알 수 없는 판매자")}</span><span class="dim t13 ellipsis">${esc(shortReason(e))} · ${hhmm(e.at)}</span></div>
-      <div class="right"><span class="t15" ${e.status === "paid" ? "" : 'style="color:var(--fg3)"'}>${e.status === "paid" ? "−" : ""}${usdc(e.amount)}</span><span class="t12" style="color:${e.status === "rejected" ? "var(--bad-text)" : "var(--fg2)"}">${statusWord(e)}</span></div>
+      <div class="stack"><span class="t15" style="font-weight:500">${esc(entryTitle(e))}</span><span class="dim t13 ellipsis">${esc(shortReason(e))} · ${hhmm(e.at)}</span></div>
+      <div class="right"><span class="t15" ${e.status === "paid" ? "" : 'style="color:var(--fg3)"'}>${e.status === "paid" && e.kind !== "withdraw" ? "−" : ""}${usdc(e.amount)}</span><span class="t12" style="color:${e.status === "rejected" ? "var(--bad-text)" : "var(--fg2)"}">${statusWord(e)}</span></div>
     </a>`;
 
   const html = `
@@ -116,21 +119,20 @@ export function home(): Screen {
     </div>
     ${banner}
     <div class="status-line ${banner ? "hidden" : ""}">
-      <span class="dot ${paused ? "bad" : d.offline ? "off" : ""}"></span>
-      <span>${paused ? "긴급 정지됨" : d.offline ? "연결 끊김" : "지켜보는 중"}</span>
+      <span class="dot ${paused || me?.paused ? "bad" : d.offline || (me && !attached(me)) ? "off" : ""}"></span>
+      <span>${paused ? "긴급 정지됨" : d.offline ? "연결 끊김" : me?.paused ? "이 에이전트 멈춤" : "지켜보는 중"}</span>
       <span class="dim">${
         paused
           ? "결제를 모두 막고 있어요"
-          : connected.some(attached)
-            ? `${esc(connected.filter(attached).map((a) => a.name).join(", "))} 연결됨`
-            : connected.length
-              ? `${esc(connected[0]!.name)} 연결 기다리는 중`
-              : "연결된 에이전트 없음"
+          : me
+            ? `${esc(me.name)} ${agentState(me)}${others ? ` · 다른 에이전트 ${others}` : ""}`
+            : "연결된 에이전트 없음"
       }</span>
     </div>
     <div class="muted" style="margin-top:16px;font-size:14px">결제용 잔액${app.api.mock ? ' <span class="dim">· 데모 값, 진짜 USDC 아님</span>' : ""}</div>
     <div class="balance"><span class="num" data-bal ${balNum === undefined ? 'style="color:var(--fg3)"' : ""}>${balNum !== undefined ? (lastBalance ?? balNum).toFixed(2) : "-.--"}</span><span class="unit">USDC</span></div>
     ${balNum === undefined && d.balance?.balances[0]?.error ? `<div class="dim t12" style="margin-top:4px">잔액을 못 읽었어요: ${esc(d.balance.balances[0].error)}</div>` : ""}
+    ${native !== undefined ? `<div class="dim t12" style="margin-top:4px">${native > 0 ? `가스용 ETH ${native.toFixed(4)}` : "가스용 Sepolia ETH 없음 · 출금하려면 조금 필요해요"}</div>` : ""}
     <div style="margin-top:20px;display:flex;justify-content:space-between;font-size:13px">
       <span class="muted">오늘 쓴 돈</span>
       <span><span data-spent>${(lastSpent ?? spent).toFixed(2)}</span> <span class="dim">/ ${usdc(p?.daily_max)} USDC</span></span>
@@ -138,7 +140,8 @@ export function home(): Screen {
     <div class="meter"><div style="transform:scaleX(${ratio})"></div></div>
     <div class="dim t12" style="margin-top:8px">1회 최대 ${usdc(p?.per_tx_max)} USDC</div>
     <div class="row-2">
-      <button type="button" class="btn-card press" data-act="deposit">${ic.down()}입금 주소</button>
+      <button type="button" class="btn-card press" data-act="deposit">${ic.down()}입금</button>
+      <button type="button" class="btn-card press" data-act="withdraw">${ic.up(18, "currentColor")}출금</button>
       ${
         paused
           ? `<button type="button" class="btn-card press" style="color:var(--ok)" data-act="resume">${ic.play()}다시 켜기</button>`
@@ -158,7 +161,7 @@ export function home(): Screen {
     bind: (root) => {
       showComposer({
         locked: runnerOff || paused || needsRules ? (paused ? "정지 중에는 맡길 수 없어요" : runnerOff ? "에이전트가 꺼져 있어요" : "기본 규칙을 정하면 일을 맡길 수 있어요") : undefined,
-        agent: connected.map((a) => a.name).join(", ") || agentName,
+        agent: agentName,
         perTx: p?.per_tx_max ?? "0.5",
         recent: [...new Set([...d.tasks].sort((a, b) => b.created_at - a.created_at).map((t) => t.text))].slice(0, 3),
       });
@@ -176,6 +179,7 @@ export function home(): Screen {
       root.addEventListener("click", (e) => {
         const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
         if (act === "deposit") deposit();
+        if (act === "withdraw") withdrawSheet();
         if (act === "retry") {
           (e.target as HTMLElement).closest("button")!.textContent = "확인 중…";
           void refresh();
@@ -218,11 +222,14 @@ function demoDepositSheet(api: MockOwnerApi): void {
 /** 입금 주소: QR, 주소, 주소 복사·공유 (공유는 Web Share API로 주소와 QR 그림을 보낸다) */
 export function deposit(): void {
   if (app.api instanceof MockOwnerApi) return demoDepositSheet(app.api);
-  const acct = app.data.balance?.account ?? app.data.policy?.account;
-  const net = chainName(chainIds(app.data.policy)[0]);
+  const me = currentAgent();
+  const acct = me?.address ?? app.data.balance?.account ?? app.data.policy?.account;
+  const chainId = me?.chain_id ?? chainIds(app.data.policy)[0] ?? 11155111;
+  const net = chainName(chainId);
+  const link = acct ? addressUrl(acct, chainId) : undefined;
   openSheet(
-    `<h1 class="title-md">입금 주소</h1>
-     <p class="muted t13" style="margin-top:6px">${esc(net)} · USDC만 보내 주세요</p>
+    `<h1 class="title-md">${esc(me?.name ?? "에이전트")} 입금 주소</h1>
+     <p class="muted t13" style="margin-top:6px">${esc(net)} · Circle 테스트 USDC만 보내 주세요${me?.account_index !== undefined ? ` · 이 에이전트 전용 계정(${me.account_index}번)` : ""}</p>
      ${acct ? `<div style="align-self:center;margin-top:16px;width:200px;height:200px;border-radius:16px;background:#F7F7F9;padding:12px"><img data-qr alt="입금 주소 QR" width="176" height="176" style="display:block;width:176px;height:176px"></div>` : ""}
      <div class="inner" style="margin-top:16px">${acct ? addrHtml(acct) : '<span class="dim">signer가 꺼져 있어 주소를 몰라요</span>'}</div>
      ${
@@ -230,7 +237,9 @@ export function deposit(): void {
          ? `<div class="btn-pair" style="margin-top:16px">
              <button class="btn btn-card press" data-act="share">${ic.share()}<span style="margin-left:8px">공유</span></button>
              <button class="btn btn-primary press" data-act="copy">주소 복사</button>
-           </div>`
+           </div>
+           ${link ? `<a class="muted t13" style="align-self:center;margin-top:14px;text-decoration:underline" href="${esc(link)}" target="_blank" rel="noopener noreferrer">탐색기에서 이 계정 보기</a>` : ""}
+           <p class="dim t12" style="margin-top:12px;line-height:18px;text-align:center">테스트 USDC는 faucet.circle.com에서 Ethereum Sepolia로 받을 수 있어요</p>`
          : ""
      }`,
     (sheet, close) => {
@@ -266,6 +275,70 @@ export function deposit(): void {
       });
     },
     { label: "입금 주소" },
+  );
+}
+
+/** 출금: 이 에이전트 계정의 USDC를 주인 계정(지갑 서버의 0번 계정)으로. 받는 곳은 서버가 고정한다 */
+function withdrawSheet(): void {
+  const me = currentAgent();
+  const bal = app.data.balance?.balances.find((b) => b.balance !== undefined)?.balance;
+  if (app.api.mock) {
+    toast("데모라 출금은 하지 않아요 · 실제 지갑에서는 주인 계정으로 옮겨요");
+    return;
+  }
+  if (!me) return void toast("고른 에이전트가 없어요");
+  const native = app.data.balance?.native;
+  openSheet(
+    `<h1 class="title-md">${esc(me.name)} 잔액 출금</h1>
+     <p class="muted t13" style="margin-top:6px;line-height:20px">주인 계정으로만 보내요 · 받는 곳은 지갑 서버가 정해서 바꿀 수 없어요</p>
+     <div class="inner" style="margin-top:16px;display:flex;justify-content:space-between"><span class="muted t14">출금할 수 있는 돈</span><span class="t15">${bal !== undefined ? usdc(bal) : "-.--"} USDC</span></div>
+     <label class="t13 dim" for="wd-amt" style="margin-top:16px">금액 (비우면 전액)</label>
+     <div style="display:flex;gap:8px;margin-top:8px">
+       <input id="wd-amt" class="field" inputmode="decimal" autocomplete="off" placeholder="전액">
+       <button type="button" class="pill" data-act="all" style="height:52px;flex:none">전액</button>
+     </div>
+     <p class="err-text" style="margin-top:6px;min-height:18px" role="alert">${native !== undefined && Number(native) <= 0 ? "이 계정에 가스용 Sepolia ETH가 없어서 출금이 실패할 수 있어요" : ""}</p>
+     <div class="bottom-actions" style="padding-top:8px">
+       <button class="btn btn-primary press" data-act="go">주인 계정으로 출금</button>
+       <button class="btn btn-ghost press" data-act="cancel">취소</button>
+     </div>`,
+    (sheet, close) => {
+      const input = sheet.querySelector<HTMLInputElement>("#wd-amt")!;
+      const err = sheet.querySelector<HTMLElement>(".err-text")!;
+      sheet.addEventListener("click", async (e) => {
+        const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
+        if (act === "cancel") return void close();
+        if (act === "all") return void (input.value = "");
+        if (act !== "go") return;
+        const v = input.value.trim().replace(",", ".");
+        if (v && (!/^\d+(\.\d{1,6})?$/.test(v) || Number(v) <= 0)) return void (err.textContent = "금액을 숫자로 넣어 주세요 (소수 6자리까지)");
+        if (v && bal !== undefined && Number(v) > Number(bal)) return void (err.textContent = "잔액보다 많아요");
+        await close();
+        if (!(await unlock({ title: "출금해요", subtitle: `${v ? `${v} USDC` : "전액"} · 주인 계정으로`, closable: true }))) return;
+        try {
+          const w = await app.api.withdraw(me.id, v || undefined);
+          refreshSoon();
+          withdrawDone(w.amount, w.to, w.explorer_url ?? txUrl({ tx_hash: w.tx_hash, chain_id: me.chain_id ?? 11155111 }));
+        } catch (x) {
+          toast(x instanceof ApiError ? x.message : "출금하지 못했어요");
+        }
+      });
+    },
+    { label: "출금" },
+  );
+}
+
+function withdrawDone(amount: string, to: string, url?: string): void {
+  openSheet(
+    `<span class="round-ic" style="align-self:center;margin-top:8px">${ic.check(18, "#00C896")}</span>
+     <h1 class="title-md" style="text-align:center;margin-top:12px">${usdc(amount)} USDC를 보냈어요</h1>
+     <p class="muted t13" style="text-align:center;margin-top:6px">받는 곳 ${esc(to.slice(0, 6))}…${esc(to.slice(-4))} · 블록에 들어가면 잔액이 바뀌어요</p>
+     <div class="bottom-actions" style="padding-top:20px">
+       ${url ? `<a class="btn btn-primary press" href="${esc(url)}" target="_blank" rel="noopener noreferrer">탐색기에서 거래 보기</a>` : ""}
+       <button class="btn btn-ghost press" data-act="close">닫기</button>
+     </div>`,
+    (sheet, close) => sheet.querySelector('[data-act="close"]')!.addEventListener("click", () => void close()),
+    { label: "출금 완료" },
   );
 }
 
@@ -315,16 +388,18 @@ export function agentLine(a: Agent): string {
   return `연결됨 · 마지막 활동 ${new Date(a.last_activity_at * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-function agentsSheet(): void {
+export function agentsSheet(): void {
   const list = app.data.agents;
   openSheet(
-    `<h1 class="title-md">에이전트</h1>
+    `<h1 class="title-md">에이전트</h1><p class="dim t13" style="margin-top:4px">누르면 그 에이전트의 잔액·한도·내역으로 바뀌어요</p>
      <div style="margin-top:12px;display:flex;flex-direction:column">${
        list.length
          ? list
              .map(
-               (a) => `<div class="list-row"><span class="round-ic" style="${a.connected && !a.paused ? "" : "opacity:0.4"}"><img src="/mark.svg" width="24" height="24" alt=""></span>
-                 <div class="stack" style="flex:1"><span class="t15b">${esc(a.name)}</span><span class="dim t13">${agentLine(a)}</span></div>
+               (a) => `<div class="list-row"><button type="button" class="press" data-pick="${esc(a.id)}" aria-pressed="${a.id === app.api.agentId}" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;text-align:left">
+                 <span class="round-ic" style="${attached(a) && !a.paused ? "" : "opacity:0.4"}"><img src="/mark.svg" width="24" height="24" alt=""></span>
+                 <span class="stack" style="flex:1;min-width:0"><span class="t15b">${esc(a.name)}${a.id === app.api.agentId ? ' <span class="dim t12">· 보는 중</span>' : ""}</span><span class="dim t13 ellipsis">${agentLine(a)}</span></span>
+                 ${a.id === app.api.agentId ? ic.check(16, "#00C896") : ""}</button>
                  <button type="button" class="icon-btn" data-edit="${esc(a.id)}" aria-label="${esc(a.name)} 편집">${ic.more()}</button></div>`,
              )
              .join("")
@@ -335,6 +410,12 @@ function agentsSheet(): void {
     (sheet, close) =>
       sheet.addEventListener("click", async (e) => {
         const t = e.target as HTMLElement;
+        const pick = t.closest<HTMLElement>("[data-pick]")?.dataset.pick;
+        if (pick) {
+          await close();
+          selectAgent(pick);
+          return;
+        }
         const edit = t.closest<HTMLElement>("[data-edit]")?.dataset.edit;
         const connect = t.closest('[data-act="connect"]');
         if (!edit && !connect) return;

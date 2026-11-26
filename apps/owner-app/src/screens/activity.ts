@@ -4,7 +4,7 @@
 import type { HistoryEntry, Task } from "../api.js";
 import { app, strip, type Screen } from "../app.js";
 import { dayLabel, esc, hhmm, ic, usdc } from "../ui.js";
-import { offlineBanner, shortReason, tabs } from "./common.js";
+import { entryTitle, offlineBanner, shortReason, tabs } from "./common.js";
 
 type Group = { key: string; at: number; title: string; task?: Task; entries: HistoryEntry[] };
 
@@ -17,13 +17,13 @@ function groups(): Group[] {
     const tid = e.task_id ?? tasks.find((t) => t.order_refs.includes(e.order_ref))?.id;
     const g = tid ? byTask.get(tid) : undefined;
     if (g) g.entries.push(e);
-    else loose.push({ key: `e:${e.id}`, at: e.at, title: e.purpose ?? e.seller ?? "결제", entries: [e] });
+    else loose.push({ key: `e:${e.id}`, at: e.at, title: e.kind === "withdraw" ? "주인 계정으로 출금" : (e.purpose ?? e.seller ?? "결제"), entries: [e] });
   }
   return [...byTask.values(), ...loose].sort((a, b) => b.at - a.at);
 }
 
 function sum(es: HistoryEntry[]): number {
-  return es.filter((e) => e.status === "paid").reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  return es.filter((e) => e.status === "paid" && e.kind !== "withdraw").reduce((s, e) => s + Number(e.amount ?? 0), 0);
 }
 
 function groupStatus(g: Group): { dot: string; text: string; open: boolean } {
@@ -43,7 +43,7 @@ function groupStatus(g: Group): { dot: string; text: string; open: boolean } {
 function row(e: HistoryEntry): string {
   const rej = e.status !== "paid";
   return `<a href="#/p/${esc(e.id)}" class="pay-row ${rej ? "rej" : ""} ${!app.animated.has(`row:${e.id}`) && e.status === "rejected" && Date.now() / 1000 - e.at < 30 ? "flash" : ""}">
-    <span class="stack"><span class="t15" style="font-weight:500">${esc(e.seller ?? "알 수 없는 판매자")}</span><span class="dim t13 ellipsis" style="${e.status === "rejected" ? "color:var(--bad-text)" : ""}">${hhmm(e.at)} · ${esc(shortReason(e))}</span></span>
+    <span class="stack"><span class="t15" style="font-weight:500">${esc(entryTitle(e))}</span><span class="dim t13 ellipsis" style="${e.status === "rejected" ? "color:var(--bad-text)" : ""}">${hhmm(e.at)} · ${esc(shortReason(e))}</span></span>
     <span style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none">
       <span class="t15" style="${rej ? "color:var(--fg3)" : ""}">${rej ? "" : "−"}${usdc(e.amount)}</span>
       ${rej ? strip(e, { size: "mini" }) : ""}

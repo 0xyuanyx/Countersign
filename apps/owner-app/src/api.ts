@@ -28,6 +28,10 @@ export type HistoryEntry = {
   task_id?: string;
   request_id?: string;
   events?: { stage: string; at: number }[];
+  /** 출금 등 실제 체인 거래일 때만 (지갑 서버가 붙여 줌) */
+  explorer_url?: string;
+  kind?: string;
+  to?: string;
 };
 
 export type PolicySummary = {
@@ -98,19 +102,39 @@ export type Agent = {
   last_activity_at?: number;
   /** 이 에이전트만 멈춤 (지갑 서버가 지원할 때만 옴) */
   paused?: boolean;
+  /** 에이전트마다 따로 가진 결제 계정 (니모닉 번호, 첫 에이전트 = 1번) */
+  account_index?: number;
+  address?: string;
+  chain_id?: number;
 };
+export type Deposit = { address: string; chain_id: number; token: string; token_symbol?: string; explorer_url?: string };
+export type AgentDetail = { agent: Agent; policy?: PolicySummary; balance?: Balance; deposit?: Deposit };
+export type Withdrawal = { tx_hash: string; explorer_url?: string; amount: string; from: string; to: string };
 /** POST /api/agents 응답. token·url은 이때 한 번만 온다 (비밀번호와 같다) */
 export type NewAgent = {
   id: string;
   name: string;
   token: string;
   connect: { url: string; claude_connector: string; claude_code: string; codex: string; cursor: string };
+  account_index?: number;
+  address?: string;
+  deposit?: Deposit;
 };
-export type Balance = { account?: string; balances: { chain_id: number; balance?: string; error?: string }[] };
+export type Balance = {
+  account?: string;
+  balances: { chain_id: number; balance?: string; error?: string }[];
+  /** 가스용 ETH (에이전트별 잔액에만 옴) */
+  native?: string;
+  explorer_url?: string;
+};
+/** GET /api/agents/:id/balance 원래 모양 */
+type AgentBalanceRaw = { chain_id?: number; token?: string; usdc?: string; native?: string; explorer_url?: string; address?: string; error?: string };
 export type PauseState = { paused: boolean; at: number; reason?: string };
 
 export interface OwnerApi {
   readonly mock: boolean;
+  /** 지금 보고 있는 에이전트. 정해 두면 정책·잔액·내역·요청·일이 그 에이전트 것만 온다 */
+  agentId?: string;
   /** 매칭 확인: 주소에 닿는지 + 토큰이 맞는지 */
   verify(): Promise<void>;
   policy(): Promise<PolicySummary>;
@@ -132,6 +156,9 @@ export interface OwnerApi {
   /** 아래 둘은 지갑 서버에 아직 없을 수 있다 → 404 "없는 경로"면 UNSUPPORTED */
   renameAgent(id: string, name: string): Promise<Agent>;
   pauseAgent(id: string, paused: boolean): Promise<Agent>;
+  agentDetail(id: string): Promise<AgentDetail>;
+  /** 에이전트 계정의 USDC를 주인 계정(0번)으로. amount가 없으면 전액. 실제 체인 거래 */
+  withdraw(id: string, amount?: string): Promise<Withdrawal>;
 }
 
 export const NO_SERVER_URL = "연결 코드에 지갑 서버 주소가 없어요. 맥에서 QR을 다시 띄워 주세요";
@@ -202,26 +229,70 @@ export class HttpOwnerApi implements OwnerApi {
       throw e;
     }
   }
-  policy = () => this.call<PolicySummary>("GET", "/api/policy");
-  policyFile = () => this.call<PolicyFileJson>("GET", "/api/policy/file");
-  patchPolicy = (body: object) => this.call<PolicySummary>("PATCH", "/api/policy", body);
-  history = async (limit = 50) => (await this.call<{ entries: HistoryEntry[] }>("GET", `/api/history?limit=${limit}`)).entries;
-  balance = () => this.call<Balance>("GET", "/api/balance");
+  agentId?: string;
+  /** 지갑 서버가 /api/agents/:id/… 를 아직 모르면 전역 경로로 (첫 에이전트 기준) */
+  private perAgent = true;
+  private get aPath(): string | undefined {
+    return this.agentId && this.perAgent ? `/api/agents/${encodeURIComponent(this.agentId)}` : undefined;
+  }
+  private get aQuery(): string {
+    return this.agentId ? `agentId=${encodeURIComponent(this.agentId)}` : "";
+  }
+  private async scoped<T>(method: string, sub: string, global: string, body?: unknown): Promise<T> {
+    const base = this.aPath;
+    if (!base) return this.call<T>(method, global, body);
+    try {
+      return await this.call<T>(method, `${base}${sub}`, body);
+    } catch (e) {
+      if (e instanceof ApiError && e.message === UNSUPPORTED) {
+        this.perAgent = false;
+        return this.call<T>(method, global, body);
+      }
+      throw e;
+    }
+  }
+  policy = () => this.scoped<PolicySummary>("GET", "/policy", "/api/policy");
+  policyFile = () => this.scoped<PolicyFileJson>("GET", "/policy/file", "/api/policy/file");
+  patchPolicy = (body: object) => this.scoped<PolicySummary>("PATCH", "/policy", "/api/policy", body);
+  history = async (limit = 50) => (await this.scoped<{ entries: HistoryEntry[] }>("GET", `/history?limit=${limit}`, `/api/history?limit=${limit}`)).entries;
+  balance = async (): Promise<Balance> => {
+    const raw = await this.scoped<Balance | AgentBalanceRaw>("GET", "/balance", "/api/balance");
+    return normBalance(raw);
+  };
   pause = (reason?: string) => this.call<PauseState>("POST", "/api/pause", reason ? { reason } : {});
   resume = () => this.call<PauseState>("POST", "/api/resume", {});
-  requests = async (status?: string) =>
-    (await this.call<{ requests: PurchaseRequest[] }>("GET", `/api/requests${status ? `?status=${status}` : ""}`)).requests;
+  requests = async (status?: string) => {
+    const q = [status && `status=${status}`, this.aQuery].filter(Boolean).join("&");
+    return (await this.call<{ requests: PurchaseRequest[] }>("GET", `/api/requests${q ? `?${q}` : ""}`)).requests;
+  };
   approve = (id: string, remember?: boolean) =>
     this.call<PurchaseRequest>("POST", `/api/requests/${encodeURIComponent(id)}/approve`, remember ? { remember: true } : {});
   reject = (id: string) => this.call<PurchaseRequest>("POST", `/api/requests/${encodeURIComponent(id)}/reject`, {});
-  tasks = async () => (await this.call<{ tasks: Task[] }>("GET", "/api/tasks")).tasks;
-  createTask = (text: string, maxAmount: string) => this.call<Task>("POST", "/api/tasks", { text, maxAmount });
+  tasks = async () => (await this.call<{ tasks: Task[] }>("GET", `/api/tasks${this.aQuery ? `?${this.aQuery}` : ""}`)).tasks;
+  createTask = (text: string, maxAmount: string) => this.call<Task>("POST", "/api/tasks", { text, maxAmount, ...(this.agentId && { agentId: this.agentId }) });
   cancelTask = (id: string) => this.call<Task>("POST", `/api/tasks/${encodeURIComponent(id)}/cancel`, {});
   agents = async () => (await this.call<{ agents: Agent[] }>("GET", "/api/agents")).agents;
   createAgent = (name: string) => this.call<NewAgent>("POST", "/api/agents", { name });
   disconnectAgent = (id: string) => this.call<Agent>("POST", `/api/agents/${encodeURIComponent(id)}/disconnect`, {});
   renameAgent = (id: string, name: string) => this.call<Agent>("PATCH", `/api/agents/${encodeURIComponent(id)}`, { name });
   pauseAgent = (id: string, paused: boolean) => this.call<Agent>("POST", `/api/agents/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, {});
+  agentDetail = async (id: string) => {
+    const d = await this.call<AgentDetail & { balance?: AgentBalanceRaw }>("GET", `/api/agents/${encodeURIComponent(id)}`);
+    return { ...d, balance: d.balance ? normBalance(d.balance) : undefined };
+  };
+  withdraw = (id: string, amount?: string) => this.call<Withdrawal>("POST", `/api/agents/${encodeURIComponent(id)}/withdraw`, amount ? { amount } : {});
+}
+
+/** 전역 /api/balance 모양과 에이전트별 모양({usdc, native})을 하나로 */
+function normBalance(raw: Balance | AgentBalanceRaw): Balance {
+  if ("balances" in raw && Array.isArray(raw.balances)) return raw as Balance;
+  const r = raw as AgentBalanceRaw;
+  return {
+    account: r.address,
+    balances: [{ chain_id: r.chain_id ?? 11155111, ...(r.usdc !== undefined ? { balance: r.usdc } : { error: r.error ?? "잔액을 못 읽었어요" }) }],
+    native: r.native,
+    explorer_url: r.explorer_url,
+  };
 }
 
 /** 정책 요약의 체인 번호들 */
@@ -231,6 +302,18 @@ export function chainIds(p: PolicySummary | undefined): number[] {
 
 // 해커톤 테스트는 Ethereum Sepolia의 Circle USDC (운영진 안내, 11/26). HSK 메인넷은 수상 후 옮긴다
 export const CHAIN_NAME: Record<number, string> = { 11155111: "Ethereum Sepolia", 133: "HSK 테스트넷", 177: "HSK 메인넷" };
+
+/** 블록 탐색기 (서버가 explorer_url을 주면 그걸 먼저 쓴다) */
+export const EXPLORER: Record<number, string> = { 11155111: "https://eth-sepolia.blockscout.com", 133: "https://testnet-explorer.hskchain.net", 177: "https://hsk.blockscout.com" };
+export function txUrl(e: { tx_hash?: string; chain_id?: number; explorer_url?: string }): string | undefined {
+  if (e.explorer_url) return e.explorer_url;
+  const base = e.chain_id !== undefined ? EXPLORER[e.chain_id] : undefined;
+  return e.tx_hash && base ? `${base}/tx/${e.tx_hash}` : undefined;
+}
+export function addressUrl(addr: string, chainId = 11155111): string | undefined {
+  const base = EXPLORER[chainId];
+  return base ? `${base}/address/${addr}` : undefined;
+}
 
 /** 거부 코드 → 사람 말 (PROJECT.md §5.4) */
 export const CODE_TEXT: Record<string, { title: string; short: string }> = {

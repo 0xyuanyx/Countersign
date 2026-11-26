@@ -84,19 +84,59 @@ let timer: number | undefined;
 let hiddenTick = 0;
 let fast = 0;
 
+// ─── 지금 보고 있는 에이전트 ───
+const AGENT_KEY = "cs.agent";
+function savedAgent(): string | undefined {
+  try {
+    return localStorage.getItem(AGENT_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+/** 고른 에이전트가 없거나 사라졌으면: 실제로 붙은 것 → 연결된 것 → 아무거나 (최근 것 먼저) */
+function pickAgent(list: Agent[], want?: string): string | undefined {
+  if (want && list.some((x) => x.id === want)) return want;
+  const by = [...list].sort((x, y) => (y.last_activity_at ?? 0) - (x.last_activity_at ?? 0));
+  return (by.find((x) => x.connected && x.last_activity_at) ?? by.find((x) => x.connected) ?? by[0])?.id;
+}
+export function currentAgent(): Agent | undefined {
+  return app.data.agents.find((x) => x.id === app.api?.agentId);
+}
+/** 다른 에이전트로 전환: 그 에이전트의 잔액·한도·내역으로 화면을 다시 채운다 */
+export function selectAgent(id: string): void {
+  if (app.api.agentId === id) return;
+  try {
+    localStorage.setItem(AGENT_KEY, id);
+  } catch {
+    /* 저장 못 해도 이번 실행에서는 바뀐다 */
+  }
+  app.api.agentId = id;
+  app.data = { history: [], requests: [], tasks: [], agents: app.data.agents };
+  lastBalanceFor = undefined;
+  app.render();
+  refreshSoon();
+}
+let lastBalanceFor: string | undefined;
+
 export async function refresh(): Promise<void> {
   const a = app.api;
   try {
-    const [policy, history, requests, tasks, agents] = await Promise.all([
+    const agents = await a.agents().catch(() => [] as Agent[]);
+    const id = pickAgent(agents, a.agentId ?? savedAgent());
+    if (id !== a.agentId) {
+      a.agentId = id;
+      app.data = { ...app.data, history: [], requests: [], tasks: [], policy: undefined, balance: undefined };
+    }
+    const [policy, history, requests, tasks] = await Promise.all([
       a.policy(),
       a.history(100),
       a.requests("pending"),
       a.tasks().catch(() => [] as Task[]),
-      a.agents().catch(() => [] as Agent[]),
     ]);
     // 잔액은 RPC를 거쳐 느리니 15초마다
     const now = Date.now();
-    let balance = app.data.balance;
+    let balance = lastBalanceFor === a.agentId ? app.data.balance : undefined;
+    lastBalanceFor = a.agentId;
     if (!balance || !app.data.loadedAt || now - app.data.loadedAt > 15_000 || fast > 0) balance = await a.balance().catch(() => balance);
     const next: Data = { policy, balance, history, requests, tasks, agents, loadedAt: balance === app.data.balance ? app.data.loadedAt : now, okAt: now };
     const changed = JSON.stringify({ ...next, loadedAt: 0, okAt: 0 }) !== JSON.stringify({ ...app.data, loadedAt: 0, okAt: 0 });

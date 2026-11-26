@@ -30,6 +30,7 @@ export function chainName(id?: number): string {
 
 /** 내역 한 줄의 짧은 설명 */
 export function shortReason(e: HistoryEntry): string {
+  if (e.kind === "withdraw") return "주인 계정으로 출금";
   if (e.status === "paid") return e.purpose ?? "결제";
   if (e.status === "pending") return "결제 전에 물어보는 중";
   if (e.status === "failed") return "HSP 단계에서 실패";
@@ -37,7 +38,13 @@ export function shortReason(e: HistoryEntry): string {
   return CODE_TEXT[e.code ?? ""]?.short ?? e.reason ?? "거절됨";
 }
 
+/** 내역 한 줄의 제목 */
+export function entryTitle(e: HistoryEntry): string {
+  return e.kind === "withdraw" ? "출금" : (e.seller ?? "알 수 없는 판매자");
+}
+
 export function statusWord(e: HistoryEntry): string {
+  if (e.kind === "withdraw") return "출금";
   return { paid: "결제됨", rejected: "거절", pending: "확인 대기", failed: "실패" }[e.status];
 }
 

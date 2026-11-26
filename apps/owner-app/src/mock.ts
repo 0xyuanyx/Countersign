@@ -69,6 +69,8 @@ function paid(id: string, t: number, seller: string, purpose: string, amount: st
 }
 
 export class MockOwnerApi implements OwnerApi {
+  /** 데모는 에이전트가 같은 계정·정책을 같이 쓴다 (전환은 이름만 바뀜) */
+  agentId?: string;
   readonly mock = true;
   private paused: PauseState = { paused: false, at: 0 };
   private sellers: Record<string, string> = { "area-report": AREA, "news-digest": NEWS, "map-tiles": MAPS };
@@ -441,6 +443,12 @@ export class MockOwnerApi implements OwnerApi {
     const a = this.agent(id);
     a.paused = paused;
     return this.delay({ ...a });
+  }
+  async agentDetail(id: string) {
+    return this.delay({ agent: { ...this.agent(id) }, policy: await this.policy(), balance: await this.balance() });
+  }
+  async withdraw(): Promise<never> {
+    throw new ApiError(400, "데모라 출금은 하지 않아요");
   }
 }
 

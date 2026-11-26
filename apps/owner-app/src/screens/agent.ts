@@ -1,5 +1,5 @@
 // 에이전트 편집 (AgentEdit): 에이전트 목록의 ⋯ 버튼, 설정의 에이전트 줄에서 들어온다.
-// 이름, 오늘 쓴 돈, 결제 계정, 정책(지갑 하나에 하나), 이 에이전트만 멈추기, 다른 앱으로 옮기기, 연결 끊기
+// 이름, 오늘 쓴 돈, 결제 계정, 정책(에이전트마다 따로), 이 에이전트만 멈추기, 다른 앱으로 옮기기, 연결 끊기
 
 import { ApiError } from "../api.js";
 import { app, go, openSheet, refreshSoon, type Screen } from "../app.js";
@@ -10,13 +10,6 @@ import { showCreated } from "./onboard.js";
 
 const NAME_RE = /^[A-Za-z0-9_-]{1,40}$/;
 
-/** 이 에이전트가 최근 24시간에 결제한 돈 (내역의 agent 이름으로 센다) */
-function spentBy(name: string): number {
-  const since = Date.now() / 1000 - 24 * 3600;
-  // 내역에 에이전트 이름이 없는 옛 지갑 서버: 에이전트가 하나면 지갑 전체 사용액이 곧 그 에이전트 몫
-  if (!app.data.history.some((e) => e.agent) && app.data.agents.length <= 1) return Number(app.data.policy?.spent_24h ?? 0);
-  return app.data.history.filter((e) => e.status === "paid" && e.agent === name && e.at >= since).reduce((s, e) => s + Number(e.amount ?? 0), 0);
-}
 
 export function agentEdit(id: string): Screen {
   const a = app.data.agents.find((x) => x.id === id);
@@ -28,7 +21,9 @@ export function agentEdit(id: string): Screen {
         <p class="muted" style="margin-top:24px">${app.data.loadedAt ? "이 에이전트를 찾지 못했어요" : "불러오는 중…"}</p></div>`,
     };
   }
-  const spent = spentBy(a.name);
+  // 화면을 열 때 이 에이전트로 전환해 두므로, 정책 요약이 곧 이 에이전트 것
+  const spent = Number(p?.spent_24h ?? 0);
+  const acct = a.address ?? p?.account;
   const html = `
   <div class="screen">
     <div class="topbar"><button type="button" class="icon-btn" data-act="back" aria-label="뒤로">${ic.back()}</button><h1 class="t15b" style="margin:0">에이전트 편집</h1><span style="width:44px"></span></div>
@@ -44,7 +39,7 @@ export function agentEdit(id: string): Screen {
     <section class="card" style="margin-top:4px;padding:0 16px">
       <div class="list-row" style="min-height:56px;justify-content:space-between"><span class="t15">오늘 쓴 돈</span><span class="muted t15">${spent.toFixed(2)} <span class="dim">/ ${usdc(p?.daily_max)} USDC</span></span></div>
       <div class="divider"></div>
-      <div class="list-row" style="min-height:56px;justify-content:space-between"><span class="t15">결제 계정</span>${p?.account ? addrHtml(p.account, { short: true }) : '<span class="dim">—</span>'}</div>
+      <div class="list-row" style="min-height:56px;justify-content:space-between"><span class="t15">결제 계정${a.account_index !== undefined ? ` <span class="dim t12">${a.account_index}번</span>` : ""}</span>${acct ? addrHtml(acct, { short: true }) : '<span class="dim">—</span>'}</div>
       <div class="divider"></div>
       <a class="list-row press" href="#/policy" style="min-height:56px;justify-content:space-between"><span class="t15">이 에이전트의 정책</span><span class="muted t15" style="display:flex;align-items:center;gap:6px">1회 ${usdc(p?.per_tx_max)} · 하루 ${usdc(p?.daily_max)}${ic.chevR()}</span></a>
     </section>

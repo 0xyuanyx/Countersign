@@ -1,6 +1,6 @@
 import "./styles.css";
 import { HttpOwnerApi } from "./api.js";
-import { app, closeAllSheets, paint, parseHash, refresh, startPolling } from "./app.js";
+import { app, closeAllSheets, paint, parseHash, refresh, selectAgent, startPolling } from "./app.js";
 import { isStandalone, parsePairing, store, type Pairing } from "./auth.js";
 import { MockOwnerApi } from "./mock.js";
 import { activity } from "./screens/activity.js";
@@ -24,6 +24,8 @@ let demoTimer: number | undefined;
 
 function render(): void {
   const r = app.route;
+  // 에이전트 편집·기본 규칙은 그 에이전트의 정책·잔액으로 그린다
+  if ((r.name === "agent" || r.name === "setup") && app.data.agents.some((a) => a.id === r.id) && app.api.agentId !== r.id) return selectAgent(r.id);
   if (app.api instanceof MockOwnerApi && r.name === "home" && demoTimer === undefined) {
     const api = app.api;
     demoTimer = window.setTimeout(() => api.demoRequest(), 6000);

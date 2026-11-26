@@ -3,7 +3,7 @@
 // 연결 화면(Connect) → 에이전트 앱에 붙이면 기본 규칙(AgentSetup) → 비밀번호 → 홈. 기본 규칙 전에는 맡길 일 입력칸이 잠김.
 
 import { ApiError, chainIds, type NewAgent } from "../api.js";
-import { app, go, refreshSoon, type Screen } from "../app.js";
+import { app, currentAgent, go, refresh, refreshSoon, selectAgent, type Screen } from "../app.js";
 import { esc, ic, toast, usdc } from "../ui.js";
 import { agentState, attached, chainName, chainShort, tabs } from "./common.js";
 import { MockOwnerApi } from "../mock.js";
@@ -26,18 +26,18 @@ function markSetup(id: string): void {
   }
 }
 
-/** 기본 규칙을 마쳤는지: 이 폰에서 마쳤거나, 이미 결제 기록·활동이 있는 지갑이면 마친 걸로 본다 */
+/** 지금 보는 에이전트의 기본 규칙을 마쳤는지: 이 폰에서 마쳤거나, 그 에이전트에 이미 결제 기록이 있으면 마친 걸로 본다 (정책은 에이전트마다 따로) */
 export function setupDone(): boolean {
-  const ids = setupIds();
-  const live = app.data.agents.filter((a) => a.connected);
-  return live.some((a) => ids.includes(a.id) || a.last_activity_at !== undefined) || app.data.history.length > 0;
+  const me = currentAgent();
+  return (!!me && setupIds().includes(me.id)) || app.data.history.length > 0;
 }
 
 export type StartSteps = { agent: boolean; rules: boolean; funds: boolean };
 export function startSteps(): StartSteps {
   const bal = app.data.balance?.balances.find((b) => b.balance !== undefined)?.balance;
   return {
-    agent: app.data.agents.some((a) => a.connected),
+    // 연결 주소를 만들기만 해선 안 되고, 에이전트가 실제로 붙어야(첫 활동) 넘어간다
+    agent: !!currentAgent() && attached(currentAgent()!),
     rules: setupDone(),
     // 잔액을 못 읽으면(signer 꺼짐) 막지 않는다
     funds: bal === undefined ? app.data.balance !== undefined : Number(bal) > 0,
@@ -55,7 +55,8 @@ export function homeEmpty(): Screen {
   const s = startSteps();
   const done = [s.agent, s.rules, s.funds].filter(Boolean).length;
   const bal = app.data.balance?.balances.find((b) => b.balance !== undefined)?.balance;
-  const newestAgent = app.data.agents.filter((a) => a.connected).at(-1);
+  const me = currentAgent();
+  const waiting = me && me.connected && !attached(me);
   const step = (n: number, ok: boolean, title: string, sub: string, href?: string, primary = false) => {
     const inner = `<span class="step-n ${ok ? "ok" : primary ? "now" : ""}">${ok ? ic.check(14, "#0E0E10") : n}</span>
       <span class="stack"><span class="t15" style="font-weight:500;${ok ? "color:var(--fg3);text-decoration:line-through" : ""}">${title}</span><span class="dim t13">${sub}</span></span>
@@ -65,20 +66,32 @@ export function homeEmpty(): Screen {
   const html = `
   <div class="screen with-tabs with-input">
     <div class="topbar">
-      <span style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600"><img src="/mark.svg" width="28" height="28" alt="">Countersign</span>
+      ${
+        app.data.agents.length > 1 && me
+          ? `<button type="button" class="chip-agent press" data-act="agents"><span class="av"><img src="/mark.svg" width="22" height="22" alt=""></span>${esc(me.name)}${ic.chevD()}</button>`
+          : `<span style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600"><img src="/mark.svg" width="28" height="28" alt="">Countersign</span>`
+      }
       <span class="chip-net">${esc(chainShort(chainIds(app.data.policy)[0]) || "—")}${app.api.mock ? " · 데모" : ""}</span>
     </div>
     <h1 class="title-md" style="margin-top:28px;font-size:26px;line-height:1.3">에이전트를 연결하면<br>지갑이 결제를 지켜봐요</h1>
     <p class="muted" style="margin-top:10px">${done} / 3 · 세 단계면 시작할 수 있어요</p>
     <ol class="start-steps">
-      ${step(1, s.agent, "에이전트 연결하기", "Claude, Codex, Cursor에 주소 한 줄", "#/connect", !s.agent)}
-      ${step(2, s.rules, "기본 규칙 정하기", s.agent ? "한도와 판매자 규칙" : "한도와 판매자 · 연결하면 바로 이어져요", s.agent && newestAgent ? `#/setup/${newestAgent.id}` : undefined, s.agent && !s.rules)}
+      ${
+        waiting
+          ? step(1, false, `${esc(me!.name)} 연결 기다리는 중`, "에이전트 앱에서 지갑 도구를 한 번 쓰면 넘어가요 · 주소를 잃었으면 눌러서 새로 만들기", `#/agent/${me!.id}`, true)
+          : step(1, s.agent, "에이전트 연결하기", "Claude, Codex, Cursor에 주소 한 줄", "#/connect", !s.agent)
+      }
+      ${step(2, s.rules, "기본 규칙 정하기", s.agent ? "이 에이전트의 한도와 판매자 규칙" : "한도와 판매자 · 연결하면 바로 이어져요", s.agent && me ? `#/setup/${me.id}` : undefined, s.agent && !s.rules)}
       ${step(3, s.funds, "USDC 넣기", `지금 잔액 ${bal !== undefined ? usdc(bal) : "-.--"} · 먼저 넣어도 돼요`, "#/deposit", s.agent && s.rules)}
     </ol>
   </div>
   <div class="cmd-input"><div aria-disabled="true">${ic.lock(18)}<span class="dim" style="flex:1;font-size:15px">${s.agent ? "기본 규칙을 정하면 일을 맡길 수 있어요" : "에이전트를 연결하면 일을 맡길 수 있어요"}</span></div></div>
   ${tabs("home")}`;
-  return { html };
+  return {
+    html,
+    bind: (root) =>
+      root.querySelector('[data-act="agents"]')?.addEventListener("click", () => void import("./home.js").then((m) => m.agentsSheet())),
+  };
 }
 
 // ─── 에이전트 연결 (새 연결 주소 만들기) ───
@@ -107,7 +120,13 @@ export function connect(): Screen {
         ${cmd("Codex", created.connect.codex, "터미널에 붙여 넣기")}
         <a class="inner press" style="flex-direction:row;align-items:center;justify-content:space-between" href="${esc(created.connect.cursor)}"><span class="t15b">Cursor에서 열기</span>${ic.chevR()}</a>
       </div>
-      <div class="bottom-actions"><button class="btn btn-primary press" data-act="next">붙였어요, 다음</button></div>
+      ${
+        app.api.mock
+          ? `<div class="bottom-actions"><button class="btn btn-primary press" data-act="next">붙였어요, 다음</button></div>`
+          : createdAttached()
+            ? `<div class="bottom-actions"><span class="conn-chip" style="align-self:center;margin-bottom:12px"><span class="dot"></span>${esc(created.name)}이(가) 붙었어요</span><button class="btn btn-primary press" data-act="next">다음</button></div>`
+            : `<div class="bottom-actions"><span class="dim t13" style="text-align:center;margin-bottom:12px;line-height:20px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="dot off"></span>연결 기다리는 중 · 에이전트에게 "Countersign 잔액 확인해 줘"처럼 한 번 시켜 보세요</span><button class="btn btn-primary press" data-act="check">붙였어요, 확인</button></div>`
+      }
     </div>`
     : `
     <div class="screen">
@@ -142,12 +161,26 @@ export function connect(): Screen {
           (t.closest("button") as HTMLButtonElement).disabled = true;
           try {
             created = await app.api.createAgent(name);
+            // 새 에이전트는 계정·정책이 따로라, 만들자마자 그 에이전트를 본다
+            selectAgent(created.id);
             refreshSoon();
             app.render();
           } catch (x) {
             err.textContent = x instanceof ApiError ? x.message : "만들지 못했어요";
             (t.closest("button") as HTMLButtonElement).disabled = false;
           }
+        }
+        if (act === "check" && created) {
+          const b = t.closest("button") as HTMLButtonElement;
+          b.disabled = true;
+          b.textContent = "확인하는 중…";
+          await refresh();
+          if (!createdAttached()) {
+            toast("아직 붙지 않았어요 · 에이전트 앱에서 지갑 도구를 한 번 불러 주세요");
+            b.disabled = false;
+            b.textContent = "붙였어요, 확인";
+          } else app.render();
+          return;
         }
         if (act === "next" && created) {
           const id = created.id;
@@ -156,15 +189,18 @@ export function connect(): Screen {
             app.api.demoAttach(id);
             refreshSoon();
           }
-          if (setupDone()) {
-            // 기본 규칙은 지갑 하나에 하나라, 두 번째 에이전트부터는 바로 홈으로
-            toast("연결했어요. 기본 규칙은 그대로 따라요");
-            go("home");
-          } else go(`setup/${id}`);
+          // 기본 규칙은 에이전트마다 따로 (계정·정책이 따로)
+          if (setupIds().includes(id)) go("home");
+          else go(`setup/${id}`);
         }
       });
     },
   };
+}
+
+function createdAttached(): boolean {
+  const a = created && app.data.agents.find((x) => x.id === created!.id);
+  return !!a && attached(a);
 }
 
 /** 에이전트 편집의 "다른 앱으로 옮기기": 새로 만든 연결 주소를 연결 화면에 띄운다 */

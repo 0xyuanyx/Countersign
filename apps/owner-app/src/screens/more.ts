@@ -1,7 +1,7 @@
 // 정책 탭과 설정 탭 (한도 바꾸기·판매자 보기·체인은 서버 정책 그대로, HSK 메인넷은 수상 후. 설정은 연결·Face ID·다시 매칭)
 
 import { ApiError, chainIds } from "../api.js";
-import { app, openSheet, refreshSoon, type Screen } from "../app.js";
+import { app, currentAgent, openSheet, refreshSoon, type Screen } from "../app.js";
 import { createPasskey, isStandalone, passkeySupported, store } from "../auth.js";
 import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
 import { agentState, chainName, offlineBanner, tabs } from "./common.js";
@@ -24,9 +24,9 @@ export function policy(): Screen {
   const p = app.data.policy;
   const html = `
   <div class="screen with-tabs">
-    <div class="topbar"><h1 class="title-md">정책</h1><span></span></div>
+    <div class="topbar"><h1 class="title-md">정책</h1>${currentAgent() ? `<button type="button" class="chip-agent press" data-act="agents"><span class="av"><img src="/mark.svg" width="22" height="22" alt=""></span>${esc(currentAgent()!.name)}${ic.chevD()}</button>` : "<span></span>"}</div>
     ${offlineBanner()}
-    <p class="muted t13" style="margin-top:8px;line-height:20px">에이전트는 이 값을 바꿀 수 없어요. 바꿀 때마다 비밀번호를 물어봐요</p>
+    <p class="muted t13" style="margin-top:8px;line-height:20px">이 에이전트에만 적용돼요 · 에이전트는 이 값을 바꿀 수 없고, 바꿀 때마다 비밀번호를 물어봐요</p>
     <section class="card" style="margin-top:16px;padding:0 16px">
       ${row("1회 최대", `${usdc(p?.per_tx_max)} USDC`, "per")}
       <div class="divider"></div>
@@ -60,6 +60,7 @@ export function policy(): Screen {
         const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
         if (act === "per") editLimit("perTxMax", p?.per_tx_max ?? "0.5", p?.daily_max ?? "5");
         if (act === "daily") editLimit("dailyMax", p?.daily_max ?? "5", p?.per_tx_max ?? "0.5");
+        if (act === "agents") void import("./home.js").then((m) => m.agentsSheet());
       }),
   };
 }
@@ -153,7 +154,7 @@ export function settings(): Screen {
     <section class="card" style="margin-top:8px;padding:0 16px">
       ${row("연결", `${esc(pair?.mock ? "데모 데이터" : (pair?.label ?? "—"))}`)}
       <div class="divider"></div>
-      ${row("에이전트 계정", app.data.policy?.account ? addrHtml(app.data.policy.account, { short: true }) : "—")}
+      ${row(`${esc(currentAgent()?.name ?? "에이전트")} 계정`, (currentAgent()?.address ?? app.data.policy?.account) ? addrHtml((currentAgent()?.address ?? app.data.policy!.account)!, { short: true }) : "—")}
       <div class="divider"></div>
       <button type="button" class="list-row" data-act="repair" style="width:100%;min-height:56px;color:var(--bad)">이 폰 연결 끊고 다시 매칭</button>
     </section>
