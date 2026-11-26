@@ -447,6 +447,10 @@ export class MockOwnerApi implements OwnerApi {
   async agentDetail(id: string) {
     return this.delay({ agent: { ...this.agent(id) }, policy: await this.policy(), balance: await this.balance() });
   }
+  async hideAgent(id: string) {
+    this.agent(id).hidden = true;
+    return this.delay(true);
+  }
   async withdraw(): Promise<never> {
     throw new ApiError(400, "데모라 출금은 하지 않아요");
   }

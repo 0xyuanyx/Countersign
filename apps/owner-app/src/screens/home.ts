@@ -1,7 +1,7 @@
 // 홈: 상태, 잔액, 오늘 한도, 입금·긴급 정지, 구매 요청, 방금 막은 결제, 최근 결제, 맡길 일 입력칸
 
 import { addressUrl, ApiError, chainIds, txUrl, type Agent, type HistoryEntry } from "../api.js";
-import { app, currentAgent, go, openSheet, refresh, refreshSoon, selectAgent, strip, type Screen } from "../app.js";
+import { app, currentAgent, goneAgents, go, openSheet, refresh, refreshSoon, selectAgent, strip, type Screen } from "../app.js";
 import { store } from "../auth.js";
 import { addrHtml, countTo, esc, hhmm, ic, toast, usdc } from "../ui.js";
 import { openApproval } from "./approval.js";
@@ -42,6 +42,7 @@ export function home(): Screen {
   const blocked = justBlocked();
   const pending = d.requests.filter((r) => r.status === "pending");
   const recent = d.history.filter((e) => e.id !== blocked?.id && e.status !== "pending").slice(0, 3);
+  const gone = !!me && !me.connected;
   const runnerOff = !app.api.mock && !me?.connected;
   const needsRules = !setupDone();
   const lowBalance = balNum !== undefined && p !== undefined && balNum < Number(p.per_tx_max);
@@ -53,6 +54,10 @@ export function home(): Screen {
     banner = `<div class="banner bad" role="status"><span class="dot bad"></span>
       <span class="stack"><span class="t14">지갑 서버와 연결이 끊겼어요</span><span class="dim t12">${mins === undefined ? "" : mins < 1 ? "방금 전 마지막 확인 · " : `${mins}분 전 마지막 확인 · `}에이전트 결제도 멈춰 있어요</span></span>
       <button type="button" class="banner-act" data-act="retry">다시 시도</button></div>`;
+  } else if (gone) {
+    banner = `<div class="banner" role="status"><span class="dot off"></span>
+      <span class="stack"><span class="t14">연결 끊은 에이전트예요</span><span class="dim t12">잔액 출금과 내역 보기만 돼요${balNum ? " · 남은 돈은 출금해 주세요" : ""}</span></span>
+      ${balNum ? '<button type="button" class="banner-act" data-act="withdraw">출금</button>' : ""}</div>`;
   } else if (!paused && lowBalance) {
     banner = `<button type="button" class="banner ask" role="status" data-act="deposit"><span class="dot ask"></span>
       <span class="stack" style="text-align:left"><span class="t14">잔액이 ${balNum!.toFixed(2)} USDC 남았어요</span><span class="dim t12">1회 한도 ${usdc(p!.per_tx_max)}보다 적어서 결제가 막힐 수 있어요</span></span>
@@ -138,7 +143,7 @@ export function home(): Screen {
     <div class="meter"><div style="transform:scaleX(${ratio})"></div></div>
     <div class="dim t12" style="margin-top:8px">1회 최대 ${usdc(p?.per_tx_max)} USDC</div>
     <div class="row-2">
-      <button type="button" class="btn-card press" data-act="deposit">${ic.down()}입금</button>
+      ${gone ? "" : `<button type="button" class="btn-card press" data-act="deposit">${ic.down()}입금</button>`}
       <button type="button" class="btn-card press" data-act="withdraw">${ic.up(18, "currentColor")}출금</button>
       ${
         paused
@@ -158,7 +163,16 @@ export function home(): Screen {
     html,
     bind: (root) => {
       showComposer({
-        locked: runnerOff || paused || needsRules ? (paused ? "정지 중에는 맡길 수 없어요" : runnerOff ? "에이전트가 꺼져 있어요" : "기본 규칙을 정하면 일을 맡길 수 있어요") : undefined,
+        locked:
+          gone || runnerOff || paused || needsRules
+            ? gone
+              ? "연결 끊은 에이전트라 일을 맡길 수 없어요"
+              : paused
+                ? "정지 중에는 맡길 수 없어요"
+                : runnerOff
+                  ? "에이전트가 꺼져 있어요"
+                  : "기본 규칙을 정하면 일을 맡길 수 있어요"
+            : undefined,
         agent: agentName,
         perTx: p?.per_tx_max ?? "0.5",
         recent: [...new Set([...d.tasks].sort((a, b) => b.created_at - a.created_at).map((t) => t.text))].slice(0, 3),
@@ -277,7 +291,7 @@ export function deposit(): void {
 }
 
 /** 출금: 이 에이전트 계정의 USDC를 주인 계정(지갑 서버의 0번 계정)으로. 받는 곳은 서버가 고정한다 */
-function withdrawSheet(): void {
+export function withdrawSheet(): void {
   const me = currentAgent();
   const bal = app.data.balance?.balances.find((b) => b.balance !== undefined)?.balance;
   if (app.api.mock) {
@@ -386,24 +400,34 @@ export function agentLine(a: Agent): string {
   return `연결됨 · 마지막 활동 ${new Date(last * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function agentRow(a: Agent): string {
+  const cur = a.id === app.api.agentId;
+  return `<div class="list-row"><button type="button" class="press" data-pick="${esc(a.id)}" aria-pressed="${cur}" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;text-align:left">
+    <span class="round-ic" style="${attached(a) && !a.paused ? "" : "opacity:0.4"}"><img src="/mark.svg" width="24" height="24" alt=""></span>
+    <span class="stack" style="flex:1;min-width:0"><span class="t15b">${esc(a.name)}${cur ? ' <span class="dim t12">· 보는 중</span>' : ""}</span><span class="dim t13 ellipsis">${agentLine(a)}</span></span>
+    ${cur ? ic.check(16, "#00C896") : ""}</button>
+    <button type="button" class="icon-btn" data-edit="${esc(a.id)}" aria-label="${esc(a.name)} 편집">${ic.more()}</button></div>`;
+}
+
 export function agentsSheet(): void {
-  const list = app.data.agents;
+  const list = app.data.agents.filter((a) => a.connected);
+  const gone = goneAgents();
+  const showGone = gone.some((a) => a.id === app.api.agentId);
   openSheet(
     `<h1 class="title-md">에이전트</h1><p class="dim t13" style="margin-top:4px">누르면 그 에이전트의 잔액·한도·내역으로 바뀌어요</p>
      <div style="margin-top:12px;display:flex;flex-direction:column">${
-       list.length
-         ? list
-             .map(
-               (a) => `<div class="list-row"><button type="button" class="press" data-pick="${esc(a.id)}" aria-pressed="${a.id === app.api.agentId}" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;text-align:left">
-                 <span class="round-ic" style="${attached(a) && !a.paused ? "" : "opacity:0.4"}"><img src="/mark.svg" width="24" height="24" alt=""></span>
-                 <span class="stack" style="flex:1;min-width:0"><span class="t15b">${esc(a.name)}${a.id === app.api.agentId ? ' <span class="dim t12">· 보는 중</span>' : ""}</span><span class="dim t13 ellipsis">${agentLine(a)}</span></span>
-                 ${a.id === app.api.agentId ? ic.check(16, "#00C896") : ""}</button>
-                 <button type="button" class="icon-btn" data-edit="${esc(a.id)}" aria-label="${esc(a.name)} 편집">${ic.more()}</button></div>`,
-             )
-             .join("")
-         : `<p class="empty">연결된 에이전트가 없어요</p>`
+       list.length ? list.map(agentRow).join("") : `<p class="empty">연결된 에이전트가 없어요</p>`
      }
        <button type="button" class="list-row press" data-act="connect" style="width:100%;min-height:56px;gap:12px"><span class="round-ic">${ic.plus()}</span><span class="t15">에이전트 연결하기</span></button>
+       ${
+         gone.length
+           ? `<details class="gone-agents" ${showGone ? "open" : ""} style="margin-top:8px">
+               <summary class="list-row press" style="min-height:48px;justify-content:space-between;cursor:pointer"><span class="muted t14">연결 끊은 에이전트 (${gone.length})</span><span class="dim">${ic.chevD()}</span></summary>
+               <p class="dim t12" style="line-height:18px;margin:2px 0 6px">잔액·출금·내역만 볼 수 있어요 · 결제와 일 맡기기는 안 돼요</p>
+               ${gone.map(agentRow).join("")}
+             </details>`
+           : ""
+       }
      </div>`,
     (sheet, close) =>
       sheet.addEventListener("click", async (e) => {

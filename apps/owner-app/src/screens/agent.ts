@@ -2,7 +2,7 @@
 // 이름, 오늘 쓴 돈, 결제 계정, 정책(에이전트마다 따로), 이 에이전트만 멈추기, 다른 앱으로 옮기기, 연결 끊기
 
 import { ApiError } from "../api.js";
-import { app, go, openSheet, refreshSoon, type Screen } from "../app.js";
+import { app, go, hideHere, openSheet, refreshSoon, type Screen } from "../app.js";
 import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
 import { agentState, attached } from "./common.js";
 import { unlock } from "./gates.js";
@@ -23,6 +23,8 @@ export function agentEdit(id: string): Screen {
   }
   // 화면을 열 때 이 에이전트로 전환해 두므로, 정책 요약이 곧 이 에이전트 것
   const spent = Number(p?.spent_24h ?? 0);
+  const bal = app.data.balance?.balances.find((b) => b.balance !== undefined)?.balance;
+  const empty = bal !== undefined && Number(bal) === 0;
   const acct = a.address ?? p?.account;
   const html = `
   <div class="screen">
@@ -58,7 +60,17 @@ export function agentEdit(id: string): Screen {
     </section>
     <button type="button" class="list-row" data-act="disconnect" style="width:100%;min-height:56px;margin-top:12px;color:var(--bad);justify-content:center">연결 끊기</button>
     <p class="dim t12" style="text-align:center;line-height:18px">끊어도 결제 계정과 내역은 남아요. 남은 돈은 그대로예요</p>`
-        : `<p class="dim t13" style="margin-top:16px;line-height:20px">연결이 끊긴 에이전트예요. 내역은 남아 있어요</p>`
+        : `<section class="card" style="margin-top:12px;padding:0 16px">
+      <div class="list-row" style="min-height:56px;justify-content:space-between"><span class="t15">남은 잔액</span><span class="t15">${bal !== undefined ? usdc(bal) : "-.--"} USDC</span></div>
+      <div class="divider"></div>
+      <button type="button" class="list-row" data-act="withdraw" style="width:100%;text-align:left;min-height:56px;justify-content:space-between" ${bal !== undefined && Number(bal) > 0 ? "" : "disabled"}>
+        <span class="stack"><span class="t15">주인 계정으로 출금</span><span class="dim t12">${bal !== undefined && Number(bal) > 0 ? "남은 돈을 주인 0번 계정으로 옮겨요" : "옮길 돈이 없어요"}</span></span>${ic.chevR()}
+      </button>
+      <div class="divider"></div>
+      <a class="list-row press" href="#/activity" style="min-height:56px;justify-content:space-between"><span class="t15">내역 보기</span>${ic.chevR()}</a>
+    </section>
+    <button type="button" class="list-row" data-act="hide" style="width:100%;min-height:56px;margin-top:12px;justify-content:center;${empty ? "" : "color:var(--fg3)"}" ${empty ? "" : "disabled"}>목록에서 숨기기</button>
+    <p class="dim t12" style="text-align:center;line-height:18px">${empty ? "숨겨도 결제 기록은 지갑 서버에 남아요" : "잔액이 0이 되면 숨길 수 있어요 · 먼저 출금해 주세요"}</p>`
     }
   </div>`;
 
@@ -103,6 +115,8 @@ export function agentEdit(id: string): Screen {
         if (act === "back") history.length > 1 ? history.back() : go("settings");
         if (act === "move") moveSheet(a.id, a.name);
         if (act === "disconnect") disconnectSheet(a.id, a.name);
+        if (act === "withdraw") void import("./home.js").then((m) => m.withdrawSheet());
+        if (act === "hide" && empty) hideSheet(a.id, a.name);
       });
     },
   };
@@ -134,6 +148,33 @@ function moveSheet(id: string, name: string): void {
         }
       }),
     { label: "다른 앱으로 옮기기" },
+  );
+}
+
+function hideSheet(id: string, name: string): void {
+  openSheet(
+    `<h1 class="title-md">${esc(name)}을(를) 목록에서 숨길까요</h1>
+     <p class="muted" style="margin-top:8px;line-height:22px;font-size:14px">에이전트 목록에서 보이지 않아요 · 결제 기록은 지갑 서버에 남고, 앱에서 완전히 지우지는 않아요</p>
+     <div class="bottom-actions" style="padding-top:20px">
+       <button class="btn btn-primary press" data-act="go">숨기기</button>
+       <button class="btn btn-ghost press" data-act="cancel">취소</button>
+     </div>`,
+    (sheet, close) =>
+      sheet.addEventListener("click", async (e) => {
+        const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
+        if (act === "cancel") return void close();
+        if (act !== "go") return;
+        await close();
+        try {
+          if (!(await app.api.hideAgent(id))) hideHere(id);
+          toast("목록에서 숨겼어요");
+          go("settings");
+          refreshSoon();
+        } catch (x) {
+          toast(x instanceof ApiError ? x.message : "숨기지 못했어요");
+        }
+      }),
+    { label: "목록에서 숨기기" },
   );
 }
 

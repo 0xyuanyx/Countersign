@@ -360,3 +360,6 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .work-steps li.now .b { background: var(--ask); animation: cs-pulse 1.4s ease-in-out infinite; }
 @keyframes cs-pulse { 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .work-steps li.now .b { animation: none; } .composer-wrap { transition: none; } }
+.gone-agents > summary { list-style: none; }
+.gone-agents > summary::-webkit-details-marker { display: none; }
+.gone-agents[open] > summary svg { transform: rotate(180deg); }

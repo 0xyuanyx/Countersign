@@ -84,6 +84,27 @@ let timer: number | undefined;
 let hiddenTick = 0;
 let fast = 0;
 
+// ─── 숨긴 에이전트 (지갑 서버가 숨김을 저장하지 못할 때 이 폰에만) ───
+const HIDDEN_KEY = "cs.hiddenAgents";
+function hiddenHere(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+export function hideHere(id: string): void {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...new Set([...hiddenHere(), id])]));
+  } catch {
+    /* 저장 못 하면 다음에 다시 보인다 */
+  }
+}
+/** 연결 끊은 에이전트 (숨긴 것 빼고) */
+export function goneAgents(): Agent[] {
+  return app.data.agents.filter((a) => !a.connected);
+}
+
 // ─── 지금 보고 있는 에이전트 ───
 const AGENT_KEY = "cs.agent";
 function savedAgent(): string | undefined {
@@ -122,7 +143,8 @@ let lastBalanceFor: string | undefined;
 export async function refresh(): Promise<void> {
   const a = app.api;
   try {
-    const agents = await a.agents().catch(() => [] as Agent[]);
+    const hidden = hiddenHere();
+    const agents = (await a.agents().catch(() => [] as Agent[])).filter((x) => !x.hidden && !hidden.includes(x.id));
     const id = pickAgent(agents, a.agentId ?? savedAgent());
     if (id !== a.agentId) {
       a.agentId = id;

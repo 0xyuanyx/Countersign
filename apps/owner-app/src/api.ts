@@ -111,6 +111,8 @@ export type Agent = {
   /** 그 토큰으로 MCP에 처음 붙은 시각 / 마지막으로 본 시각 */
   attached_at?: number;
   last_seen_at?: number;
+  /** 목록에서 숨김 (연결 끊고 잔액 0일 때만). 결제 기록은 서버에 남는다 */
+  hidden?: boolean;
 };
 export type Deposit = { address: string; chain_id: number; token: string; token_symbol?: string; explorer_url?: string };
 export type AgentDetail = { agent: Agent; policy?: PolicySummary; balance?: Balance; deposit?: Deposit };
@@ -164,6 +166,8 @@ export interface OwnerApi {
   agentDetail(id: string): Promise<AgentDetail>;
   /** 에이전트 계정의 USDC를 주인 계정(0번)으로. amount가 없으면 전액. 실제 체인 거래 */
   withdraw(id: string, amount?: string): Promise<Withdrawal>;
+  /** 목록에서 숨기기. 서버가 숨김을 저장하면 true, 못 하면 false (앱이 이 폰에만 저장) */
+  hideAgent(id: string): Promise<boolean>;
 }
 
 export const NO_SERVER_URL = "연결 코드에 지갑 서버 주소가 없어요. 맥에서 QR을 다시 띄워 주세요";
@@ -289,6 +293,15 @@ export class HttpOwnerApi implements OwnerApi {
   agentDetail = async (id: string) => {
     const d = await this.call<AgentDetail & { balance?: AgentBalanceRaw }>("GET", `/api/agents/${encodeURIComponent(id)}`);
     return { ...d, balance: d.balance ? normBalance(d.balance) : undefined };
+  };
+  hideAgent = async (id: string) => {
+    try {
+      const a = await this.call<Agent & { agent?: Agent }>("PATCH", `/api/agents/${encodeURIComponent(id)}`, { hidden: true });
+      return (a.agent ?? a).hidden === true;
+    } catch (e) {
+      if (e instanceof ApiError && (e.message === UNSUPPORTED || e.status === 400)) return false;
+      throw e;
+    }
   };
   withdraw = (id: string, amount?: string) => this.call<Withdrawal>("POST", `/api/agents/${encodeURIComponent(id)}/withdraw`, amount ? { amount } : {});
 }

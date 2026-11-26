@@ -1,7 +1,7 @@
 // 정책 탭과 설정 탭 (한도 바꾸기·판매자 보기·체인은 서버 정책 그대로, HSK 메인넷은 수상 후. 설정은 연결·Face ID·다시 매칭)
 
 import { ApiError, chainIds } from "../api.js";
-import { app, currentAgent, openSheet, refreshSoon, type Screen } from "../app.js";
+import { app, currentAgent, goneAgents, openSheet, refreshSoon, type Screen } from "../app.js";
 import { createPasskey, isStandalone, passkeySupported, store } from "../auth.js";
 import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
 import { agentState, chainName, offlineBanner, tabs } from "./common.js";
@@ -141,6 +141,19 @@ export function settings(): Screen {
         )
         .join("")}
       <a class="list-row press" href="#/connect" style="min-height:56px;gap:12px">${ic.plus()}<span class="t15" style="flex:1">새 에이전트 연결</span>${ic.chevR()}</a>
+      ${
+        goneAgents().length
+          ? `<div class="divider"></div><details class="gone-agents" data-k="gone">
+              <summary class="list-row press" style="min-height:56px;justify-content:space-between;cursor:pointer"><span class="t15 muted">연결 끊은 에이전트 (${goneAgents().length})</span><span class="dim">${ic.chevD()}</span></summary>
+              ${goneAgents()
+                .map(
+                  (a) => `<a class="list-row press" href="#/agent/${esc(a.id)}" style="min-height:52px;gap:12px"><img src="/mark.svg" width="24" height="24" alt="" style="opacity:0.4">
+                    <span class="t15 muted" style="flex:1">${esc(a.name)}</span><span class="dim t13" style="display:flex;align-items:center;gap:6px">잔액·내역${ic.chevR()}</span></a>`,
+                )
+                .join("")}
+            </details>`
+          : ""
+      }
     </section>
     <div class="section-head"><span class="h">알림</span></div>
     <section class="card" style="margin-top:8px;padding:0 16px">

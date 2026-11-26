@@ -46,6 +46,9 @@ export function startSteps(): StartSteps {
 /** 세 단계를 다 마치기 전이면 처음 홈 */
 export function isFresh(): boolean {
   if (!app.data.loadedAt && !app.data.okAt) return false;
+  // 연결 끊은 에이전트는 처음 홈 대신 일반 홈 (잔액·출금·내역)
+  const me = currentAgent();
+  if (me && !me.connected) return false;
   const s = startSteps();
   return !(s.agent && s.rules && s.funds);
 }
