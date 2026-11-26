@@ -106,6 +106,11 @@ export type Agent = {
   account_index?: number;
   address?: string;
   chain_id?: number;
+  /** 서버가 주는 "끊기지 않음". 앱은 connected를 이 뜻으로 맞춰 둔다 (agents() 참고) */
+  active?: boolean;
+  /** 그 토큰으로 MCP에 처음 붙은 시각 / 마지막으로 본 시각 */
+  attached_at?: number;
+  last_seen_at?: number;
 };
 export type Deposit = { address: string; chain_id: number; token: string; token_symbol?: string; explorer_url?: string };
 export type AgentDetail = { agent: Agent; policy?: PolicySummary; balance?: Balance; deposit?: Deposit };
@@ -206,6 +211,8 @@ export class HttpOwnerApi implements OwnerApi {
     if (!this.base && !(res.headers.get("content-type") ?? "").includes("json")) throw new ApiError(0, NO_SERVER_URL);
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     // 앱 서버(Vite 프록시·터널)는 살아 있는데 주인 API가 꺼져 있으면 502~504가 온다
+    // 출금 실패 등은 502에 {ok:false, error}로 온다 → 그 이유를 그대로
+    if (res.status === 502 && (data as { ok?: boolean }).ok === false && data.error) throw new ApiError(502, data.error);
     if (res.status >= 502 && res.status <= 504) throw new ApiError(0, "지갑 서버에 닿지 않아요");
     if (res.status === 404 && data.error === "없는 경로") throw new ApiError(404, UNSUPPORTED);
     if (!res.ok) throw new ApiError(res.status, data.error ?? `오류 ${res.status}`);
@@ -271,7 +278,10 @@ export class HttpOwnerApi implements OwnerApi {
   tasks = async () => (await this.call<{ tasks: Task[] }>("GET", `/api/tasks${this.aQuery ? `?${this.aQuery}` : ""}`)).tasks;
   createTask = (text: string, maxAmount: string) => this.call<Task>("POST", "/api/tasks", { text, maxAmount, ...(this.agentId && { agentId: this.agentId }) });
   cancelTask = (id: string) => this.call<Task>("POST", `/api/tasks/${encodeURIComponent(id)}/cancel`, {});
-  agents = async () => (await this.call<{ agents: Agent[] }>("GET", "/api/agents")).agents;
+  // 지갑 서버(b1414df~)의 connected는 "실제로 붙은 적 있음"이고 active가 "끊기지 않음"이다.
+  // 앱은 connected = 끊기지 않음, 붙었는지는 attached()로 따로 본다
+  agents = async () =>
+    (await this.call<{ agents: Agent[] }>("GET", "/api/agents")).agents.map((a) => (a.active === undefined ? a : { ...a, connected: a.active }));
   createAgent = (name: string) => this.call<NewAgent>("POST", "/api/agents", { name });
   disconnectAgent = (id: string) => this.call<Agent>("POST", `/api/agents/${encodeURIComponent(id)}/disconnect`, {});
   renameAgent = (id: string, name: string) => this.call<Agent>("PATCH", `/api/agents/${encodeURIComponent(id)}`, { name });

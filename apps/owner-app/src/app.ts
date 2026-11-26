@@ -96,8 +96,9 @@ function savedAgent(): string | undefined {
 /** 고른 에이전트가 없거나 사라졌으면: 실제로 붙은 것 → 연결된 것 → 아무거나 (최근 것 먼저) */
 function pickAgent(list: Agent[], want?: string): string | undefined {
   if (want && list.some((x) => x.id === want)) return want;
-  const by = [...list].sort((x, y) => (y.last_activity_at ?? 0) - (x.last_activity_at ?? 0));
-  return (by.find((x) => x.connected && x.last_activity_at) ?? by.find((x) => x.connected) ?? by[0])?.id;
+  const seen = (x: Agent) => x.last_seen_at ?? x.last_activity_at ?? x.attached_at ?? 0;
+  const by = [...list].sort((x, y) => seen(y) - seen(x));
+  return (by.find((x) => x.connected && seen(x) > 0) ?? by.find((x) => x.connected) ?? by[0])?.id;
 }
 export function currentAgent(): Agent | undefined {
   return app.data.agents.find((x) => x.id === app.api?.agentId);

@@ -78,7 +78,7 @@ export function homeEmpty(): Screen {
     <ol class="start-steps">
       ${
         waiting
-          ? step(1, false, `${esc(me!.name)} 연결 기다리는 중`, "에이전트 앱에서 지갑 도구를 한 번 쓰면 넘어가요 · 주소를 잃었으면 눌러서 새로 만들기", `#/agent/${me!.id}`, true)
+          ? step(1, false, `${esc(me!.name)} 연결 기다리는 중`, "에이전트 앱에 주소를 넣고 연결하면 넘어가요 · 주소를 잃었으면 눌러서 새로 만들기", `#/agent/${me!.id}`, true)
           : step(1, s.agent, "에이전트 연결하기", "Claude, Codex, Cursor에 주소 한 줄", "#/connect", !s.agent)
       }
       ${step(2, s.rules, "기본 규칙 정하기", s.agent ? "이 에이전트의 한도와 판매자 규칙" : "한도와 판매자 · 연결하면 바로 이어져요", s.agent && me ? `#/setup/${me.id}` : undefined, s.agent && !s.rules)}
@@ -125,7 +125,7 @@ export function connect(): Screen {
           ? `<div class="bottom-actions"><button class="btn btn-primary press" data-act="next">붙였어요, 다음</button></div>`
           : createdAttached()
             ? `<div class="bottom-actions"><span class="conn-chip" style="align-self:center;margin-bottom:12px"><span class="dot"></span>${esc(created.name)}이(가) 붙었어요</span><button class="btn btn-primary press" data-act="next">다음</button></div>`
-            : `<div class="bottom-actions"><span class="dim t13" style="text-align:center;margin-bottom:12px;line-height:20px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="dot off"></span>연결 기다리는 중 · 에이전트에게 "Countersign 잔액 확인해 줘"처럼 한 번 시켜 보세요</span><button class="btn btn-primary press" data-act="check">붙였어요, 확인</button></div>`
+            : `<div class="bottom-actions"><span class="dim t13" style="text-align:center;margin-bottom:12px;line-height:20px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="dot off"></span>연결 기다리는 중 · 에이전트 앱에 주소를 넣고 연결하면 바로 넘어가요</span><button class="btn btn-primary press" data-act="check">붙였어요, 확인</button></div>`
       }
     </div>`
     : `
@@ -176,7 +176,7 @@ export function connect(): Screen {
           b.textContent = "확인하는 중…";
           await refresh();
           if (!createdAttached()) {
-            toast("아직 붙지 않았어요 · 에이전트 앱에서 지갑 도구를 한 번 불러 주세요");
+            toast("아직 붙지 않았어요 · 에이전트 앱에서 커넥터가 켜져 있는지 봐 주세요");
             b.disabled = false;
             b.textContent = "붙였어요, 확인";
           } else app.render();

@@ -53,7 +53,7 @@ export function statusWord(e: HistoryEntry): string {
  * 있어야 "연결됨"이라고 한다. 그 전에는 "연결 기다리는 중".
  */
 export function attached(a: Agent): boolean {
-  return a.connected && !!a.last_activity_at;
+  return a.connected && !!(a.attached_at ?? a.last_seen_at ?? a.last_activity_at);
 }
 export function agentState(a: Agent): string {
   if (!a.connected) return "연결 끊김";

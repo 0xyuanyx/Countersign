@@ -34,7 +34,6 @@ export function home(): Screen {
   const me = currentAgent();
   const agentName = me?.name ?? p?.agent ?? "에이전트";
   const others = d.agents.filter((a) => a.connected && a.id !== me?.id).length;
-  const native = d.balance?.native !== undefined ? Number(d.balance.native) : undefined;
   const bal = d.balance?.balances.find((b) => b.balance !== undefined);
   const balNum = bal?.balance !== undefined ? Number(bal.balance) : undefined;
   const spent = Number(p?.spent_24h ?? 0);
@@ -132,7 +131,6 @@ export function home(): Screen {
     <div class="muted" style="margin-top:16px;font-size:14px">결제용 잔액${app.api.mock ? ' <span class="dim">· 데모 값, 진짜 USDC 아님</span>' : ""}</div>
     <div class="balance"><span class="num" data-bal ${balNum === undefined ? 'style="color:var(--fg3)"' : ""}>${balNum !== undefined ? (lastBalance ?? balNum).toFixed(2) : "-.--"}</span><span class="unit">USDC</span></div>
     ${balNum === undefined && d.balance?.balances[0]?.error ? `<div class="dim t12" style="margin-top:4px">잔액을 못 읽었어요: ${esc(d.balance.balances[0].error)}</div>` : ""}
-    ${native !== undefined ? `<div class="dim t12" style="margin-top:4px">${native > 0 ? `가스용 ETH ${native.toFixed(4)}` : "가스용 Sepolia ETH 없음 · 출금하려면 조금 필요해요"}</div>` : ""}
     <div style="margin-top:20px;display:flex;justify-content:space-between;font-size:13px">
       <span class="muted">오늘 쓴 돈</span>
       <span><span data-spent>${(lastSpent ?? spent).toFixed(2)}</span> <span class="dim">/ ${usdc(p?.daily_max)} USDC</span></span>
@@ -287,7 +285,6 @@ function withdrawSheet(): void {
     return;
   }
   if (!me) return void toast("고른 에이전트가 없어요");
-  const native = app.data.balance?.native;
   openSheet(
     `<h1 class="title-md">${esc(me.name)} 잔액 출금</h1>
      <p class="muted t13" style="margin-top:6px;line-height:20px">주인 계정으로만 보내요 · 받는 곳은 지갑 서버가 정해서 바꿀 수 없어요</p>
@@ -297,7 +294,7 @@ function withdrawSheet(): void {
        <input id="wd-amt" class="field" inputmode="decimal" autocomplete="off" placeholder="전액">
        <button type="button" class="pill" data-act="all" style="height:52px;flex:none">전액</button>
      </div>
-     <p class="err-text" style="margin-top:6px;min-height:18px" role="alert">${native !== undefined && Number(native) <= 0 ? "이 계정에 가스용 Sepolia ETH가 없어서 출금이 실패할 수 있어요" : ""}</p>
+     <p class="err-text" style="margin-top:6px;min-height:18px" role="alert"></p>
      <div class="bottom-actions" style="padding-top:8px">
        <button class="btn btn-primary press" data-act="go">주인 계정으로 출금</button>
        <button class="btn btn-ghost press" data-act="cancel">취소</button>
@@ -383,9 +380,10 @@ async function resume(): Promise<void> {
 /** 에이전트 한 줄 설명: 상태 먼저, 마지막 활동은 뒤로 */
 export function agentLine(a: Agent): string {
   if (!a.connected) return "연결 끊김";
-  if (!a.last_activity_at) return "연결 기다리는 중 · 에이전트 앱에 주소를 넣으면 붙어요";
+  if (!attached(a)) return "연결 기다리는 중 · 에이전트 앱에 주소를 넣으면 붙어요";
   if (a.paused) return "멈춤 · 이 에이전트만 멈춰 있어요";
-  return `연결됨 · 마지막 활동 ${new Date(a.last_activity_at * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`;
+  const last = a.last_seen_at ?? a.last_activity_at ?? a.attached_at!;
+  return `연결됨 · 마지막 활동 ${new Date(last * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export function agentsSheet(): void {
