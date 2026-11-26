@@ -293,7 +293,11 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
       draw();
       const video = root().querySelector("video")!;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        // 짝짓기 QR은 주소·토큰이 들어가 촘촘하다 → 카메라를 높은 해상도로 연다
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
         video.srcObject = stream;
         await video.play();
         let alive = true;
@@ -306,18 +310,23 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
         const BD = (window as unknown as { BarcodeDetector?: new (o: object) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
         const detector = BD ? new BD({ formats: ["qr_code"] }) : undefined;
         const jsQR = detector ? undefined : (await import("jsqr")).default;
+        let scanFrame = 0;
         const tick = async () => {
           if (!alive) return;
           let text: string | undefined;
           if (video.videoWidth) {
             if (detector) text = (await detector.detect(video).catch(() => []))[0]?.rawValue;
             else if (jsQR) {
-              const w = 480;
-              const h = Math.round((video.videoHeight / video.videoWidth) * w);
-              canvas.width = w;
-              canvas.height = h;
-              ctx.drawImage(video, 0, 0, w, h);
-              text = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" })?.data;
+              // 아이폰(BarcodeDetector 없음): 가운데 정사각형을 줄이지 않고(최대 1080) 읽는다.
+              // 480으로 줄이면 촘촘한 짝짓기 QR(주소·토큰)의 칸이 뭉개져 못 읽는다. 어두운 터미널용으로 반전도 시도
+              const vw = video.videoWidth;
+              const vh = video.videoHeight;
+              const side = Math.min(vw, vh);
+              const out = Math.min(side, 1080);
+              canvas.width = out;
+              canvas.height = out;
+              ctx.drawImage(video, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, out, out);
+              text = jsQR(ctx.getImageData(0, 0, out, out).data, out, out, { inversionAttempts: scanFrame++ % 2 ? "onlyInvert" : "dontInvert" })?.data;
             }
           }
           const p = text ? parsePairing(text) : undefined;
