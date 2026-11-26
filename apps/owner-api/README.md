@@ -66,7 +66,7 @@ COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owne
 | `GET /api/agents/:id/policy` · `/policy/file` · `PATCH /api/agents/:id/policy` | 그 에이전트 정책 (본문은 전역 `/api/policy`와 같음, PATCH는 주인 토큰) |
 | `GET /api/agents/:id/history?limit=` | 그 에이전트 내역만 |
 | `PATCH /api/agents/:id {hidden}` | 주인 토큰. 목록에서 숨기기·다시 보이기. 숨기기는 **연결이 끊겼고 그 계정 USDC가 0일 때만** (아니면 400과 이유). 숨겨도 목록에는 `hidden:true`로 함께 내려가고, 정책·내역·결제 기록은 그대로다. `name`과 같이 보내도 된다 |
-| `POST /api/agents/:id/withdraw {amount?}` | 주인 토큰. 그 에이전트 USDC를 **주인 0번 계정으로만** 보낸다(받는 곳 고정, 빼면 전액). 한도·정지와 상관없이 된다. 실제 체인 거래 `{ok, tx_hash, explorer_url, amount, from, to, chain_id, token}`. 내역에 `kind:"withdraw"` |
+| `POST /api/agents/:id/withdraw {amount?, request_id?}` | 주인 토큰. `request_id`(영문 소문자·숫자·`-_` 8~64자)를 앱이 만들어 보내면, 응답이 끊겨 다시 눌러도 **한 번만** 나간다(같은 id면 새로 보내지 않고 그 거래 결과를 돌려줌). 응답 `status`: `done`(체인 확인) / `pending`(보냈는데 영수증 전, 같은 request_id로 다시 POST하면 이어서 확인). 같은 에이전트에 영수증 전 출금이 있으면 새 출금은 502. 내역 id = request_id (pending이면 `confirming`, 확인되면 `paid`로 갱신). 그 에이전트 USDC를 **주인 0번 계정으로만** 보낸다(받는 곳 고정, 빼면 전액). 한도·정지와 상관없이 된다. 실제 체인 거래 `{ok, tx_hash, explorer_url, amount, from, to, chain_id, token}`. 내역에 `kind:"withdraw"` |
 
 - 전역 경로는 `?agent=<id>`(또는 `?agentId=`)를 받는다: `/api/policy`, `/api/policy/file`, `PATCH /api/policy`, `/api/balance`, `/api/history`, `/api/requests`, `/api/tasks`. 빼면 첫 에이전트(1번 계정).
 - `POST /api/tasks {text, maxAmount, agentId?}`: `agentId`가 있으면 그 에이전트만 `next_task`로 받아 간다.

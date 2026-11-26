@@ -74,8 +74,9 @@ export interface OwnerApiDeps {
     withdraw: (
       agentId: string,
       amount: bigint | undefined,
+      requestId: string,
     ) => Promise<
-      | { ok: true; tx_hash: string; from: string; to: string; amount: string; chain_id: number; token: string }
+      | { ok: true; status?: "done" | "pending"; request_id?: string; tx_hash: string; from: string; to: string; amount: string; chain_id: number; token: string }
       | { ok: false; code: string; reason: string; next_action?: string }
     >;
   };
@@ -404,18 +405,24 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
     if (!d.agentOps) return send(res, 503, { ok: false, error: "출금 기능이 꺼져 있음 (signer 연결 없음)" });
     const body = WithdrawBodySchema.safeParse(await readJson(req));
-    if (!body.success) return send(res, 400, { ok: false, error: '본문 형식: { amount?: "1.5" } (빼면 전액)' });
+    if (!body.success) return send(res, 400, { ok: false, error: '본문 형식: { amount?: "1.5", request_id?: "..." } (amount 빼면 전액)' });
     const amount = body.data.amount === undefined ? undefined : parseAmount(body.data.amount);
     if (amount === 0n) return send(res, 400, { ok: false, error: "amount는 0보다 커야 함" });
-    const r = await d.agentOps.withdraw(info.id, amount);
+    // 요청 id: 앱이 주면 그걸로(다시 눌러도 한 번만 나감), 없으면 새로
+    const requestId = body.data.request_id ?? `wd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const r = await d.agentOps.withdraw(info.id, amount, requestId);
     const history = new HistoryStore(d.paths.history);
-    const base = { id: `wd_${Date.now().toString(36)}`, at: now(), order_ref: "withdraw", kind: "withdraw" as const, agent_id: info.id };
+    // 내역 id = 요청 id: 같은 출금이 pending → done으로 바뀌면 같은 항목이 갱신된다
+    const base = { id: requestId, at: now(), order_ref: "withdraw", kind: "withdraw" as const, agent_id: info.id };
     if (!r.ok) {
       history.append({ ...base, status: "failed", code: r.code, reason: r.reason });
       return send(res, 502, { ok: false, error: r.reason, code: r.code });
     }
     const out = {
       ok: true as const,
+      request_id: requestId,
+      /** done: 체인에서 확인됨 / pending: 보냈는데 영수증 전 (같은 request_id로 다시 POST하면 이어서 확인, 새로 보내지 않음) */
+      status: r.status ?? "done",
       tx_hash: r.tx_hash,
       explorer_url: explorerUrl(r.chain_id, "tx", r.tx_hash),
       amount: formatAmount(BigInt(r.amount)),
@@ -426,7 +433,7 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     };
     history.append({
       ...base,
-      status: "paid",
+      status: out.status === "done" ? "paid" : "confirming",
       amount: out.amount,
       from: r.from,
       pay_to: r.to,
@@ -532,7 +539,12 @@ const TaskBodySchema = z
     agentId: z.string().regex(/^[a-z0-9_]{1,64}$/).optional(),
   })
   .strict();
-const WithdrawBodySchema = z.object({ amount: z.string().regex(/^(0|[1-9]\d*)(\.\d{1,6})?$/).optional() }).strict();
+const WithdrawBodySchema = z
+  .object({
+    amount: z.string().regex(/^(0|[1-9]\d*)(\.\d{1,6})?$/).optional(),
+    request_id: z.string().regex(/^[a-z0-9_-]{8,64}$/).optional(),
+  })
+  .strict();
 const AgentBodySchema = z.object({ name: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/) }).strict();
 const AgentPatchSchema = z
   .object({ name: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional(), hidden: z.boolean().optional() })

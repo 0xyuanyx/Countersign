@@ -149,7 +149,7 @@ describe("signer", () => {
         checkOwnerToken: (t) => t === "owner-secret",
         run: async (a, amount) => {
           calls.push([a.account.address, amount]);
-          return { ok: true, op: "withdraw_to_owner", tx_hash: "0x01", from: a.account.address, to: a.account.address, amount: "1", chain_id: 133, token: a.account.address };
+          return { ok: true, op: "withdraw_to_owner", status: "done", request_id: "wd_test_0001", tx_hash: "0x01", from: a.account.address, to: a.account.address, amount: "1", chain_id: 133, token: a.account.address };
         },
       },
     });

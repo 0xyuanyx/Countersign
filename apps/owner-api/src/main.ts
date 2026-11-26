@@ -41,8 +41,8 @@ const server = createOwnerApi({
     },
     usdcBalance: (chainId, token, owner) => reader.usdcBalance(chainId, token, owner),
     nativeBalance: (chainId, owner) => reader.nativeBalance(chainId, owner),
-    withdraw: async (agentId, amount) => {
-      const r = await signer.forAgent(agentId).withdrawToOwner(ownerToken(), amount);
+    withdraw: async (agentId, amount, requestId) => {
+      const r = await signer.forAgent(agentId).withdrawToOwner(ownerToken(), amount, requestId);
       if (r.ok && r.op === "withdraw_to_owner") return r;
       if (!r.ok) return { ok: false, code: r.code, reason: r.reason, next_action: r.next_action };
       return { ok: false, code: "WITHDRAW_FAILED", reason: "signer 응답이 예상과 다름" };

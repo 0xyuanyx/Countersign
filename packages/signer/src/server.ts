@@ -22,7 +22,8 @@ export async function listen(signer: Signer, socketPath: string): Promise<Server
   const server = createServer((conn) => {
     let buf = "";
     conn.setEncoding("utf8");
-    conn.setTimeout(30_000, () => conn.destroy());
+    // 출금은 영수증을 최대 90초 기다린다 → 연결은 그보다 넉넉히 (11/27 리뷰 P2-6)
+    conn.setTimeout(150_000, () => conn.destroy());
     conn.on("data", (chunk: string) => {
       buf += chunk;
       if (Buffer.byteLength(buf) > MAX_REQUEST_BYTES) {

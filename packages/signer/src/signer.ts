@@ -36,6 +36,8 @@ export const SignerRequestSchema = z.discriminatedUnion("op", [
       amount: z.string().regex(/^\d{1,30}$/).optional(),
       /** 주인 API 토큰 (signer가 같은 파일을 읽어 대조) */
       ownerToken: z.string().min(1).max(200),
+      /** 같은 출금 요청을 두 번 보내도 한 번만 나가게 하는 id (주인 API가 만든다) */
+      requestId: z.string().regex(/^[a-z0-9_-]{8,64}$/).optional(),
     })
     .strict(),
 ]);
@@ -44,6 +46,9 @@ export type SignerRequest = z.infer<typeof SignerRequestSchema>;
 export interface WithdrawResult {
   ok: true;
   op: "withdraw_to_owner";
+  /** done: 영수증 확인 / pending: 보냈는데 아직 영수증 전 (같은 requestId로 다시 물으면 이어서 확인) */
+  status: "done" | "pending";
+  request_id: string;
   tx_hash: Hex;
   from: Address;
   to: Address;
@@ -85,7 +90,7 @@ export interface SignerDeps {
   /** 출금: 주인 토큰 확인 + 체인 거래. 없으면 출금 요청을 거절 */
   withdraw?: {
     checkOwnerToken: (token: string) => boolean;
-    run: (agent: SignerAgent, amount: bigint | undefined) => Promise<WithdrawResult | Rejection>;
+    run: (agent: SignerAgent, amount: bigint | undefined, requestId: string, agentId: string) => Promise<WithdrawResult | Rejection>;
   };
 }
 
@@ -169,13 +174,23 @@ export function createSigner(deps: SignerDeps): Signer {
     return { ok: true, op: "sign_payment", signature, typedDataHash: v.typedDataHash };
   }
 
-  async function withdraw(agentId: string | undefined, amount: string | undefined, ownerToken: string): Promise<SignerResponse> {
+  async function withdraw(
+    agentId: string | undefined,
+    amount: string | undefined,
+    ownerToken: string,
+    requestId: string | undefined,
+  ): Promise<SignerResponse> {
     if (!deps.withdraw) return reject("INVALID_INPUT", "input", "이 signer는 출금을 지원하지 않음");
     if (!deps.withdraw.checkOwnerToken(ownerToken)) return reject("INVALID_INPUT", "input", "주인 토큰이 맞지 않음");
     const agent = agentFor(agentId);
     if ("ok" in agent) return agent;
     // 출금은 한도·정지와 상관없이 허용한다: 받는 곳이 주인 계정으로 고정이라 "안전한 방향"
-    return deps.withdraw.run(agent, amount === undefined ? undefined : BigInt(amount));
+    return deps.withdraw.run(
+      agent,
+      amount === undefined ? undefined : BigInt(amount),
+      requestId ?? `wd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      agentId ?? "local",
+    );
   }
 
   /** 서명·출금은 한 번에 하나씩 (일일 한도 검사와 기록 사이에 다른 요청이 끼지 않게) */
@@ -200,7 +215,8 @@ export function createSigner(deps: SignerDeps): Signer {
         return { ok: true, op: "address", address: a.account.address, account_index: a.accountIndex };
       }
       if (req.op === "sign_payment") return serial(() => signPayment(req.agent, req.ticket, req.typedData));
-      return serial(() => withdraw(req.agent, req.amount, req.ownerToken));
+      // 출금은 결제 서명 줄과 따로 (영수증을 기다리는 동안 결제를 막지 않게). 같은 에이전트 동시 출금은 withdraw.run이 막는다
+      return withdraw(req.agent, req.amount, req.ownerToken, req.requestId);
     },
   };
 }

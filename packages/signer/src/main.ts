@@ -1,5 +1,6 @@
 #!/usr/bin/env -S npx tsx
 import { timingSafeEqual } from "node:crypto";
+import { join } from "node:path";
 import {
   AgentRegistry,
   ApprovalStore,
@@ -62,7 +63,7 @@ async function main() {
         const expected = process.env.COUNTERSIGN_OWNER_TOKEN || readOrCreateSharedSecret(paths.ownerToken, false);
         return !!expected && t.length === expected.length && timingSafeEqual(Buffer.from(t), Buffer.from(expected));
       },
-      run: makeWithdraw(owner),
+      run: makeWithdraw(owner, { dir: join(paths.dir, "withdrawals") }),
     },
     pause: () => readPause(paths.pause),
     extras: (orderRef, intent, agentId) => ({

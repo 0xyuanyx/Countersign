@@ -25,10 +25,16 @@ export class SignerClient {
   }
 
   /** 주인 API 전용: 이 에이전트의 USDC를 주인 0번 계정으로 (amount 최소 단위, 없으면 전액) */
-  withdrawToOwner(ownerToken: string, amount?: bigint): Promise<SignerResponse> {
+  withdrawToOwner(ownerToken: string, amount?: bigint, requestId?: string): Promise<SignerResponse> {
     return this.request(
-      { op: "withdraw_to_owner", ...this.who(), ownerToken, ...(amount !== undefined && { amount: amount.toString() }) },
-      120_000,
+      {
+        op: "withdraw_to_owner",
+        ...this.who(),
+        ownerToken,
+        ...(amount !== undefined && { amount: amount.toString() }),
+        ...(requestId && { requestId }),
+      },
+      140_000,
     );
   }
 
