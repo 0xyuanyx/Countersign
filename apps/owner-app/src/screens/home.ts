@@ -49,7 +49,11 @@ export function home(): Screen {
 
   // 홈 상태 줄: 문제가 있을 때만 "지켜보는 중" 자리에 한 줄. 여러 개면 가장 급한 것 하나 (끊김 > 잔액 부족 > 에이전트 꺼짐)
   let banner = "";
-  if (d.offline) {
+  if (d.authFailed) {
+    banner = `<div class="banner bad" role="status"><span class="dot bad"></span>
+      <span class="stack"><span class="t14">주인 토큰이 바뀌어서 연결이 끊겼어요</span><span class="dim t12">지갑 서버에서 새 QR을 띄우고 다시 매칭해 주세요 · 앱 비밀번호는 그대로예요</span></span>
+      <button type="button" class="banner-act" data-act="repair">다시 매칭</button></div>`;
+  } else if (d.offline) {
     const mins = d.okAt ? Math.floor((Date.now() - d.okAt) / 60_000) : undefined;
     banner = `<div class="banner bad" role="status"><span class="dot bad"></span>
       <span class="stack"><span class="t14">지갑 서버와 연결이 끊겼어요</span><span class="dim t12">${mins === undefined ? "" : mins < 1 ? "방금 전 마지막 확인 · " : `${mins}분 전 마지막 확인 · `}에이전트 결제도 멈춰 있어요</span></span>
@@ -214,6 +218,7 @@ export function home(): Screen {
         const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
         if (act === "deposit") deposit();
         if (act === "withdraw") withdrawSheet();
+        if (act === "repair") void repairPhone();
         if (act === "retry") {
           (e.target as HTMLElement).closest("button")!.textContent = "확인 중…";
           void refresh();
@@ -489,6 +494,14 @@ async function resume(): Promise<void> {
     toast(err instanceof ApiError ? err.message : "다시 켜지 못했어요");
   }
   refreshSoon();
+}
+
+/** 토큰이 바뀌었을 때: 이 폰의 연결만 지우고 매칭 화면으로 (앱 비밀번호는 남김) */
+async function repairPhone(): Promise<void> {
+  if (!(await unlock({ title: "다시 매칭해요", subtitle: "새 QR로 연결해요 · 앱 비밀번호는 그대로예요", closable: true }))) return;
+  store.unpair();
+  location.hash = "";
+  location.reload();
 }
 
 /** 에이전트 한 줄 설명: 상태 먼저, 마지막 활동은 뒤로 */

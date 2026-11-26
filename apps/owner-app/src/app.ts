@@ -1,6 +1,6 @@
 // 앱 상태·주기적 새로고침·화면 전환·시트. 화면은 screens/*.ts가 HTML 문자열로 그린다.
 
-import type { Agent, Balance, Check, HistoryEntry, OwnerApi, PolicySummary, PurchaseRequest, Task } from "./api.js";
+import { ApiError, type Agent, type Balance, type Check, type HistoryEntry, type OwnerApi, type PolicySummary, type PurchaseRequest, type Task } from "./api.js";
 import { esc, transition } from "./ui.js";
 
 export type Data = {
@@ -12,6 +12,8 @@ export type Data = {
   agents: Agent[];
   /** 지갑 서버에 못 닿으면 메시지 */
   offline?: string;
+  /** 주인 토큰이 거절됨(401): 서버에서 토큰을 바꿨으니 다시 매칭해야 한다 */
+  authFailed?: boolean;
   loadedAt?: number;
   /** 마지막으로 서버에 닿은 시각 (ms) */
   okAt?: number;
@@ -169,9 +171,10 @@ export async function refresh(): Promise<void> {
     if (changed) app.render();
     app.afterRefresh();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "지갑 서버에 닿지 않아요";
+    const authFailed = e instanceof ApiError && e.status === 401;
+    const msg = authFailed ? "주인 토큰이 바뀌었어요" : e instanceof Error ? e.message : "지갑 서버에 닿지 않아요";
     if (app.data.offline !== msg) {
-      app.data = { ...app.data, offline: msg };
+      app.data = { ...app.data, offline: msg, authFailed };
       app.render();
     }
   }

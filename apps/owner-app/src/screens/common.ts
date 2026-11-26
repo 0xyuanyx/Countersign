@@ -16,6 +16,7 @@ export function tabs(active: "home" | "activity" | "policy" | "settings"): strin
 export function offlineBanner(): string {
   const d = app.data;
   if (!d.offline) return "";
+  if (d.authFailed) return `<div class="banner-off" role="status">${ic.wifiOff()}<span>주인 토큰이 바뀌었어요 · 홈에서 다시 매칭해 주세요</span></div>`;
   return `<div class="banner-off" role="status">${ic.wifiOff()}<span>${esc(d.offline)}. 다시 닿으면 바로 새로 고쳐요</span></div>`;
 }
 
