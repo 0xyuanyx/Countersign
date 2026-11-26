@@ -160,8 +160,19 @@ export class WalletService {
     };
   }
 
-  getHistory(limit: number): HistoryEntry[] {
-    return this.d.history.list(Math.min(Math.max(limit, 1), 100));
+  /**
+   * 이 에이전트의 내역만 (11/27 리뷰 P2-5: 다른 에이전트의 결제 목적·금액·수취인·출금이 보이지 않게).
+   * 확인 중(confirming)인 결제는 돌려주기 전에 HSP에 한 번 더 묻는다.
+   */
+  async getHistory(limit: number, who: string | Caller = "local"): Promise<HistoryEntry[]> {
+    const c: Caller = typeof who === "string" ? { name: who } : who;
+    const n = Math.min(Math.max(limit, 1), 100);
+    const confirming = this.d.history.list(500).filter((e) => e.status === "confirming" && this.mine(e, c)).slice(0, 3);
+    for (const e of confirming) await this.checkPayment(e.order_ref, c).catch(() => undefined);
+    return this.d.history
+      .list(2000)
+      .filter((e) => this.mine(e, c))
+      .slice(0, n);
   }
 
   /**
@@ -287,68 +298,144 @@ export class WalletService {
     const events: { stage: string; at: number }[] = [{ stage: "signed", at: t }];
 
     // 5. HSP에 제출하고 완료까지 기다린다
-    let paymentId: string | undefined;
+    //    - finalize 전에 실패: 돈은 나가지 않았다 → failed
+    //    - finalize 뒤(제출·조회)에 끊기거나 시간이 다 됨: 결과를 모른다 → confirming (같은 주문을 다시 결제하지 말고 check_payment로 이어서 확인)
+    //    - HSP가 failed를 알림 → failed
+    //    - payment-finalized만 paid (맡긴 일도 그때만 paid)
+    let paymentId: string;
     try {
       paymentId = (await this.d.hsp.finalizePayment(orderRef, signed.signature, payload)).payment_id;
-      events.push({ stage: "finalized", at: this.now() });
-      const sub = await this.d.hsp.submitPayment(paymentId);
-      events.push({ stage: "submitted", at: this.now() });
-      const q = await this.waitFinal(paymentId, events);
-      if (q.status === "failed") throw new HspError("query_payment", "FAILED", "HSP가 결제 실패를 알림");
-      const txHash = q.tx_hash ?? sub.tx_hash;
-      const entry: HistoryEntry = {
-        id,
-        at: this.now(),
-        order_ref: orderRef,
-        status: "paid",
-        kind: "payment",
-        ...base,
-        from: agent,
-        payment_id: paymentId,
-        hsp_status: q.status,
-        ...(txHash && { tx_hash: txHash }),
-        ...(this.d.hspMode === "mock"
-          ? { simulated: true }
-          : txHash && { explorer_url: explorerUrl(order.chainId, "tx", txHash) }),
-        events,
-      };
-      this.d.history.append(entry);
-      if (v.intent.task_id) this.d.tasks?.update(v.intent.task_id, { status: "paid" }, this.now());
-      return {
-        ok: true,
-        order_ref: orderRef,
-        payment_id: paymentId,
-        hsp_status: q.status,
-        ...(txHash && { tx_hash: txHash }),
-        amount: base.amount,
-        token: "USDC",
-        pay_to: order.payTo,
-        seller: v.intent.seller,
-        chain_id: order.chainId,
-        evidence: { order_hash: v.orderHash, typed_data_hash: v.typedDataHash },
-        next_action:
-          q.status === "payment-finalized"
-            ? "판매자에게 order_ref와 payment_id를 보내 납품을 요청한다"
-            : "결제가 아직 확정 전이다. 잠시 뒤 판매자에게 order_ref와 payment_id를 보내 납품을 요청한다",
-        ...(this.d.hspMode === "mock" && { note: "HSP mock 결제: 실제 돈은 움직이지 않았고 tx_hash는 가짜다" }),
-      };
     } catch (e) {
-      const r = hspRejection("submit", e);
-      this.d.history.append({
-        id,
-        at: this.now(),
-        order_ref: orderRef,
-        status: "failed",
-        ...base,
-        ...(paymentId && { payment_id: paymentId }),
-        events,
-        code: r.code,
-        step: r.step,
-        reason: r.reason,
-        next_action: "서명은 이미 나갔다. 같은 주문을 다시 결제하지 말고 사람(주인)에게 보고한다",
-      });
-      return { ...r, next_action: "서명은 이미 나갔다. 같은 주문을 다시 결제하지 말고 사람(주인)에게 보고한다" };
+      const r = hspRejection("finalize", e);
+      const next_action = "HSP가 서명을 받지 않아 돈은 나가지 않았다. 같은 주문은 다시 서명할 수 없으니 판매자에게 새 주문을 요청한다";
+      this.d.history.append({ id, at: this.now(), order_ref: orderRef, status: "failed", ...base, events, code: r.code, step: r.step, reason: r.reason, next_action });
+      return { ...r, next_action };
     }
+    events.push({ stage: "finalized", at: this.now() });
+    const pending: PendingPayment = { id, orderRef, paymentId, base, events, agent, order, v };
+    let subTx: string | undefined;
+    try {
+      subTx = (await this.d.hsp.submitPayment(paymentId)).tx_hash;
+      events.push({ stage: "submitted", at: this.now() });
+    } catch (e) {
+      return this.unconfirmed(pending, hspRejection("submit", e).reason);
+    }
+    let q: QueryResult;
+    try {
+      q = await this.waitFinal(paymentId, events);
+    } catch (e) {
+      return this.unconfirmed(pending, hspRejection("query", e).reason, subTx);
+    }
+    return this.settle(pending, q, subTx);
+  }
+
+  /** HSP 조회 결과로 내역·맡긴 일을 정리한다 (처음 결제와 check_payment 둘 다) */
+  private settle(p: PendingPayment, q: QueryResult, subTx?: string): PayResult {
+    const txHash = q.tx_hash ?? subTx;
+    const common = {
+      id: p.id,
+      at: this.now(),
+      order_ref: p.orderRef,
+      kind: "payment" as const,
+      ...p.base,
+      from: p.agent,
+      payment_id: p.paymentId,
+      hsp_status: q.status,
+      ...(txHash && { tx_hash: txHash }),
+      ...(this.d.hspMode === "mock" ? { simulated: true } : txHash && { explorer_url: explorerUrl(p.order.chainId, "tx", txHash) }),
+      events: p.events,
+    };
+    if (q.status === "failed") {
+      const r = reject("HSP_ERROR", "hsp", "HSP가 결제 실패를 알림");
+      const next_action = "HSP가 결제를 실패 처리했다. 같은 주문은 다시 결제하지 말고 판매자에게 새 주문을 요청한다";
+      this.d.history.append({ ...common, status: "failed", code: r.code, step: r.step, reason: r.reason, next_action });
+      return { ...r, next_action };
+    }
+    const finalized = q.status === "payment-finalized";
+    this.d.history.append({ ...common, status: finalized ? "paid" : "confirming" });
+    if (finalized && p.base.task_id) this.d.tasks?.update(p.base.task_id, { status: "paid" }, this.now());
+    return {
+      ok: true,
+      order_ref: p.orderRef,
+      payment_id: p.paymentId,
+      hsp_status: q.status,
+      ...(txHash && { tx_hash: txHash }),
+      amount: p.base.amount,
+      token: "USDC",
+      pay_to: p.order.payTo,
+      seller: p.base.seller,
+      chain_id: p.order.chainId,
+      evidence: { order_hash: p.v.orderHash, typed_data_hash: p.v.typedDataHash },
+      next_action: finalized
+        ? "판매자에게 order_ref와 payment_id를 보내 납품을 요청한다"
+        : "결제가 아직 확정 전이다 (확인 중). 같은 주문을 다시 결제하지 말고, 잠시 뒤 check_payment로 확정을 확인한 다음 납품을 요청한다",
+      ...(this.d.hspMode === "mock" && { note: "HSP mock 결제: 실제 돈은 움직이지 않았고 tx_hash는 가짜다" }),
+    };
+  }
+
+  /** 제출·조회가 끊김: 돈이 나갔는지 모른다 → confirming으로 남기고 이어서 확인하게 한다 */
+  private unconfirmed(p: PendingPayment, why: string, subTx?: string): Rejection {
+    this.d.history.append({
+      id: p.id,
+      at: this.now(),
+      order_ref: p.orderRef,
+      kind: "payment",
+      status: "confirming",
+      ...p.base,
+      from: p.agent,
+      payment_id: p.paymentId,
+      ...(subTx && { tx_hash: subTx }),
+      ...(this.d.hspMode === "mock" && { simulated: true }),
+      events: p.events,
+      code: "PAYMENT_UNCONFIRMED",
+      reason: why.slice(0, 300),
+    });
+    return { ...reject("PAYMENT_UNCONFIRMED", "hsp", why.slice(0, 300)) };
+  }
+
+  /**
+   * 확인 중인 결제를 다시 조회한다 (에이전트 check_payment, 내역 조회 때).
+   * 같은 주문을 다시 서명하지 않는다: 이미 받은 payment_id로 HSP에 묻기만 한다.
+   */
+  async checkPayment(orderRef: string, who: string | Caller = "local"): Promise<PayResult | { ok: false; code: "INVALID_INPUT"; reason: string }> {
+    const c: Caller = typeof who === "string" ? { name: who } : who;
+    const entry = this.d.history
+      .list(500)
+      .find((e) => e.order_ref === orderRef && !!e.payment_id && e.kind !== "withdraw" && this.mine(e, c));
+    if (!entry || !entry.payment_id) return { ok: false, code: "INVALID_INPUT", reason: "이 주문의 결제 기록이 없음" };
+    if (entry.status !== "confirming") {
+      return entry.status === "paid"
+        ? { ok: true, order_ref: orderRef, payment_id: entry.payment_id, hsp_status: (entry.hsp_status ?? "payment-finalized") as QueryResult["status"], ...(entry.tx_hash && { tx_hash: entry.tx_hash }), amount: entry.amount ?? "", token: "USDC", pay_to: entry.pay_to ?? "", seller: entry.seller ?? "", chain_id: entry.chain_id ?? 0, evidence: { order_hash: (entry.order_hash ?? "0x") as Hex, typed_data_hash: (entry.typed_data_hash ?? "0x") as Hex }, next_action: "이미 확정된 결제다. 판매자에게 납품을 요청한다" }
+        : { ok: false, code: "INVALID_INPUT", reason: `이미 끝난 결제 (${entry.status})` };
+    }
+    let q: QueryResult;
+    try {
+      q = await this.d.hsp.queryPayment(entry.payment_id);
+    } catch (e) {
+      return reject("PAYMENT_UNCONFIRMED", "hsp", hspRejection("query", e).reason);
+    }
+    if (!entry.events?.some((x) => x.stage === q.status)) entry.events = [...(entry.events ?? []), { stage: q.status, at: this.now() }];
+    const { id, payment_id, ...rest } = entry;
+    return this.settle(
+      {
+        id,
+        orderRef,
+        paymentId: payment_id,
+        base: rest as PendingPayment["base"],
+        events: entry.events ?? [],
+        agent: (entry.from ?? "0x") as Address,
+        order: { orderRef, payTo: (entry.pay_to ?? "0x") as Address, amount: 0n, chainId: entry.chain_id ?? 0, token: "0x" as Address, expiresAt: 0 },
+        v: { orderHash: (entry.order_hash ?? "0x") as Hex, typedDataHash: (entry.typed_data_hash ?? "0x") as Hex },
+      },
+      q,
+      entry.tx_hash,
+    );
+  }
+
+  /** 이 에이전트의 내역인지 (원격 연결 id, 로컬은 "local") */
+  private mine(e: HistoryEntry, c: Caller): boolean {
+    const me = c.id ?? "local";
+    return (e.agent_id ?? "local") === me;
   }
 
   private extras(orderRef: string, taskId: string | undefined, agentId: string | undefined): CheckExtras {
@@ -473,6 +560,17 @@ export interface Caller {
   /** 원격 연결 id */
   id?: string;
   paused?: () => boolean;
+}
+
+interface PendingPayment {
+  id: string;
+  orderRef: string;
+  paymentId: string;
+  base: Omit<HistoryEntry, "id" | "at" | "order_ref" | "status"> & { seller: string; purpose: string; amount: string; task_id?: string };
+  events: { stage: string; at: number }[];
+  agent: Address;
+  order: Order;
+  v: { orderHash: Hex; typedDataHash: Hex };
 }
 
 type IntentInfo = { seller?: string; purpose?: string; task_id?: string };

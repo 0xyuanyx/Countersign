@@ -451,6 +451,20 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
     await b1.client.close();
   });
 
+  it("MCP get_history는 그 에이전트 것만 (다른 에이전트의 결제·출금 내역은 안 보인다)", async () => {
+    const a1 = await connectAgent("hist-a");
+    const b1 = await connectAgent("hist-b");
+    await buyFrom(a1.call, "profile");
+    await buyFrom(b1.call, "profile");
+    const ha = (await a1.call("get_history", { limit: 50 })).entries;
+    expect(ha.length).toBeGreaterThan(0);
+    expect(ha.every((e: any) => e.agent_id === a1.created.id)).toBe(true);
+    const hb = (await b1.call("get_history", { limit: 50 })).entries;
+    expect(hb.every((e: any) => e.agent_id === b1.created.id)).toBe(true);
+    await a1.client.close();
+    await b1.client.close();
+  });
+
   it("연결을 끊으면 그 주소는 바로 401, 연결 목록에 마지막 활동이 보인다", async () => {
     const { created, call } = await connectAgent("temp");
     await call("get_policy");

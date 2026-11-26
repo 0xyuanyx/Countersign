@@ -109,8 +109,12 @@ export const HistoryEntrySchema = z.object({
   id: z.string(),
   at: z.number().int(),
   order_ref: z.string(),
-  /** paid: HSP 완료까지 확인 / rejected: 서명 안 함 / pending: 주인 승인 대기 (서명 안 함) / failed: 서명 후 HSP 단계에서 실패 */
-  status: z.enum(["paid", "rejected", "pending", "failed"]),
+  /**
+   * paid: HSP payment-finalized까지 확인 / confirming: 서명·제출은 됐는데 아직 확정 전이거나 확인이 끊김 (돈이 나갔을 수 있음)
+   * rejected: 서명 안 함 / pending: 주인 승인 대기 (서명 안 함) / failed: 돈이 나가지 않음 (HSP가 서명을 안 받음, 또는 실패 통보)
+   * 같은 id가 여러 번 쌓이면 마지막 것이 그 결제의 현재 상태다 (list가 합쳐 준다)
+   */
+  status: z.enum(["paid", "rejected", "pending", "confirming", "failed"]),
   seller: z.string().optional(),
   purpose: z.string().optional(),
   /** 사람이 읽는 USDC 금액 ("0.1"). 주문을 못 읽은 거부에는 없다 */
@@ -164,14 +168,16 @@ export class HistoryStore {
     appendPrivate(this.path, JSON.stringify(HistoryEntrySchema.parse(entry)));
   }
 
-  /** 최신순 */
+  /** 최신순. 같은 id는 마지막 기록 하나로 합친다 (확인 중 → 확정 같은 상태 갱신) */
   list(limit = 20): HistoryEntry[] {
-    const all: HistoryEntry[] = [];
+    const byId = new Map<string, HistoryEntry>();
     for (const raw of readJsonLines(this.path)) {
       const p = HistoryEntrySchema.safeParse(raw);
-      if (p.success) all.push(p.data);
+      if (!p.success) continue;
+      byId.delete(p.data.id); // 다시 넣어 최신 위치로
+      byId.set(p.data.id, p.data);
     }
-    return all.reverse().slice(0, Math.max(0, limit));
+    return [...byId.values()].reverse().slice(0, Math.max(0, limit));
   }
 }
 

@@ -7,7 +7,7 @@ import type { Caller, WalletService } from "./service.js";
  * 정책 변경·정지 해제·키 내보내기·임의 서명 도구는 없다 (AGENTS.md 규칙 4, 6).
  * 거부는 isError + JSON { ok:false, code, step, reason, next_action } 으로 돌려줘 에이전트가 읽고 복구한다 (D5).
  */
-export const WALLET_TOOLS = ["pay_order", "get_balance", "get_policy", "get_history", "next_task", "finish_task"] as const;
+export const WALLET_TOOLS = ["pay_order", "check_payment", "get_balance", "get_policy", "get_history", "next_task", "finish_task"] as const;
 
 const amountText = z.string().regex(/^(0|[1-9]\d*)(\.\d{1,6})?$/);
 
@@ -55,6 +55,20 @@ export function registerWalletTools(server: McpServer, wallet: WalletService, wh
   );
 
   server.registerTool(
+    "check_payment",
+    {
+      title: "Check a payment that is still confirming",
+      description:
+        "If pay_order returned PAYMENT_UNCONFIRMED or hsp_status was not payment-finalized, call this with the same order_ref to ask HSP again. It never signs or pays again.",
+      inputSchema: { order_ref: z.string().min(1).max(200) },
+    },
+    async (args) => {
+      const r = await wallet.checkPayment(args.order_ref, who);
+      return out(r, !r.ok);
+    },
+  );
+
+  server.registerTool(
     "get_balance",
     {
       title: "Wallet balance",
@@ -80,10 +94,10 @@ export function registerWalletTools(server: McpServer, wallet: WalletService, wh
     "get_history",
     {
       title: "Payment history",
-      description: "Recent payments and rejections (newest first), with rejection codes and reasons.",
+      description: "Your own recent payments and rejections (newest first), with rejection codes and reasons. Other agents' history is not shown.",
       inputSchema: { limit: z.number().int().min(1).max(100).optional().describe("default 20") },
     },
-    async (args) => out({ entries: wallet.getHistory(args.limit ?? 20) }),
+    async (args) => out({ entries: await wallet.getHistory(args.limit ?? 20, who) }),
   );
 
   server.registerTool(
