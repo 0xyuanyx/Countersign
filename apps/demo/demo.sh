@@ -57,7 +57,14 @@ case "${1:-}" in
     echo "주인 API: http://127.0.0.1:7420/api/policy   원격 지갑 MCP: http://127.0.0.1:7440/mcp/<토큰> (토큰은 POST /api/agents)"
     ;;
   down)
-    [ -f "$pids" ] && while read -r pid name; do kill "$pid" 2>/dev/null && echo "끔: $name"; done <"$pids"
+    if [ -f "$pids" ]; then
+      while read -r pid name; do kill "$pid" 2>/dev/null && echo "끔: $name"; done <"$pids"
+      # 포트가 다 비워질 때까지 기다린다 (바로 up 하면 꺼지는 중인 옛 서버에 붙는 일이 있었다)
+      for _ in $(seq 1 25); do
+        busy=0; for p in 7410 7420 7430 7431 7432 7433 7434 7435 7440; do nc -z 127.0.0.1 $p 2>/dev/null && busy=1; done
+        [ $busy = 0 ] && break; sleep 0.2
+      done
+    fi
     rm -f "$pids"
     ;;
   env)
