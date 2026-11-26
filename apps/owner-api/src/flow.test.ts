@@ -67,9 +67,9 @@ beforeAll(async () => {
       ticketSecret: secret,
       ledger: new FileSpendLedger(paths.signerLedger),
       pause: () => readPause(paths.pause),
-      extras: (orderRef, intent) => ({
-        approval: approvals.approvalFor(orderRef),
-        task: tasks.extraFor((intent as { task_id?: string })?.task_id),
+      extras: (orderRef, intent, agentId) => ({
+        approval: approvals.approvalFor(orderRef, agentId),
+        task: tasks.extraFor((intent as { task_id?: string })?.task_id, agentId),
       }),
     }),
     join(home, "s.sock"),
@@ -433,6 +433,22 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
     expect((await owner("POST", `/api/tasks/${t.json.id}/resume`, {})).status).toBe(409);
     expect(await ag.call("pay_order", { order_ref: a.offer.order_ref, intent: a.intent })).toMatchObject({ code: "INVALID_INPUT" });
     await ag.client.close();
+  });
+
+  it("주인 승인은 요청한 에이전트에만: 같은 주문을 다른 에이전트가 내밀어도 승인이 옮겨 가지 않는다", async () => {
+    const a1 = await connectAgent("appr-a");
+    const b1 = await connectAgent("appr-b");
+    const offer = await post(`${sellers.news}/orders`, { sku: "item" });
+    const intent = { purpose: "x", max_amount: offer.price, seller: offer.seller };
+    const pa = await a1.call("pay_order", { order_ref: offer.order_ref, intent });
+    expect(pa).toMatchObject({ code: "NEEDS_OWNER_APPROVAL" });
+    await owner("POST", `/api/requests/${pa.request_id}/approve`, {});
+    const pb = await b1.call("pay_order", { order_ref: offer.order_ref, intent });
+    expect(pb).toMatchObject({ code: "NEEDS_OWNER_APPROVAL" });
+    expect(pb.request_id).not.toBe(pa.request_id);
+    expect((await a1.call("pay_order", { order_ref: offer.order_ref, intent })).ok).toBe(true);
+    await a1.client.close();
+    await b1.client.close();
   });
 
   it("연결을 끊으면 그 주소는 바로 401, 연결 목록에 마지막 활동이 보인다", async () => {

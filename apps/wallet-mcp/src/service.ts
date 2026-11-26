@@ -352,7 +352,10 @@ export class WalletService {
   }
 
   private extras(orderRef: string, taskId: string | undefined, agentId: string | undefined): CheckExtras {
-    return { approval: this.d.approvals?.approvalFor(orderRef), task: this.d.tasks?.extraFor(taskId, agentId ?? "local") };
+    return {
+      approval: this.d.approvals?.approvalFor(orderRef, agentId ?? "local"),
+      task: this.d.tasks?.extraFor(taskId, agentId ?? "local"),
+    };
   }
 
   /** 처음 보는 판매자 등: 주인 앱에 구매 요청을 만들고(이미 있으면 그대로) 에이전트에게 기다리라고 알린다 */
@@ -366,7 +369,7 @@ export class WalletService {
   ): Rejection {
     const store = this.d.approvals;
     if (!store) return this.rejected(id, orderRef, r, intent, order, ctx);
-    const existing = store.forOrder(orderRef);
+    const existing = store.forOrder(orderRef, ctx.callerId ?? "local");
     if (existing?.status === "rejected") {
       return this.rejected(id, orderRef, { ...reject("OWNER_REJECTED", "policy", "주인이 이 주문을 거절함"), request_id: existing.id }, intent, order, ctx);
     }

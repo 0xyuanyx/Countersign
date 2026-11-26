@@ -65,9 +65,9 @@ async function main() {
       run: makeWithdraw(owner),
     },
     pause: () => readPause(paths.pause),
-    extras: (orderRef, intent) => ({
-      approval: approvals.approvalFor(orderRef),
-      task: tasks.extraFor(taskIdOf(intent)),
+    extras: (orderRef, intent, agentId) => ({
+      approval: approvals.approvalFor(orderRef, agentId),
+      task: tasks.extraFor(taskIdOf(intent), agentId),
     }),
   });
   const server = await listen(signer, socketPath);

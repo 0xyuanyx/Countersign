@@ -81,7 +81,7 @@ export interface SignerDeps {
   /** 주인의 전체 정지 스위치. 서명할 때마다 다시 읽는다 (지갑 MCP가 뚫려도 signer가 멈춘다) */
   pause?: () => PauseState;
   /** 주인 결정(구매 승인, 맡긴 일 상한)을 상태 파일에서 읽는다. 티켓에 실린 값은 쓰지 않는다 */
-  extras?: (orderRef: string, intent: unknown) => CheckExtras;
+  extras?: (orderRef: string, intent: unknown, agentId: string) => CheckExtras;
   /** 출금: 주인 토큰 확인 + 체인 거래. 없으면 출금 요청을 거절 */
   withdraw?: {
     checkOwnerToken: (token: string) => boolean;
@@ -150,7 +150,7 @@ export function createSigner(deps: SignerDeps): Signer {
       typedData,
       agent: agent.account.address,
       now: t,
-      ...(deps.extras && { extras: deps.extras(ticket.order.orderRef, ticket.intent) }),
+      ...(deps.extras && { extras: deps.extras(ticket.order.orderRef, ticket.intent, agentId ?? "local") }),
     });
     if (!v.ok) return v;
     if (v.typedDataHash.toLowerCase() !== ticket.typedDataHash) {

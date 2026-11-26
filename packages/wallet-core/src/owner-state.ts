@@ -84,15 +84,21 @@ export class ApprovalStore {
   }
 
   /** 주문 하나에 요청 하나 (같은 주문으로 다시 부르면 같은 요청) */
-  static idFor(orderRef: string): string {
-    return `req_${createHash("sha256").update(orderRef).digest("hex").slice(0, 16)}`;
+  /**
+   * 요청 하나 = (주문, 에이전트). 같은 주문이라도 다른 에이전트(다른 결제 계정)의 승인은 따로다 (11/27 리뷰 P1-3).
+   * agentId 없음 = 1번 로컬 에이전트("local").
+   */
+  static idFor(orderRef: string, agentId = "local"): string {
+    return `req_${createHash("sha256").update(`${agentId}\n${orderRef}`).digest("hex").slice(0, 16)}`;
   }
 
   get(id: string) {
     return this.rec.get(id);
   }
-  forOrder(orderRef: string) {
-    return this.rec.get(ApprovalStore.idFor(orderRef));
+  forOrder(orderRef: string, agentId = "local") {
+    const r = this.rec.get(ApprovalStore.idFor(orderRef, agentId));
+    // 저장된 에이전트가 다르면 (해시 충돌 등) 남의 요청으로 보지 않는다
+    return r && (r.agent_id ?? "local") === agentId ? r : undefined;
   }
   /** 최신순 */
   list(status?: ApprovalRequest["status"]) {
@@ -113,10 +119,11 @@ export class ApprovalStore {
     agentId?: string;
     now: number;
   }): ApprovalRequest {
-    const existing = this.forOrder(args.order.orderRef);
+    const agentId = args.agentId ?? "local";
+    const existing = this.forOrder(args.order.orderRef, agentId);
     if (existing) return existing;
     const req: ApprovalRequest = {
-      id: ApprovalStore.idFor(args.order.orderRef),
+      id: ApprovalStore.idFor(args.order.orderRef, agentId),
       order_ref: args.order.orderRef,
       created_at: args.now,
       status: "pending",
@@ -131,7 +138,7 @@ export class ApprovalStore {
       order_expires_at: args.order.expiresAt,
       ...(args.taskId && { task_id: args.taskId }),
       ...(args.agent && { agent: args.agent }),
-      ...(args.agentId && { agent_id: args.agentId }),
+      agent_id: agentId,
     };
     this.rec.put(req.id, req);
     return req;
@@ -146,8 +153,9 @@ export class ApprovalStore {
   }
 
   /** checkOrder에 넘길 승인 (승인된 요청만) */
-  approvalFor(orderRef: string): CheckExtras["approval"] {
-    const r = this.forOrder(orderRef);
+  /** checkOrder에 넘길 승인: 그 에이전트가 요청해서 승인된 것만 */
+  approvalFor(orderRef: string, agentId = "local"): CheckExtras["approval"] {
+    const r = this.forOrder(orderRef, agentId);
     if (!r || r.status !== "approved") return undefined;
     return { orderRef: r.order_ref, payTo: r.pay_to, amount: parseUint(r.amount_raw), chainId: r.chain_id, token: r.token };
   }
