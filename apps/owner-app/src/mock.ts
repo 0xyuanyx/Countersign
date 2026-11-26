@@ -377,11 +377,18 @@ export class MockOwnerApi implements OwnerApi {
     setTimeout(pay, 5000);
   }
 
-  /** 데모 입금: 입금 주소를 열면 몇 초 뒤 USDC가 들어온 것처럼 (빈 지갑일 때만) */
-  demoDeposit(): boolean {
-    if (this.startBalance - this.spent() > 0) return false;
-    setTimeout(() => (this.startBalance = this.spent() + 26.1), 3000);
-    return true;
+  /** 데모 입금: 주인이 "가짜 USDC 받기"를 누르면 잔액이 생긴다 (빈 지갑일 때만) */
+  demoEmpty(): boolean {
+    return this.startBalance - this.spent() <= 0;
+  }
+  demoDeposit(): void {
+    if (this.demoEmpty()) this.startBalance = this.spent() + 26.1;
+  }
+
+  /** 데모 연결: 주인이 "붙였어요"를 누르면 에이전트가 붙은 것처럼 (실제 지갑은 첫 활동이 있어야 연결됨) */
+  demoAttach(id: string): void {
+    const a = this.agentList.find((x) => x.id === id);
+    if (a && !a.last_activity_at) a.last_activity_at = Math.floor(Date.now() / 1000);
   }
 
   async cancelTask(id: string) {

@@ -4,6 +4,7 @@
 import { ApiError } from "../api.js";
 import { app, go, openSheet, refreshSoon, type Screen } from "../app.js";
 import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
+import { agentState, attached } from "./common.js";
 import { unlock } from "./gates.js";
 import { showCreated } from "./onboard.js";
 
@@ -31,7 +32,7 @@ export function agentEdit(id: string): Screen {
   const html = `
   <div class="screen">
     <div class="topbar"><button type="button" class="icon-btn" data-act="back" aria-label="뒤로">${ic.back()}</button><h1 class="t15b" style="margin:0">에이전트 편집</h1><span style="width:44px"></span></div>
-    <span class="conn-chip" style="margin-top:12px;align-self:flex-start;${a.connected ? "" : "opacity:0.6"}"><img src="/mark.svg" width="18" height="18" alt="">${a.connected ? (a.paused ? "멈춤" : "연결됨") : "연결 끊김"}</span>
+    <span class="conn-chip" style="margin-top:12px;align-self:flex-start;${attached(a) && !a.paused ? "" : "opacity:0.6"}"><img src="/mark.svg" width="18" height="18" alt="">${agentState(a)}</span>
 
     <label class="t13 dim" for="agent-name" style="margin-top:20px">이름</label>
     <div style="display:flex;gap:8px;margin-top:8px">

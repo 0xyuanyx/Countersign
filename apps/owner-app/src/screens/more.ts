@@ -4,7 +4,7 @@ import { ApiError, chainIds } from "../api.js";
 import { app, openSheet, refreshSoon, type Screen } from "../app.js";
 import { createPasskey, isStandalone, passkeySupported, store } from "../auth.js";
 import { addrHtml, esc, ic, toast, usdc } from "../ui.js";
-import { chainName, offlineBanner, tabs } from "./common.js";
+import { agentState, chainName, offlineBanner, tabs } from "./common.js";
 import { installGuide, pinChange, unlock } from "./gates.js";
 import { enableNotifications, notifyPermission } from "../notify.js";
 
@@ -134,7 +134,7 @@ export function settings(): Screen {
         .filter((a) => a.connected)
         .map(
           (a) => `<a class="list-row press" href="#/agent/${esc(a.id)}" style="min-height:56px;gap:12px"><img src="/mark.svg" width="24" height="24" alt="" style="${a.paused ? "opacity:0.4" : ""}">
-            <span class="t15" style="flex:1">${esc(a.name)}</span><span class="muted t13" style="display:flex;align-items:center;gap:6px">${a.paused ? "멈춤" : "연결됨"}${ic.chevR()}</span></a><div class="divider"></div>`,
+            <span class="t15" style="flex:1">${esc(a.name)}</span><span class="muted t13" style="display:flex;align-items:center;gap:6px">${agentState(a)}${ic.chevR()}</span></a><div class="divider"></div>`,
         )
         .join("")}
       <a class="list-row press" href="#/connect" style="min-height:56px;gap:12px">${ic.plus()}<span class="t15" style="flex:1">새 에이전트 연결</span>${ic.chevR()}</a>

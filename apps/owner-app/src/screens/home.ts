@@ -5,7 +5,7 @@ import { app, go, openSheet, refresh, refreshSoon, strip, type Screen } from "..
 import { store } from "../auth.js";
 import { addrHtml, countTo, esc, hhmm, ic, toast, usdc } from "../ui.js";
 import { openApproval } from "./approval.js";
-import { chainName, shortReason, statusWord, tabs } from "./common.js";
+import { attached, chainName, shortReason, statusWord, tabs } from "./common.js";
 import { unlock } from "./gates.js";
 import { homeEmpty, isFresh, setupDone } from "./onboard.js";
 import { hideComposer, showComposer } from "../composer.js";
@@ -118,9 +118,17 @@ export function home(): Screen {
     <div class="status-line ${banner ? "hidden" : ""}">
       <span class="dot ${paused ? "bad" : d.offline ? "off" : ""}"></span>
       <span>${paused ? "긴급 정지됨" : d.offline ? "연결 끊김" : "지켜보는 중"}</span>
-      <span class="dim">${paused ? "결제를 모두 막고 있어요" : connected.length ? `${esc(connected.map((a) => a.name).join(", "))} 연결됨` : "연결된 에이전트 없음"}</span>
+      <span class="dim">${
+        paused
+          ? "결제를 모두 막고 있어요"
+          : connected.some(attached)
+            ? `${esc(connected.filter(attached).map((a) => a.name).join(", "))} 연결됨`
+            : connected.length
+              ? `${esc(connected[0]!.name)} 연결 기다리는 중`
+              : "연결된 에이전트 없음"
+      }</span>
     </div>
-    <div class="muted" style="margin-top:16px;font-size:14px">결제용 잔액</div>
+    <div class="muted" style="margin-top:16px;font-size:14px">결제용 잔액${app.api.mock ? ' <span class="dim">· 데모 값, 진짜 USDC 아님</span>' : ""}</div>
     <div class="balance"><span class="num" data-bal ${balNum === undefined ? 'style="color:var(--fg3)"' : ""}>${balNum !== undefined ? (lastBalance ?? balNum).toFixed(2) : "-.--"}</span><span class="unit">USDC</span></div>
     ${balNum === undefined && d.balance?.balances[0]?.error ? `<div class="dim t12" style="margin-top:4px">잔액을 못 읽었어요: ${esc(d.balance.balances[0].error)}</div>` : ""}
     <div style="margin-top:20px;display:flex;justify-content:space-between;font-size:13px">
@@ -180,15 +188,36 @@ export function home(): Screen {
   };
 }
 
+/** 데모 입금: 진짜 주소·QR은 보여 주지 않는다 (가짜 주소로 진짜 돈을 보내지 않게). 누르면 가짜 USDC가 들어온다 */
+function demoDepositSheet(api: MockOwnerApi): void {
+  const empty = api.demoEmpty();
+  openSheet(
+    `<h1 class="title-md">입금</h1>
+     <div class="banner ask" role="note" style="margin-top:14px"><span class="dot ask"></span>
+       <span class="stack"><span class="t14">데모예요 · 진짜 USDC는 오가지 않아요</span><span class="dim t12">계정을 만든다고 USDC가 들어오지 않아요. 실제 지갑은 이 화면에 지갑 서버의 입금 주소가 나와요</span></span></div>
+     <p class="muted t13" style="margin-top:14px;line-height:20px">${empty ? "아래를 누르면 가짜 26.10 USDC가 들어온 것처럼 이어가요" : "이미 데모 잔액이 있어요"}</p>
+     <div class="bottom-actions" style="padding-top:16px">
+       ${empty ? '<button class="btn btn-primary press" data-act="fake">가짜 26.10 USDC 받기</button>' : ""}
+       <button class="btn btn-ghost press" data-act="close">닫기</button>
+     </div>`,
+    (sheet, close) =>
+      sheet.addEventListener("click", async (e) => {
+        const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
+        if (act === "close") return void close();
+        if (act === "fake") {
+          api.demoDeposit();
+          await close();
+          toast("데모 · 가짜 26.10 USDC를 넣었어요");
+          refreshSoon();
+        }
+      }),
+    { label: "입금 (데모)" },
+  );
+}
+
 /** 입금 주소: QR, 주소, 주소 복사·공유 (공유는 Web Share API로 주소와 QR 그림을 보낸다) */
 export function deposit(): void {
-  // 데모: 빈 지갑이면 입금 주소를 연 뒤 몇 초 있다 USDC가 들어온 것처럼 보여 준다
-  if (app.api instanceof MockOwnerApi && app.api.demoDeposit()) {
-    setTimeout(() => {
-      toast("데모 · 26.10 USDC가 들어왔어요");
-      refreshSoon();
-    }, 3100);
-  }
+  if (app.api instanceof MockOwnerApi) return demoDepositSheet(app.api);
   const acct = app.data.balance?.account ?? app.data.policy?.account;
   const net = chainName(chainIds(app.data.policy)[0]);
   openSheet(
@@ -281,8 +310,9 @@ async function resume(): Promise<void> {
 /** 에이전트 한 줄 설명: 상태 먼저, 마지막 활동은 뒤로 */
 export function agentLine(a: Agent): string {
   if (!a.connected) return "연결 끊김";
+  if (!a.last_activity_at) return "연결 기다리는 중 · 에이전트 앱에 주소를 넣으면 붙어요";
   if (a.paused) return "멈춤 · 이 에이전트만 멈춰 있어요";
-  return a.last_activity_at ? `연결됨 · 마지막 활동 ${new Date(a.last_activity_at * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}` : "연결됨";
+  return `연결됨 · 마지막 활동 ${new Date(a.last_activity_at * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function agentsSheet(): void {

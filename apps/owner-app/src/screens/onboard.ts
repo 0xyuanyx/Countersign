@@ -5,7 +5,8 @@
 import { ApiError, chainIds, type NewAgent } from "../api.js";
 import { app, go, refreshSoon, type Screen } from "../app.js";
 import { esc, ic, toast, usdc } from "../ui.js";
-import { chainName, tabs } from "./common.js";
+import { agentState, attached, chainName, tabs } from "./common.js";
+import { MockOwnerApi } from "../mock.js";
 import { unlock } from "./gates.js";
 
 const SETUP_KEY = "cs.setupDone";
@@ -99,6 +100,7 @@ export function connect(): Screen {
       <span class="conn-chip" style="margin-top:12px;align-self:flex-start"><span class="dot"></span>${esc(created.name)} 연결 주소를 만들었어요</span>
       <h1 class="title-md" style="margin-top:16px">에이전트 앱에 이 주소를 넣어 주세요</h1>
       <p class="muted t13" style="margin-top:8px;line-height:20px">여기서 한 번만 보여 줘요 · 이 주소는 비밀번호와 같아서, 잃어버리면 연결을 끊고 새로 만들면 돼요</p>
+      ${app.api.mock ? `<div class="banner ask" role="note" style="margin-top:16px"><span class="dot ask"></span><span class="stack"><span class="t14">데모라 실제 에이전트는 붙지 않아요</span><span class="dim t12">"붙였어요, 다음"을 누르면 에이전트가 붙은 것처럼 이어가요</span></span></div>` : ""}
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
         ${cmd("Claude 앱", created.connect.claude_connector, "설정 › 커넥터 › 사용자 지정 커넥터에 붙여 넣기")}
         ${cmd("Claude Code", created.connect.claude_code, "터미널에 붙여 넣기")}
@@ -150,6 +152,10 @@ export function connect(): Screen {
         if (act === "next" && created) {
           const id = created.id;
           created = undefined; // 토큰이 든 주소는 화면을 떠나면 다시 보여 주지 않는다
+          if (app.api instanceof MockOwnerApi) {
+            app.api.demoAttach(id);
+            refreshSoon();
+          }
           if (setupDone()) {
             // 기본 규칙은 지갑 하나에 하나라, 두 번째 에이전트부터는 바로 홈으로
             toast("연결했어요. 기본 규칙은 그대로 따라요");
@@ -187,7 +193,7 @@ export function agentSetup(id: string): Screen {
   const html = `
   <div class="screen">
     <div class="topbar"><span></span><span class="t13 dim">2 / 3</span></div>
-    <span class="conn-chip" style="margin-top:12px;align-self:flex-start"><img src="/mark.svg" width="18" height="18" alt="">${esc(a?.name ?? "에이전트")} 연결됨</span>
+    <span class="conn-chip" style="margin-top:12px;align-self:flex-start"><img src="/mark.svg" width="18" height="18" alt="" style="${a && attached(a) ? "" : "opacity:0.4"}">${esc(a?.name ?? "에이전트")} ${a ? agentState(a) : "연결 기다리는 중"}${app.api.mock ? " · 데모" : ""}</span>
     <h1 class="title-md" style="margin-top:16px;font-size:26px;line-height:1.3">일을 맡기기 전에<br>기본 규칙을 정해요</h1>
     <p class="muted" style="margin-top:8px;font-size:14px">나중에 정책 탭에서 언제든 바꿀 수 있어요</p>
     <section class="card" style="margin-top:20px;padding:4px 16px">
