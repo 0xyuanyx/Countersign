@@ -29,7 +29,7 @@ describe("signer", () => {
     expect(r).toMatchObject({ ok: true, op: "sign_payment" });
     if (r.ok && r.op === "sign_payment") {
       const fin = await w.hsp.finalizePayment(w.order.orderRef, r.signature);
-      expect(fin.payment_id).toMatch(/^mock_pay_/);
+      expect(fin.payment_id).toMatch(/^mock_pr_/);
     }
   });
 

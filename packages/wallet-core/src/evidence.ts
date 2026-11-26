@@ -240,3 +240,33 @@ export function buildEvidence(v: VerifiedPayment, order: Order, payTxHash: Hex):
     payTxHash,
   };
 }
+
+/**
+ * prepare_payment가 eip712와 같이 돌려준 값(가이드 §7)이 서명 대상과 같은지 (HSP 쪽 고장·변조 방어).
+ * - pay_to·payer: eip712 message.to·from과 같아야 한다
+ * - token_total_raw: eip712 message.value와 같아야 한다 (가이드: 이 값을 그대로 써야 함)
+ * - gas_fee_advanced === false: 서명 금액에 가스가 더해진다. 주문 금액과 정확히 같은지만 보는 지갑이라 서명하지 않는다 (§9 미결)
+ * 값이 없으면(옛 mock) 그 칸은 건너뛴다. 있는데 다르면 거절.
+ */
+export function checkPrepared(
+  p: { pay_to?: string; payer?: string; token_total_raw?: string | number; gas_fee_advanced?: boolean },
+  td: TwaTypedData,
+  agent: Address,
+): { ok: true } | Rejection {
+  const bad = (what: string) => reject("TYPED_DATA_MISMATCH", "typed_data", what);
+  if (p.gas_fee_advanced === false) return bad("가스를 구매자가 내는 주문(gas_fee_advanced=false)은 금액 대조가 정확하지 않아 서명하지 않음");
+  if (p.pay_to !== undefined && !sameAddress(p.pay_to, td.message.to)) return bad("prepare_payment의 pay_to가 서명 대상과 다름");
+  if (p.payer !== undefined && (!sameAddress(p.payer, td.message.from) || !sameAddress(p.payer, agent))) {
+    return bad("prepare_payment의 payer가 이 에이전트 계정이 아님");
+  }
+  if (p.token_total_raw !== undefined) {
+    let total: bigint;
+    try {
+      total = parseUint(p.token_total_raw);
+    } catch {
+      return bad("token_total_raw 형식이 아님");
+    }
+    if (total !== td.message.value) return bad("token_total_raw가 서명 대상 금액과 다름");
+  }
+  return { ok: true };
+}

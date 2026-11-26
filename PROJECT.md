@@ -368,7 +368,7 @@ countersign-agent/          (로컬 폴더: ~/Developer/Countersign)
 | 4 | "공식 권장 제품·프레임워크" 목록에 HSP MCP 말고 더 있는지 | 가산점 | 운영진 |
 | 5 | ~~서울 심사 기준~~ → 완성도·기술적 성숙도·혁신성 (Luma, 배점 없음) | README·발표 구조 | 해결 |
 | 6 | 메인넷 HSK 가스 확보 | 컨트랙트 배포, 증거 기록 | 거래소 출금 |
-| 8 | (일부 해결: 가이드에 `prepare_payment` 반환 키와 `finalize_payment` 입력이 나옴 → §4.1. 라이브 스키마로 최종 확인) HSP MCP 도구별 **입력 인자 이름과 응답 형태** (`get_order`의 금액이 최소 단위 정수인지 "0.10" 같은 소수인지, `prepare_payment`가 typed data를 어떤 키로 주는지, `finalize_payment`에 무엇을 넘기는지) | 지금은 `packages/hsp/src/types.ts`에 내부 표준 형태를 정해 두고 mock이 그걸 따른다. 실제 형식은 `mcp-client.ts`의 `args`·`adapt` 두 곳만 고치면 된다 | HSP 가이드 원문 |
+| 8 | (11/27: 클라이언트를 가이드 순서·인자 이름으로 바꿈 — create_order(merchant_name, pay_to, cart_mandate)→flow_id·payment_request_id, prepare_payment(flow_id, payer, protocol)→eip712 등, finalize_payment(서명+값 세 개)→payment_mandate_json, submit_payment(payment_mandate_json), query_payment(flow_id, payment_request_id, expected_merchant_name). mock도 같은 모양) **남은 추측**: `get_order`·`get_chain_config`·`query_payment` 응답의 세부 키, `cart_mandate.method_data.data` 안의 키 이름. `mcp-client.ts`의 `adapt*`와 `cart.ts`만 라이브 스키마로 맞추면 된다. 최소 단위 금액이 없거나 모르는 상태값이면 추측하지 않고 거절한다 | 실결제 첫 호출 | IP 허용 뒤 라이브 스키마 |
 | 9 | USDC EIP-712 domain의 `name`/`version`이 체인별로 무엇인지 (HSK 177·133, Sepolia 계열) | 틀리면 서명이 체인에서 무효가 될 뿐 돈이 새지는 않는다. 지금은 HSP가 준 값을 그대로 쓰고 검사하지 않는다 | 토큰 컨트랙트 `name()`/`version()` 조회 |
 | 10 | `query_payment` 응답에 `order_ref`가 있는지, 판매자가 "이 결제가 내 주문 것"임을 어떻게 확인하는지 (지금은 구매자가 `payment_id`를 판매자에게 넘기고, 판매자가 `query_payment`의 `order_ref`로 대조한다고 가정. mock은 그렇게 동작) | 판매 서버 납품 조건 | HSP 가이드 원문 |
 | 7 | ~~Merchant REST 판매자 등록이 필요한지~~ → 불필요. 공식 MCP 서버가 판매자 키를 대신 들고 EIP-712 데이터를 돌려준다 (hsk-meter `hsp_qa/README.md`) | 일 줄이기 | 해결 |

@@ -28,7 +28,12 @@ const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "주소 형식이 아님
 const uintLike = z.union([z.string().regex(/^(0x[0-9a-fA-F]+|\d+)$/), z.number().int().nonnegative()]);
 
 export const RawOrderSchema = z.object({
+  /** HSP flow_id (가이드 §6: get_order·prepare_payment·query_payment에 쓰는 주문 id). 에이전트에게는 order_ref로 보인다 */
   order_ref: z.string().min(1).max(200),
+  /** HSP payment_request_id (create_order가 돌려줌). 결제 조회·복구에 flow_id와 같이 쓴다 */
+  payment_request_id: z.string().max(200).optional(),
+  /** true면 가스를 플랫폼이 대납 (가이드 §5). false면 서명 금액에 가스가 더해진다 → 지갑은 서명하지 않는다 */
+  gas_fee_advanced: z.boolean().optional(),
   /** 수취인 (판매자 고정 주소여야 함) */
   pay_to: address,
   /** 최소 단위 정수 문자열 (USDC 6 decimals). 사람이 읽는 "0.10" 형식이 오면 adapter에서 변환 */
@@ -58,14 +63,33 @@ export const RawTypedDataSchema = z.object({
 });
 export type RawTypedData = z.infer<typeof RawTypedDataSchema>;
 
+/**
+ * prepare_payment 결과 (가이드 §7 예시 필드). typed_data = 가이드의 eip712 (그대로 서명).
+ * finalize: finalize_payment에 손대지 않고 돌려줄 값 세 개 (payment_payload, payment_mandate_contents, cart_hash).
+ */
 export const PrepareResultSchema = z.object({
   order_ref: z.string(),
   typed_data: RawTypedDataSchema,
-  /** finalize_payment에 그대로 돌려줄 불투명 값 */
+  /** 잠긴 토큰 승인 금액 (최소 단위). eip712 message.value와 같아야 한다 */
+  token_total_raw: uintLike.optional(),
+  /** 견적 만료 (RFC3339, 5분) */
+  quote_expires_at: z.string().max(64).optional(),
+  pay_to: address.optional(),
+  payer: address.optional(),
+  payment_request_id: z.string().max(200).optional(),
+  /** @deprecated finalize.payment_payload와 같은 값 (옛 mock 호환) */
   payment_payload: z.unknown().optional(),
+  finalize: z
+    .object({ payment_payload: z.unknown(), payment_mandate_contents: z.unknown(), cart_hash: z.string().max(200) })
+    .optional(),
 });
 export type PrepareResult = z.infer<typeof PrepareResultSchema>;
 
+/**
+ * 내부 결제 상태. HSP 원래 상태(가이드 §8)는 QueryResult.hsp_status에 그대로 둔다.
+ *   payment-submitted/verified/processing/included/timeout → submitted (계속 조회)
+ *   payment-safe → payment-safe (확정 아님) / payment-finalized → payment-finalized / payment-failed → failed
+ */
 export const PaymentStatusSchema = z.enum([
   "pending",
   "submitted",
@@ -75,12 +99,17 @@ export const PaymentStatusSchema = z.enum([
 ]);
 export type PaymentStatus = z.infer<typeof PaymentStatusSchema>;
 
-export const FinalizeResultSchema = z.object({ payment_id: z.string().min(1) });
+/** finalize_payment 결과: payment_mandate_json을 submit_payment에 그대로 넘긴다 (가이드 §7) */
+export const FinalizeResultSchema = z.object({ payment_id: z.string().min(1), payment_mandate_json: z.unknown().optional() });
 export const SubmitResultSchema = z.object({ payment_id: z.string(), tx_hash: hex.optional() });
 export const QueryResultSchema = z.object({
   payment_id: z.string(),
-  /** ⚠️ ASSUMED (§9 #8): 판매자가 "이 결제가 내 주문 것인지" 확인하려면 필요. 실제 응답에 없으면 adapter에서 get_order로 채운다 */
+  /** 조회한 주문의 flow_id (조회할 때 flow_id를 넘기므로 클라이언트가 채운다) */
   order_ref: z.string().optional(),
+  /** HSP 원래 상태 문자열 (payment-included 등) */
+  hsp_status: z.string().max(64).optional(),
+  /** query_payment의 attribution_verified (팀 귀속 확인). mock은 true */
+  attribution_verified: z.boolean().optional(),
   status: PaymentStatusSchema,
   tx_hash: hex.optional(),
   chain_id: z.number().int().positive().optional(),
@@ -108,12 +137,17 @@ export interface CreateOrderInput {
 export interface HspClient {
   getChainConfig(): Promise<ChainConfig>;
   createOrder(input: CreateOrderInput): Promise<RawOrder>;
+  /** orderRef = flow_id */
   getOrder(orderRef: string): Promise<RawOrder>;
-  preparePayment(orderRef: string, payer: string): Promise<PrepareResult>;
-  finalizePayment(orderRef: string, signature: string, paymentPayload?: unknown): Promise<{ payment_id: string }>;
+  /** protocol: get_chain_config 토큰의 payment_protocol (지갑은 eip3009만 서명한다) */
+  preparePayment(orderRef: string, payer: string, protocol?: "eip3009" | "permit2"): Promise<PrepareResult>;
+  /** prepared: prepare_payment 결과 (finalize 값 세 개를 그대로 넘긴다) */
+  finalizePayment(orderRef: string, signature: string, prepared?: PrepareResult): Promise<{ payment_id: string; payment_mandate_json?: unknown }>;
   estimateFee(orderRef: string): Promise<unknown>;
-  submitPayment(paymentId: string): Promise<{ payment_id: string; tx_hash?: string }>;
-  queryPayment(paymentId: string): Promise<QueryResult>;
+  /** mandate: finalize_payment가 돌려준 payment_mandate_json (그대로) */
+  submitPayment(paymentId: string, mandate?: unknown): Promise<{ payment_id: string; tx_hash?: string }>;
+  /** paymentId = payment_request_id, orderRef = flow_id (둘 다 넘겨 같은 결제를 조회한다) */
+  queryPayment(paymentId: string, orderRef?: string): Promise<QueryResult>;
 }
 
 export class HspError extends Error {

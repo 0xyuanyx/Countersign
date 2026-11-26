@@ -55,7 +55,9 @@ export interface SellerDeps {
 }
 
 interface SoldOrder {
+  /** HSP flow_id */
   orderRef: string;
+  paymentRequestId?: string;
   sku: string;
   subject: string;
   payTo: Address;
@@ -112,6 +114,7 @@ export function createSeller(d: SellerDeps): Server {
     });
     sold.set(raw.order_ref, {
       orderRef: raw.order_ref,
+      ...(raw.payment_request_id && { paymentRequestId: raw.payment_request_id }),
       sku: item.sku,
       subject: body.data.subject ?? "",
       payTo: actual.payTo,
@@ -149,11 +152,16 @@ export function createSeller(d: SellerDeps): Server {
     // HSP에서 결제를 직접 확인한다. 구매자가 "냈다"고 말하는 것만으로는 납품하지 않는다
     let q;
     try {
-      q = await d.hsp.queryPayment(body.data.payment_id);
+      // 판매자 자기 주문(flow_id)으로 묻는다: 구매자가 준 payment_id는 그 주문의 payment_request_id와 같아야 한다
+      if (o.paymentRequestId && body.data.payment_id !== o.paymentRequestId) {
+        return send(res, 402, { ok: false, error: "이 결제는 이 주문 것이 아님" });
+      }
+      q = await d.hsp.queryPayment(body.data.payment_id, o.orderRef);
     } catch {
       return send(res, 402, { ok: false, error: "HSP에서 이 결제를 찾을 수 없음" });
     }
     if (q.order_ref !== o.orderRef) return send(res, 402, { ok: false, error: "이 결제는 이 주문 것이 아님" });
+    if (q.attribution_verified === false) return send(res, 402, { ok: false, error: "HSP 팀 귀속이 확인되지 않음" });
     if (q.status !== "payment-finalized") {
       return send(res, 402, { ok: false, error: `결제 확정 전 (HSP 상태 ${q.status}). 잠시 뒤 다시 요청` });
     }

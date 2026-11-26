@@ -57,7 +57,7 @@ describe("결제 상태: 확정만 paid", () => {
 
     const c1 = await w.checkPayment(o.order_ref);
     expect(c1, JSON.stringify(c1)).toMatchObject({ hsp_status: "payment-safe" });
-    expect(history.list(1)[0].status).toBe("confirming");
+    expect(history.list(1)[0]!.status).toBe("confirming");
     expect(await w.checkPayment(o.order_ref)).toMatchObject({ ok: true, hsp_status: "payment-finalized" });
     const all = history.list(10);
     expect(all.filter((e) => e.order_ref === o.order_ref)).toHaveLength(2); // 결제 1건(갱신됨) + DUPLICATE 거절 1건

@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { HspError, explorerUrl, type HspClient, type QueryResult } from "@countersign/hsp";
+import { HspError, explorerUrl, type HspClient, type PrepareResult, type QueryResult } from "@countersign/hsp";
 import type { SignerResponse } from "@countersign/signer";
 import {
   approvalMatches,
   checkOrder,
+  checkPrepared,
   checkSignature,
   describeChecks,
   parseTypedData,
@@ -245,11 +246,10 @@ export class WalletService {
 
     // 3. 서명 대상 받기 → 주문과 필드별 대조
     let typedData: unknown;
-    let payload: unknown;
+    let prepared: PrepareResult;
     try {
-      const p = await this.d.hsp.preparePayment(orderRef, agent);
-      typedData = p.typed_data;
-      payload = p.payment_payload;
+      prepared = await this.d.hsp.preparePayment(orderRef, agent, "eip3009");
+      typedData = prepared.typed_data;
     } catch (e) {
       return this.rejected(id, orderRef, hspRejection("prepare_payment", e), intentInfo, order, ctx);
     }
@@ -258,6 +258,9 @@ export class WalletService {
     if (parsedTd.ok) ctx.td = parsedTd.td;
     const v = verifyPayment({ order, intent, policy, ledger: this.d.ledger, typedData, agent, now: t, extras });
     if (!v.ok) return this.rejected(id, orderRef, v, intentInfo, order, ctx);
+    // prepare_payment가 같이 돌려준 값(받는 주소·payer·잠긴 금액·가스 대납 여부)도 서명 대상과 같아야 한다
+    const meta = checkPrepared({ ...prepared, gas_fee_advanced: order.gasFeeAdvanced }, v.td, agent);
+    if (!meta.ok) return this.rejected(id, orderRef, meta, intentInfo, order, ctx);
 
     // 4. 검증 티켓과 함께 signer에 서명 요청 (signer는 같은 검사를 처음부터 다시 한다)
     const ticket = issueTicket(this.d.ticketSecret, {
@@ -303,8 +306,11 @@ export class WalletService {
     //    - HSP가 failed를 알림 → failed
     //    - payment-finalized만 paid (맡긴 일도 그때만 paid)
     let paymentId: string;
+    let mandate: unknown;
     try {
-      paymentId = (await this.d.hsp.finalizePayment(orderRef, signed.signature, payload)).payment_id;
+      const fin = await this.d.hsp.finalizePayment(orderRef, signed.signature, prepared);
+      paymentId = fin.payment_id;
+      mandate = fin.payment_mandate_json;
     } catch (e) {
       const r = hspRejection("finalize", e);
       const next_action = "HSP가 서명을 받지 않아 돈은 나가지 않았다. 같은 주문은 다시 서명할 수 없으니 판매자에게 새 주문을 요청한다";
@@ -315,14 +321,15 @@ export class WalletService {
     const pending: PendingPayment = { id, orderRef, paymentId, base, events, agent, order, v };
     let subTx: string | undefined;
     try {
-      subTx = (await this.d.hsp.submitPayment(paymentId)).tx_hash;
+      // payment_mandate_json을 손대지 않고 그대로 제출 (가이드 §7)
+      subTx = (await this.d.hsp.submitPayment(paymentId, mandate)).tx_hash;
       events.push({ stage: "submitted", at: this.now() });
     } catch (e) {
       return this.unconfirmed(pending, hspRejection("submit", e).reason);
     }
     let q: QueryResult;
     try {
-      q = await this.waitFinal(paymentId, events);
+      q = await this.waitFinal(paymentId, events, orderRef);
     } catch (e) {
       return this.unconfirmed(pending, hspRejection("query", e).reason, subTx);
     }
@@ -410,7 +417,7 @@ export class WalletService {
     }
     let q: QueryResult;
     try {
-      q = await this.d.hsp.queryPayment(entry.payment_id);
+      q = await this.d.hsp.queryPayment(entry.payment_id, orderRef);
     } catch (e) {
       return reject("PAYMENT_UNCONFIRMED", "hsp", hspRejection("query", e).reason);
     }
@@ -506,17 +513,17 @@ export class WalletService {
     return resolvePolicy(this.d.policy);
   }
 
-  private async waitFinal(paymentId: string, events: { stage: string; at: number }[]): Promise<QueryResult> {
+  private async waitFinal(paymentId: string, events: { stage: string; at: number }[], orderRefOf: string): Promise<QueryResult> {
     const interval = this.d.pollIntervalMs ?? 2000;
     const deadline = Date.now() + (this.d.pollTimeoutMs ?? 120_000);
     const seen = (status: string) => {
       if (!events.some((e) => e.stage === status)) events.push({ stage: status, at: this.now() });
     };
-    let q = await this.d.hsp.queryPayment(paymentId);
+    let q = await this.d.hsp.queryPayment(paymentId, orderRefOf);
     seen(q.status);
     while (q.status !== "payment-finalized" && q.status !== "failed" && Date.now() < deadline) {
       if (interval > 0) await new Promise((r) => setTimeout(r, interval));
-      q = await this.d.hsp.queryPayment(paymentId);
+      q = await this.d.hsp.queryPayment(paymentId, orderRefOf);
       seen(q.status);
     }
     return q;

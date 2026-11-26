@@ -11,6 +11,8 @@ export interface Order {
   token: Address;
   /** unix seconds */
   expiresAt: number;
+  /** HSP get_order의 gas_fee_advanced (없으면 모름) */
+  gasFeeAdvanced?: boolean;
 }
 
 /** HSP 응답(검증 안 된 값) → Order. zod 검증 후 주소는 체크섬 형태로 통일한다. */
@@ -23,6 +25,7 @@ export function normalizeOrder(raw: unknown): Order {
     chainId: r.chain_id,
     token: getAddress(r.token),
     expiresAt: r.expires_at,
+    ...(r.gas_fee_advanced !== undefined && { gasFeeAdvanced: r.gas_fee_advanced }),
   };
 }
 

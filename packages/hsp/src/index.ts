@@ -2,7 +2,8 @@ export * from "./canonical.js";
 export * from "./config.js";
 export * from "./types.js";
 export { MockHsp, type MockHspOptions } from "./mock.js";
-export { McpHspClient } from "./mcp-client.js";
+export { McpHspClient, adaptChainConfig, adaptOrder, adaptQuery } from "./mcp-client.js";
+export { buildCartMandate, readCartMandate } from "./cart.js";
 
 import { loadHspConfig, type HspConfig } from "./config.js";
 import { McpHspClient } from "./mcp-client.js";
@@ -18,7 +19,8 @@ export async function createHspClient(config: HspConfig = loadHspConfig()): Prom
     if (!token) throw new Error(`mock: 체인 ${config.payChainId}의 USDC 주소를 모름`);
     return new MockHsp({ chainId: config.payChainId, token, tokenName: KNOWN_USDC_NAME[config.payChainId] ?? "USD Coin" });
   }
-  const c = new McpHspClient(url);
+  // mock 서버에 붙을 때도 같은 클라이언트 (팀 이름은 실서버만 필수)
+  const c = new McpHspClient(url, { merchantName: config.mode === "mcp" ? config.merchantName : "countersign-mock" });
   await c.connect();
   return c;
 }

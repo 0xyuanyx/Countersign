@@ -62,12 +62,12 @@ describe("설정값", () => {
   it("결제 체인은 환경변수로 바꾼다", () => {
     expect(loadHspConfig({ COUNTERSIGN_PAY_CHAIN_ID: "177" })).toEqual({ mode: "mock", payChainId: 177 });
   });
-  it("mcp 모드는 https 주소와 체인을 반드시 받는다", () => {
+  it("mcp 모드는 https 주소·체인·팀 이름(merchant_name)을 반드시 받는다", () => {
+    const qa = { COUNTERSIGN_HSP_MODE: "mcp", COUNTERSIGN_HSP_MCP_URL: "https://mcp-qa.hashkeymerchant.com/", COUNTERSIGN_PAY_CHAIN_ID: "11155111" };
     expect(() => loadHspConfig({ COUNTERSIGN_HSP_MODE: "mcp" })).toThrow();
-    expect(() => loadHspConfig({ COUNTERSIGN_HSP_MODE: "mcp", COUNTERSIGN_HSP_MCP_URL: "http://x.test", COUNTERSIGN_PAY_CHAIN_ID: "84532" })).toThrow();
-    expect(
-      loadHspConfig({ COUNTERSIGN_HSP_MODE: "mcp", COUNTERSIGN_HSP_MCP_URL: "https://mcp-qa.hashkeymerchant.com/", COUNTERSIGN_PAY_CHAIN_ID: "84532" }),
-    ).toMatchObject({ mode: "mcp", payChainId: 84532 });
+    expect(() => loadHspConfig({ ...qa, COUNTERSIGN_HSP_MCP_URL: "http://x.test" })).toThrow();
+    expect(() => loadHspConfig(qa)).toThrow(); // 팀 이름 없음
+    expect(loadHspConfig({ ...qa, COUNTERSIGN_HSP_MERCHANT_NAME: "Countersign" })).toMatchObject({ mode: "mcp", payChainId: 11155111, merchantName: "Countersign" });
   });
   it("mock은 USDC 주소를 모르는 체인이면 만들지 않는다", async () => {
     await expect(createHspClient({ mode: "mock", payChainId: 84532 })).rejects.toThrow();

@@ -13,8 +13,8 @@ const SELLER = "0x00000000000000000000000000000000000000a1";
 let srv: MockHspServer;
 let client: McpHspClient;
 beforeAll(async () => {
-  srv = await serveMockHsp({ chainId: 133, token: TOKEN });
-  client = new McpHspClient(srv.url);
+  srv = await serveMockHsp({ chainId: 133, token: TOKEN, merchantName: "team-x" });
+  client = new McpHspClient(srv.url, { merchantName: "team-x" });
   await client.connect();
 });
 afterAll(async () => {
@@ -23,17 +23,33 @@ afterAll(async () => {
 });
 
 describe("HSP mock MCP 서버 ↔ McpHspClient", () => {
-  it("실서버와 같은 클라이언트로 주문 → 결제 → 완료까지 간다", async () => {
+  it("공식 가이드 순서·인자 이름으로 주문 → prepare → finalize → submit → query 완료까지 간다", async () => {
     const o = await client.createOrder({ pay_to: SELLER, amount: "100000", chain_id: 133, token: TOKEN });
-    expect(await client.getOrder(o.order_ref)).toMatchObject({ pay_to: SELLER, amount: "100000" });
-    const p = await client.preparePayment(o.order_ref, payer.address);
+    expect(o.order_ref).toMatch(/^mock_ord_/); // flow_id
+    expect(o.payment_request_id).toMatch(/^mock_pr_/);
+    expect(await client.getOrder(o.order_ref)).toMatchObject({ pay_to: SELLER, amount: "100000", gas_fee_advanced: true });
+    const p = await client.preparePayment(o.order_ref, payer.address, "eip3009");
+    expect(p).toMatchObject({ token_total_raw: "100000", pay_to: SELLER, payer: payer.address, payment_request_id: o.payment_request_id });
+    expect(p.finalize?.cart_hash).toMatch(/^[0-9a-f]{64}$/);
     const { EIP712Domain: _d, ...types } = p.typed_data.types;
     const sig = await payer.signTypedData({ ...p.typed_data, types } as never);
-    const { payment_id } = await client.finalizePayment(o.order_ref, sig, p.payment_payload);
-    await client.submitPayment(payment_id);
-    let q = await client.queryPayment(payment_id);
-    while (q.status !== "payment-finalized") q = await client.queryPayment(payment_id);
-    expect(q).toMatchObject({ order_ref: o.order_ref, chain_id: 133 });
+    const fin = await client.finalizePayment(o.order_ref, sig, p);
+    expect(fin.payment_id).toBe(o.payment_request_id);
+    expect(fin.payment_mandate_json).toBeTruthy();
+    await client.submitPayment(fin.payment_id, fin.payment_mandate_json);
+    let q = await client.queryPayment(fin.payment_id, o.order_ref);
+    expect(q).toMatchObject({ hsp_status: "payment-included", status: "submitted", attribution_verified: true });
+    while (q.status !== "payment-finalized") q = await client.queryPayment(fin.payment_id, o.order_ref);
+    expect(q).toMatchObject({ order_ref: o.order_ref, tx_hash: expect.stringMatching(/^0x/) });
+    // 다른 팀 이름으로 조회하면 귀속 확인이 false
+    const other = new McpHspClient(srv.url, { merchantName: "someone-else" });
+    await other.connect();
+    expect((await other.queryPayment(fin.payment_id, o.order_ref)).attribution_verified).toBe(false);
+    await other.close();
+  });
+
+  it("get_chain_config에 없는 체인·토큰으로는 주문을 만들지 않는다", async () => {
+    await expect(client.createOrder({ pay_to: SELLER, amount: "1", chain_id: 84532, token: TOKEN })).rejects.toMatchObject({ hspCode: "UNSUPPORTED" });
   });
 
   it("HSP 오류는 HspError로, 5자리 코드는 숫자로 온다", async () => {
@@ -41,7 +57,7 @@ describe("HSP mock MCP 서버 ↔ McpHspClient", () => {
     const o = await client.createOrder({ pay_to: SELLER, amount: "1", chain_id: 133, token: TOKEN });
     const p = await client.preparePayment(o.order_ref, payer.address);
     const { EIP712Domain: _d, ...types } = p.typed_data.types;
-    await client.finalizePayment(o.order_ref, await payer.signTypedData({ ...p.typed_data, types } as never));
+    await client.finalizePayment(o.order_ref, await payer.signTypedData({ ...p.typed_data, types } as never), p);
     await expect(client.preparePayment(o.order_ref, payer.address)).rejects.toMatchObject({ hspCode: 30043 });
   });
 

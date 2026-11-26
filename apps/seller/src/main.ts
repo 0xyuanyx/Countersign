@@ -26,14 +26,22 @@ if (hspConfig.mode === "mock" && !hspConfig.mcpUrl) {
   console.error("판매 서버와 구매자 지갑이 같은 HSP mock을 써야 함: COUNTERSIGN_HSP_MCP_URL=http://127.0.0.1:7410/mcp");
   process.exit(1);
 }
-const token = KNOWN_USDC[hspConfig.payChainId];
-if (!token) {
-  console.error(`체인 ${hspConfig.payChainId}의 USDC 주소를 모름`);
+const hsp = await createHspClient(hspConfig);
+// 네트워크·토큰은 HSP get_chain_config에서만 (가이드 §5, AGENTS.md 규칙 9). 그 체인의 USDC(eip3009)가 없으면 시작하지 않는다
+const cfg = await hsp.getChainConfig();
+const chain = cfg.chains.find((c) => c.chain_id === hspConfig.payChainId);
+const tokenRaw = chain?.tokens.USDC ?? chain?.tokens.usdc;
+if (!tokenRaw) {
+  console.error(`HSP get_chain_config에 체인 ${hspConfig.payChainId}의 USDC가 없음`);
   process.exit(1);
+}
+const token = getAddress(tokenRaw);
+if (KNOWN_USDC[hspConfig.payChainId] && token.toLowerCase() !== KNOWN_USDC[hspConfig.payChainId]!.toLowerCase()) {
+  console.error(`경고: HSP의 USDC(${token})가 알려진 주소와 다름 — 구매자 정책의 토큰 주소도 HSP 값으로 맞춰야 결제된다`);
 }
 let url = "";
 const server = createSeller({
-  hsp: await createHspClient(hspConfig),
+  hsp,
   name: env.COUNTERSIGN_SELLER_NAME || "data-mart",
   payTo: getAddress(payToRaw),
   chainId: hspConfig.payChainId,

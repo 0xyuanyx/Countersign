@@ -20,6 +20,8 @@ export const HspConfigSchema = z.discriminatedUnion("mode", [
     /** 예: QA https://mcp-qa.hashkeymerchant.com/ (IP 허용 목록 필요) */
     mcpUrl: z.url().refine((u) => u.startsWith("https://"), "https만 허용"),
     payChainId: z.number().int().positive(),
+    /** 팀 집계용 이름 (가이드 §6, 생성·조회에 똑같이). COUNTERSIGN_HSP_MERCHANT_NAME */
+    merchantName: z.string().min(1).max(100),
   }),
 ]);
 export type HspConfig = z.infer<typeof HspConfigSchema>;
@@ -27,7 +29,12 @@ export type HspConfig = z.infer<typeof HspConfigSchema>;
 export function loadHspConfig(env: NodeJS.ProcessEnv = process.env): HspConfig {
   const mode = env.COUNTERSIGN_HSP_MODE ?? "mock";
   const payChainId = env.COUNTERSIGN_PAY_CHAIN_ID ? Number(env.COUNTERSIGN_PAY_CHAIN_ID) : undefined;
-  return HspConfigSchema.parse({ mode, mcpUrl: env.COUNTERSIGN_HSP_MCP_URL || undefined, payChainId });
+  return HspConfigSchema.parse({
+    mode,
+    mcpUrl: env.COUNTERSIGN_HSP_MCP_URL || undefined,
+    payChainId,
+    merchantName: env.COUNTERSIGN_HSP_MERCHANT_NAME || (mode === "mock" ? undefined : undefined),
+  });
 }
 
 /**

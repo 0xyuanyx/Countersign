@@ -74,7 +74,13 @@ export class MockHsp implements HspClient {
   }
 
   async getChainConfig(): Promise<ChainConfig> {
-    return { chains: [{ chain_id: this.opts.chainId, name: "mock", tokens: { USDC: this.opts.token } }] };
+    // 결제 체인 + Base Sepolia (악성 판매자의 "다른 체인 주문" 데모용: HSP는 받지만 지갑 정책이 허용하지 않는 체인)
+    return {
+      chains: [
+        { chain_id: this.opts.chainId, name: "mock", tokens: { USDC: this.opts.token } },
+        ...(this.opts.chainId !== 84532 ? [{ chain_id: 84532, name: "base-sepolia", tokens: { USDC: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" } }] : []),
+      ],
+    };
   }
 
   async createOrder(input: CreateOrderInput): Promise<RawOrder> {
@@ -82,6 +88,8 @@ export class MockHsp implements HspClient {
     const ref = `mock_ord_${++this.seq}_${this.runId}`;
     const order: RawOrder = {
       order_ref: ref,
+      payment_request_id: `mock_pr_${this.seq}_${this.runId}`,
+      gas_fee_advanced: true,
       pay_to: input.pay_to,
       amount: input.amount,
       chain_id: input.chain_id,
@@ -127,10 +135,26 @@ export class MockHsp implements HspClient {
     };
     if (this.opts.tamperPrepare) typedData = this.opts.tamperPrepare(typedData, order);
     this.prepared.set(orderRef, { typedData, payer });
-    return { order_ref: orderRef, typed_data: structuredClone(typedData), payment_payload: { mock: true } };
+    // 공식 가이드 §7의 prepare_payment 반환 필드를 흉내 낸다 (finalize 값 세 개는 불투명 값)
+    const payment_payload = { flow_id: orderRef, payload: { signature: "" } };
+    return {
+      order_ref: orderRef,
+      typed_data: structuredClone(typedData),
+      token_total_raw: String((typedData.message as Record<string, unknown>).value),
+      quote_expires_at: new Date((this.now() + 300) * 1000).toISOString(),
+      pay_to: order.pay_to,
+      payer,
+      ...(order.payment_request_id && { payment_request_id: order.payment_request_id }),
+      payment_payload,
+      finalize: {
+        payment_payload,
+        payment_mandate_contents: { flow_id: orderRef, payment_request_id: order.payment_request_id },
+        cart_hash: keccak256(stringToHex(`cart:${orderRef}`)).slice(2),
+      },
+    };
   }
 
-  async finalizePayment(orderRef: string, signature: string): Promise<{ payment_id: string }> {
+  async finalizePayment(orderRef: string, signature: string, _prepared?: PrepareResult): Promise<{ payment_id: string; payment_mandate_json?: unknown }> {
     const p = this.prepared.get(orderRef);
     if (!p) throw new HspError("finalize_payment", "NOT_PREPARED", "prepare_payment 먼저");
     const order = this.orders.get(orderRef)!;
@@ -151,32 +175,41 @@ export class MockHsp implements HspClient {
     }
     this.lastSigned.set(orderRef, validBefore);
     order.status = "paid";
-    const id = `mock_pay_${this.payments.size + 1}_${this.runId}`;
+    // 결제 id = 주문의 payment_request_id (가이드: create_order가 준 값으로 조회·복구)
+    const id = order.payment_request_id ?? `mock_pr_x_${this.runId}`;
     this.payments.set(id, { id, orderRef, polls: 0, submitted: false, txHash: keccak256(stringToHex(`${id}:${signature}`)) });
-    return { payment_id: id };
+    return { payment_id: id, payment_mandate_json: { flow_id: orderRef, payment_request_id: id, mandate: "mock-jwt" } };
   }
 
   async estimateFee(_orderRef: string): Promise<unknown> {
     return { fee: "0", payer_gas: "0" };
   }
 
-  async submitPayment(paymentId: string): Promise<{ payment_id: string; tx_hash?: string }> {
+  async submitPayment(paymentId: string, mandate?: unknown): Promise<{ payment_id: string; tx_hash?: string }> {
     const p = this.mustPayment("submit_payment", paymentId);
+    const m = mandate as { payment_request_id?: string } | undefined;
+    if (m && m.payment_request_id !== paymentId) throw new HspError("submit_payment", "BAD_MANDATE", "다른 결제의 payment_mandate_json");
     p.submitted = true;
     return { payment_id: p.id, tx_hash: p.txHash };
   }
 
-  async queryPayment(paymentId: string): Promise<QueryResult> {
-    const p = this.mustPayment("query_payment", paymentId);
+  async queryPayment(paymentId: string, orderRef?: string): Promise<QueryResult> {
+    const p = this.payments.get(paymentId) ?? [...this.payments.values()].find((x) => x.orderRef === orderRef);
+    if (!p) throw new HspError("query_payment", "NOT_FOUND", `결제 없음: ${paymentId}`);
+    if (orderRef && p.orderRef !== orderRef) throw new HspError("query_payment", "NOT_FOUND", "flow_id와 결제가 맞지 않음");
     let status: PaymentStatus = "pending";
+    let hsp = "payment-pending";
     if (p.submitted) {
       p.polls++;
-      status = p.polls === 1 ? "submitted" : p.polls === 2 ? "payment-safe" : "payment-finalized";
+      [status, hsp] =
+        p.polls === 1 ? ["submitted", "payment-included"] : p.polls === 2 ? ["payment-safe", "payment-safe"] : ["payment-finalized", "payment-finalized"];
     }
     return {
       payment_id: p.id,
       order_ref: p.orderRef,
       status,
+      hsp_status: hsp,
+      attribution_verified: true,
       tx_hash: p.submitted ? p.txHash : undefined,
       chain_id: this.opts.chainId,
     };
