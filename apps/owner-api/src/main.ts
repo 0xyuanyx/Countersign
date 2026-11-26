@@ -20,7 +20,9 @@ if (!policyPath) {
 const policyFile = new PolicyFile(policyPath);
 policyFile.get(); // 시작할 때 한 번 검증
 const paths = statePaths();
-const ownerToken = process.env.COUNTERSIGN_OWNER_TOKEN || readOrCreateSharedSecret(paths.ownerToken, true)!;
+// 주인 토큰: 처음 한 번 만들고(있으면 그대로), 요청마다 파일을 다시 읽는다 → rotate-owner-token으로 바꾸면 바로 반영
+if (!process.env.COUNTERSIGN_OWNER_TOKEN) readOrCreateSharedSecret(paths.ownerToken, true);
+const ownerToken = () => process.env.COUNTERSIGN_OWNER_TOKEN || readOrCreateSharedSecret(paths.ownerToken, false) || "";
 const signer = new SignerClient(paths.signerSocket, 3000);
 const reader = rpcBalanceReader();
 const accountOf = async () => {
@@ -40,7 +42,7 @@ const server = createOwnerApi({
     usdcBalance: (chainId, token, owner) => reader.usdcBalance(chainId, token, owner),
     nativeBalance: (chainId, owner) => reader.nativeBalance(chainId, owner),
     withdraw: async (agentId, amount) => {
-      const r = await signer.forAgent(agentId).withdrawToOwner(ownerToken, amount);
+      const r = await signer.forAgent(agentId).withdrawToOwner(ownerToken(), amount);
       if (r.ok && r.op === "withdraw_to_owner") return r;
       if (!r.ok) return { ok: false, code: r.code, reason: r.reason, next_action: r.next_action };
       return { ok: false, code: "WITHDRAW_FAILED", reason: "signer 응답이 예상과 다름" };

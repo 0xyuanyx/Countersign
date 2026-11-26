@@ -10,7 +10,8 @@
     "countersign-owner-api": "./src/main.ts"
   },
   "scripts": {
-    "start": "tsx src/main.ts"
+    "start": "tsx src/main.ts",
+    "rotate-token": "tsx src/rotate-token.ts"
   },
   "dependencies": {
     "@countersign/signer": "workspace:*",

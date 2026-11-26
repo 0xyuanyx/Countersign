@@ -47,7 +47,8 @@ export interface OwnerApiDeps {
   /** 정책 파일 (읽기: 요청마다 다시 읽음, 쓰기: PATCH /api/policy) */
   policy: PolicyFile;
   paths: StatePaths;
-  ownerToken: string;
+  /** 주인 토큰. 함수로 주면 요청마다 다시 읽는다 (토큰을 바꿔도 재시작 없이 바로 반영) */
+  ownerToken: string | (() => string);
   /** 에이전트 계정 주소 (signer에게 묻는다. 못 얻으면 undefined) */
   account?: () => Promise<string | undefined>;
   allowedOrigins?: string[];
@@ -161,7 +162,7 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
   async function agentView(c: Connection) {
     const info = registry.resolve(c.id)!;
     const s = seen.get(c.id);
-    const { token_sha256: _h, ...pub } = c;
+    const { token_sha256: _h, runner_token_sha256: _r, ...pub } = c;
     const last = historyFor(info, 1)[0]?.at;
     const chainId = (() => {
       try {
@@ -383,6 +384,12 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
         deposit: deposit(info, agent.address),
       });
     }
+    if ((m = /^POST \/api\/agents\/([a-z0-9_]+)\/runner$/.exec(route))) {
+      // 맡긴 일 실행기용 주소 (연결 주소는 그대로 두고, 같은 에이전트로 붙는 두 번째 토큰)
+      const token = connections.issueRunnerToken(m[1]!);
+      if (!token) return send(res, 404, { ok: false, error: "없거나 끊긴 연결" });
+      return send(res, 200, { url: `${mcpBase}/mcp/${token}` });
+    }
     if ((m = /^POST \/api\/agents\/([a-z0-9_]+)\/disconnect$/.exec(route))) {
       const c = connections.disconnect(m[1]!, now());
       if (!c) return send(res, 404, { ok: false, error: "없는 연결" });
@@ -512,7 +519,7 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
 }
 
 function publicAgent(c: Connection) {
-  const { token_sha256: _h, ...pub } = c;
+  const { token_sha256: _h, runner_token_sha256: _r, ...pub } = c;
   return { ...pub, connected: !c.disconnected_at, paused: !!c.paused_at, hidden: !!c.hidden_at };
 }
 
@@ -548,7 +555,14 @@ export function connectCommands(base: string, name: string, token: string) {
   };
 }
 
-function authorized(req: IncomingMessage, token: string): boolean {
+function authorized(req: IncomingMessage, tokenOrFn: string | (() => string)): boolean {
+  let token: string;
+  try {
+    token = typeof tokenOrFn === "function" ? tokenOrFn() : tokenOrFn;
+  } catch {
+    return false;
+  }
+  if (!token) return false;
   const h = req.headers.authorization ?? "";
   const m = /^Bearer (\S+)$/.exec(h);
   if (!m) return false;

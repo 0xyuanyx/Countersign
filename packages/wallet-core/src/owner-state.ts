@@ -264,6 +264,8 @@ export const ConnectionSchema = z.object({
   paused_at: z.number().int().optional(),
   /** 이 에이전트의 계정 번호 (니모닉 m/44'/60'/0'/0/n). 11/26 이전 연결은 없음 → 1번 */
   account_index: z.number().int().min(1).max(1000).optional(),
+  /** 맡긴 일 실행기(apps/runner)용 두 번째 토큰. 원래 연결 주소를 그대로 둔 채 같은 에이전트로 붙는다 */
+  runner_token_sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   /** 주인이 목록에서 숨긴 시각 (끊긴 연결 + 잔액 0일 때만). 정책·내역·결제 기록은 그대로 남는다 */
   hidden_at: z.number().int().optional(),
 });
@@ -328,11 +330,19 @@ export class ConnectionStore {
     this.rec.put(id, next);
     return next;
   }
-  /** 살아 있는 연결 중 토큰이 맞는 것 */
+  /** 살아 있는 연결 중 토큰(연결 토큰 또는 실행기 토큰)이 맞는 것 */
   authenticate(token: string): Connection | undefined {
     if (!/^cs_[A-Za-z0-9_-]{20,64}$/.test(token)) return undefined;
     const h = ConnectionStore.hash(token);
-    return this.rec.list().find((c) => !c.disconnected_at && c.token_sha256 === h);
+    return this.rec.list().find((c) => !c.disconnected_at && (c.token_sha256 === h || c.runner_token_sha256 === h));
+  }
+  /** 실행기 토큰 새로 만들기 (이전 실행기 토큰은 무효). 원문은 이때 한 번만 */
+  issueRunnerToken(id: string): string | undefined {
+    const c = this.rec.get(id);
+    if (!c || c.disconnected_at) return undefined;
+    const token = `cs_${randomBytes(24).toString("base64url")}`;
+    this.rec.put(id, { ...c, runner_token_sha256: ConnectionStore.hash(token) });
+    return token;
   }
 }
 

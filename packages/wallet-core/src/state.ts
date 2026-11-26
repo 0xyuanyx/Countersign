@@ -223,3 +223,8 @@ export function readOrCreateSharedSecret(path: string, create: boolean): string 
   writePrivate(path, v);
   return v;
 }
+
+/** 공유값을 새로 만든다 (주인 토큰 바꾸기). 이전 값은 바로 무효. 새 값은 출력하지 않는다 */
+export function rotateSharedSecret(path: string): void {
+  writePrivate(path, randomBytes(32).toString("hex"));
+}
