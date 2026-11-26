@@ -19,6 +19,11 @@ export function offlineBanner(): string {
   return `<div class="banner-off" role="status">${ic.wifiOff()}<span>${esc(d.offline)}. 다시 닿으면 바로 새로 고쳐요</span></div>`;
 }
 
+/** 상단 칩용 짧은 이름 */
+export function chainShort(id?: number): string {
+  return id === 11155111 ? "Sepolia" : chainName(id);
+}
+
 export function chainName(id?: number): string {
   return id === undefined ? "" : (CHAIN_NAME[id] ?? `체인 ${id}`);
 }

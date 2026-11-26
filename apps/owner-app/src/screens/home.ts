@@ -5,7 +5,7 @@ import { app, go, openSheet, refresh, refreshSoon, strip, type Screen } from "..
 import { store } from "../auth.js";
 import { addrHtml, countTo, esc, hhmm, ic, toast, usdc } from "../ui.js";
 import { openApproval } from "./approval.js";
-import { attached, chainName, shortReason, statusWord, tabs } from "./common.js";
+import { attached, chainName, chainShort, shortReason, statusWord, tabs } from "./common.js";
 import { unlock } from "./gates.js";
 import { homeEmpty, isFresh, setupDone } from "./onboard.js";
 import { hideComposer, showComposer } from "../composer.js";
@@ -112,7 +112,7 @@ export function home(): Screen {
   <div class="screen with-tabs with-input">
     <div class="topbar">
       <button type="button" class="chip-agent press" data-act="agents"><span class="av"><img src="/mark.svg" width="22" height="22" alt=""></span>${esc(agentName)}${ic.chevD()}</button>
-      <span class="chip-net">${esc(chainName(chainIds(p)[0]) || "—")}${app.api.mock ? " · 데모" : ""}</span>
+      <span class="chip-net">${esc(chainShort(chainIds(p)[0]) || "—")}${app.api.mock ? " · 데모" : ""}</span>
     </div>
     ${banner}
     <div class="status-line ${banner ? "hidden" : ""}">

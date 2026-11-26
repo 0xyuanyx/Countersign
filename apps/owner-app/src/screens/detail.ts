@@ -7,7 +7,7 @@ import { addrHtml, dayLabel, esc, hhmm, hhmmss, ic, usdc } from "../ui.js";
 import { openApproval } from "./approval.js";
 import { chainName } from "./common.js";
 
-const EXPLORER: Record<number, string> = { 133: "https://testnet-explorer.hskchain.net", 177: "https://hsk.blockscout.com" };
+const EXPLORER: Record<number, string> = { 11155111: "https://sepolia.etherscan.io", 133: "https://testnet-explorer.hskchain.net", 177: "https://hsk.blockscout.com" };
 const ORDINAL = ["첫", "두 번째", "세 번째", "네 번째", "다섯 번째", "여섯 번째"];
 const STAGE: Record<string, string> = {
   signed: "서명",

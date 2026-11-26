@@ -229,7 +229,8 @@ export function chainIds(p: PolicySummary | undefined): number[] {
   return (p?.chains ?? []).map((c) => (typeof c === "number" ? c : c.chain_id));
 }
 
-export const CHAIN_NAME: Record<number, string> = { 133: "HSK 테스트넷", 177: "HSK 메인넷" };
+// 해커톤 테스트는 Ethereum Sepolia의 Circle USDC (운영진 안내, 11/26). HSK 메인넷은 수상 후 옮긴다
+export const CHAIN_NAME: Record<number, string> = { 11155111: "Ethereum Sepolia", 133: "HSK 테스트넷", 177: "HSK 메인넷" };
 
 /** 거부 코드 → 사람 말 (PROJECT.md §5.4) */
 export const CODE_TEXT: Record<string, { title: string; short: string }> = {

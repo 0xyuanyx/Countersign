@@ -10,13 +10,14 @@ const AREA_FAKE = "0x3f9A27d1B09aF4c6E2d8b1F0A5c3E7d29081c21E";
 const NEWS = "0x5D18aE0c3B47f92D6a1C8e05F3b9A7d24E6c0B91";
 const MAPS = "0xA07c41De9B3f58a2C6E1d0B4f97A3e5C82D16f4B";
 const WEATHER = "0x9B2e61c0F4a8D37e5B19aC02F6d8E1a7b3d047dA";
-const USDC = "0x8FE3cB719Ee4410E236Cd6b72ab1fCDC06eF53c6";
+// Ethereum Sepolia의 Circle 테스트 USDC
+const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 
 const ok = (field: string, expected?: string): Check => ({ field, result: "match", ...(expected && { expected, actual: expected }) });
 const allOk = (payTo: string, amount: string): Check[] => [
   ok("payee", payTo),
   ok("amount", `${amount} USDC`),
-  ok("chain", "133"),
+  ok("chain", "11155111"),
   ok("token", "USDC"),
   ok("expiry"),
   ok("signer"),
@@ -48,7 +49,7 @@ function paid(id: string, t: number, seller: string, purpose: string, amount: st
     purpose,
     amount,
     pay_to: payTo,
-    chain_id: 133,
+    chain_id: 11155111,
     payment_id: `pay_${id}`,
     hsp_status: "payment-finalized",
     tx_hash: hex(64, seed),
@@ -105,7 +106,7 @@ export class MockOwnerApi implements OwnerApi {
         purpose: "강남역 상권 리포트 1건",
         amount: "0.1",
         pay_to: AREA_FAKE,
-        chain_id: 133,
+        chain_id: 11155111,
         code: "PAYEE_MISMATCH",
         step: "payee",
         reason: "pay_to가 area-report의 고정 주소가 아님",
@@ -132,7 +133,7 @@ export class MockOwnerApi implements OwnerApi {
         purpose: "이번 주 뉴스 묶음",
         amount: "1.2",
         pay_to: NEWS,
-        chain_id: 133,
+        chain_id: 11155111,
         code: "OVER_LIMIT",
         step: "amount",
         reason: "1.20 > 1회 한도 0.50",
@@ -190,7 +191,7 @@ export class MockOwnerApi implements OwnerApi {
       amount,
       amount_raw: String(Math.round(Number(amount) * 1e6)),
       pay_to: WEATHER,
-      chain_id: 133,
+      chain_id: 11155111,
       token: USDC,
       order_expires_at: now + 300,
       task_id: taskId,
@@ -206,13 +207,13 @@ export class MockOwnerApi implements OwnerApi {
       purpose,
       amount,
       pay_to: WEATHER,
-      chain_id: 133,
+      chain_id: 11155111,
       code: "NEEDS_OWNER_APPROVAL",
       request_id: "req_weather",
       checks: [
         { field: "payee", result: "needs_approval", actual: WEATHER },
         ok("amount", `${Number(amount).toFixed(2)} USDC`),
-        ok("chain", "133"),
+        ok("chain", "11155111"),
         ok("token", "USDC"),
         ok("expiry"),
         { field: "signer", result: "unchecked" },
@@ -236,7 +237,7 @@ export class MockOwnerApi implements OwnerApi {
     return this.delay({
       agent: "purchase-agent-1",
       account: "0x71C95911E9a5D330f4D621842EC243EE13433a2F",
-      chains: [{ chain_id: 133, token: USDC }],
+      chains: [{ chain_id: 11155111, token: USDC }],
       per_tx_max: this.perTxMax,
       daily_max: this.dailyMax,
       spent_24h: String(Number(spent.toFixed(6))),
@@ -249,7 +250,7 @@ export class MockOwnerApi implements OwnerApi {
     });
   }
   async policyFile(): Promise<PolicyFileJson> {
-    return this.delay({ agent: "purchase-agent-1", accountIndex: 1, chains: [133], token: "USDC", perTxMax: this.perTxMax, dailyMax: this.dailyMax, sellers: this.sellers });
+    return this.delay({ agent: "purchase-agent-1", accountIndex: 1, chains: [11155111], token: "USDC", perTxMax: this.perTxMax, dailyMax: this.dailyMax, sellers: this.sellers });
   }
   async patchPolicy(body: { perTxMax?: string; dailyMax?: string; sellers?: Record<string, string> }) {
     if (body.perTxMax) this.perTxMax = body.perTxMax;
@@ -262,7 +263,7 @@ export class MockOwnerApi implements OwnerApi {
   }
   async balance(): Promise<Balance> {
     // 시작 잔액 26.10에서 오늘 쓴 돈을 뺀다 → 구매 요청을 승인하면 24.80 · 오늘 1.30 (디자인 샘플 값)
-    return this.delay({ account: "0x71C95911E9a5D330f4D621842EC243EE13433a2F", balances: [{ chain_id: 133, balance: Math.max(0, this.startBalance - this.spent()).toFixed(2) }] });
+    return this.delay({ account: "0x71C95911E9a5D330f4D621842EC243EE13433a2F", balances: [{ chain_id: 11155111, balance: Math.max(0, this.startBalance - this.spent()).toFixed(2) }] });
   }
   async pause(reason?: string) {
     this.paused = { paused: true, at: Math.floor(Date.now() / 1000), ...(reason && { reason }) };
@@ -356,7 +357,7 @@ export class MockOwnerApi implements OwnerApi {
       purpose: "상권 리포트 1건",
       amount: amt,
       pay_to: AREA_FAKE,
-      chain_id: 133,
+      chain_id: 11155111,
       code: "PAYEE_MISMATCH",
       step: "payee",
       reason: "pay_to가 area-report의 고정 주소가 아님",

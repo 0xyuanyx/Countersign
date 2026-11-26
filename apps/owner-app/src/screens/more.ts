@@ -1,4 +1,4 @@
-// 정책 탭과 설정 탭 (첫 버전: 한도 바꾸기·판매자 보기·메인넷은 "확인 중", 설정은 연결·Face ID·다시 매칭)
+// 정책 탭과 설정 탭 (한도 바꾸기·판매자 보기·체인은 서버 정책 그대로, HSK 메인넷은 수상 후. 설정은 연결·Face ID·다시 매칭)
 
 import { ApiError, chainIds } from "../api.js";
 import { app, openSheet, refreshSoon, type Screen } from "../app.js";
@@ -13,7 +13,7 @@ const row = (label: string, value: string, act?: string) =>
     <span class="stack"><span class="t15">${label}</span></span><span class="muted t15" style="display:flex;align-items:center;gap:6px">${value}${act ? ic.chevR() : ""}</span>
   </${act ? "button" : "div"}>`;
 
-/** 네트워크 줄: 스위치는 보여 주기만 한다 (체인은 정책 파일에서 바꿈). 메인넷은 HSP 결제를 확인하기 전까지 비활성 */
+/** 네트워크 줄: 서버 정책의 체인을 그대로 보여 주기만 한다 (체인은 정책 파일에서 바꿈). HSK 메인넷은 수상 후 옮길 때까지 비활성 */
 const chainRow = (label: string, on: boolean, note: string, disabled = false) =>
   `<div class="list-row" style="min-height:60px">
     <span class="stack"><span class="t15" style="${disabled ? "color:var(--fg3)" : ""}">${label}</span>${note ? `<span class="dim t12">${note}</span>` : ""}</span>
@@ -36,9 +36,11 @@ export function policy(): Screen {
     </section>
     <div class="section-head"><span class="h">허용 네트워크 · 토큰은 USDC만</span></div>
     <section class="card" style="margin-top:8px;padding:0 16px">
-      ${chainRow(esc(chainName(133)), chainIds(p).includes(133), "체인 133")}
-      <div class="divider"></div>
-      ${chainRow(esc(chainName(177)), chainIds(p).includes(177), chainIds(p).includes(177) ? "체인 177" : "HSP 결제 확인 중 · 아직 켤 수 없어요", !chainIds(p).includes(177))}
+      ${chainIds(p)
+        .map((id) => chainRow(esc(chainName(id)), true, `체인 ${id}`))
+        .join('<div class="divider"></div>')}
+      ${chainIds(p).length ? '<div class="divider"></div>' : ""}
+      ${chainIds(p).includes(177) ? "" : chainRow(esc(chainName(177)), false, "수상 후 옮겨요 · 지금은 켤 수 없어요", true)}
     </section>
     <div class="section-head"><span class="h">바로 결제하는 판매자</span><span class="dim t13">${p?.sellers.length ?? 0}곳</span></div>
     <section class="card" style="margin-top:8px;padding:4px 16px">

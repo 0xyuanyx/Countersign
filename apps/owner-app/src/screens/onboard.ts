@@ -5,7 +5,7 @@
 import { ApiError, chainIds, type NewAgent } from "../api.js";
 import { app, go, refreshSoon, type Screen } from "../app.js";
 import { esc, ic, toast, usdc } from "../ui.js";
-import { agentState, attached, chainName, tabs } from "./common.js";
+import { agentState, attached, chainName, chainShort, tabs } from "./common.js";
 import { MockOwnerApi } from "../mock.js";
 import { unlock } from "./gates.js";
 
@@ -66,7 +66,7 @@ export function homeEmpty(): Screen {
   <div class="screen with-tabs with-input">
     <div class="topbar">
       <span style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600"><img src="/mark.svg" width="28" height="28" alt="">Countersign</span>
-      <span class="chip-net">${esc(chainName(chainIds(app.data.policy)[0]) || "—")}${app.api.mock ? " · 데모" : ""}</span>
+      <span class="chip-net">${esc(chainShort(chainIds(app.data.policy)[0]) || "—")}${app.api.mock ? " · 데모" : ""}</span>
     </div>
     <h1 class="title-md" style="margin-top:28px;font-size:26px;line-height:1.3">에이전트를 연결하면<br>지갑이 결제를 지켜봐요</h1>
     <p class="muted" style="margin-top:10px">${done} / 3 · 세 단계면 시작할 수 있어요</p>
@@ -183,7 +183,7 @@ export function agentSetup(id: string): Screen {
   const p = app.data.policy;
   const per = usdc(p?.per_tx_max ?? "0.5");
   const daily = usdc(p?.daily_max ?? "5");
-  const net = chainName(chainIds(p)[0]) || "HSK 테스트넷";
+  const net = chainName(chainIds(p)[0]) || "Ethereum Sepolia";
   const limitRow = (key: string, label: string, sub: string, v: string) => `
     <label class="limit-row" for="lim-${key}">
       <span class="stack"><span class="t15" style="font-weight:500">${label}</span><span class="dim t12">${sub}</span></span>
