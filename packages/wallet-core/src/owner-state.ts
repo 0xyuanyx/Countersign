@@ -242,6 +242,8 @@ export const ConnectionSchema = z.object({
   paused_at: z.number().int().optional(),
   /** 이 에이전트의 계정 번호 (니모닉 m/44'/60'/0'/0/n). 11/26 이전 연결은 없음 → 1번 */
   account_index: z.number().int().min(1).max(1000).optional(),
+  /** 주인이 목록에서 숨긴 시각 (끊긴 연결 + 잔액 0일 때만). 정책·내역·결제 기록은 그대로 남는다 */
+  hidden_at: z.number().int().optional(),
 });
 export type Connection = z.infer<typeof ConnectionSchema>;
 
@@ -286,6 +288,14 @@ export class ConnectionStore {
     if (!c) return undefined;
     const { paused_at: _p, ...rest } = c;
     const next: Connection = paused ? { ...rest, paused_at: c.paused_at ?? now } : rest;
+    this.rec.put(id, next);
+    return next;
+  }
+  setHidden(id: string, hidden: boolean, now: number): Connection | undefined {
+    const c = this.rec.get(id);
+    if (!c) return undefined;
+    const { hidden_at: _h, ...rest } = c;
+    const next: Connection = hidden ? { ...rest, hidden_at: c.hidden_at ?? now } : rest;
     this.rec.put(id, next);
     return next;
   }

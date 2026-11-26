@@ -178,6 +178,7 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
       /** 실제로 붙었는지: 끊기지 않았고, 그 토큰으로 MCP에 한 번이라도 붙음 */
       connected: !c.disconnected_at && !!(s.attached_at ?? s.last_seen_at),
       paused: !!c.paused_at,
+      hidden: !!c.hidden_at,
       ...(s.attached_at && { attached_at: s.attached_at }),
       ...(s.last_seen_at && { last_seen_at: s.last_seen_at }),
       ...(last && { last_activity_at: last }),
@@ -304,12 +305,28 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
     }
     if ((m = /^PATCH \/api\/agents\/([a-z0-9_]+)$/.exec(route))) {
       if (!authorized(req, d.ownerToken)) return send(res, 401, { ok: false, error: "주인 토큰이 필요함" });
-      const body = AgentBodySchema.safeParse(await readJson(req));
-      if (!body.success) return send(res, 400, { ok: false, error: "본문 형식: { name: 영문·숫자·-·_ 1~40자 }" });
-      const c = connections.rename(m[1]!, body.data.name);
-      if (!c) return send(res, 404, { ok: false, error: "없는 연결" });
-      if (c === "duplicate") return send(res, 409, { ok: false, error: "같은 이름의 연결이 이미 있음" });
-      return send(res, 200, publicAgent(c));
+      const body = AgentPatchSchema.safeParse(await readJson(req));
+      if (!body.success) return send(res, 400, { ok: false, error: "본문 형식: { name?: 영문·숫자·-·_ 1~40자, hidden?: boolean }" });
+      const id = m[1]!;
+      const cur = connections.get(id);
+      if (!cur) return send(res, 404, { ok: false, error: "없는 연결" });
+      if (body.data.hidden === true && !cur.hidden_at) {
+        // 숨기기: 연결이 끊겼고 그 계정 USDC가 0일 때만 (돈이 남은 에이전트를 실수로 안 보이게 하지 않게)
+        if (!cur.disconnected_at) return send(res, 400, { ok: false, error: "연결을 먼저 끊어야 숨길 수 있음" });
+        const info = registry.resolve(id)!;
+        const bal = await balanceFor(info);
+        if (!("usdc" in bal)) return send(res, 400, { ok: false, error: `잔액을 확인할 수 없어 숨기지 않음 (${bal.error})` });
+        if (bal.usdc !== "0") {
+          const shared = info.accountIndex === 1 ? " (1번 계정은 첫 에이전트와 같이 쓰는 계정)" : "";
+          return send(res, 400, { ok: false, error: `USDC 잔액이 ${bal.usdc} 남아 있어 숨길 수 없음. 먼저 출금하세요${shared}` });
+        }
+      }
+      if (body.data.name !== undefined) {
+        const r = connections.rename(id, body.data.name);
+        if (r === "duplicate") return send(res, 409, { ok: false, error: "같은 이름의 연결이 이미 있음" });
+      }
+      if (body.data.hidden !== undefined) connections.setHidden(id, body.data.hidden, now());
+      return send(res, 200, await agentView(connections.get(id)!));
     }
     if ((m = /^POST \/api\/agents\/([a-z0-9_]+)\/(pause|resume)$/.exec(route))) {
       const c = connections.setPaused(m[1]!, m[2] === "pause", now());
@@ -463,7 +480,7 @@ export function createOwnerApi(d: OwnerApiDeps): Server {
 
 function publicAgent(c: Connection) {
   const { token_sha256: _h, ...pub } = c;
-  return { ...pub, connected: !c.disconnected_at, paused: !!c.paused_at };
+  return { ...pub, connected: !c.disconnected_at, paused: !!c.paused_at, hidden: !!c.hidden_at };
 }
 
 const RequestDecisionSchema = z.object({ remember: z.boolean().optional() }).strict();
@@ -477,6 +494,10 @@ const TaskBodySchema = z
   .strict();
 const WithdrawBodySchema = z.object({ amount: z.string().regex(/^(0|[1-9]\d*)(\.\d{1,6})?$/).optional() }).strict();
 const AgentBodySchema = z.object({ name: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/) }).strict();
+const AgentPatchSchema = z
+  .object({ name: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional(), hidden: z.boolean().optional() })
+  .strict()
+  .refine((b) => b.name !== undefined || b.hidden !== undefined, "name 또는 hidden 필요");
 
 /**
  * 앱 "에이전트 연결" 화면이 보여 줄 명령. 토큰이 든 주소는 비밀번호와 같다 (앱에서 한 번만 보여 준다).

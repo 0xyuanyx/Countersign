@@ -366,6 +366,30 @@ describe("폰 앱 + 원격 MCP 흐름", () => {
     await b1.client.close();
   });
 
+  it("숨기기: 끊긴 연결이고 USDC 0일 때만, 숨겨도 목록·정책·내역은 남는다", async () => {
+    const h = await connectAgent("hide-me");
+    await buyFrom(h.call, "profile"); // 내역 하나 남기기
+    expect((await owner("PATCH", `/api/agents/${h.created.id}`, { hidden: true }, false)).status).toBe(401);
+    const live = await owner("PATCH", `/api/agents/${h.created.id}`, { hidden: true });
+    expect(live.status).toBe(400);
+    expect(live.json.error).toMatch(/끊어야/);
+    await owner("POST", `/api/agents/${h.created.id}/disconnect`, {});
+    expect((await owner("PATCH", `/api/agents/${h.created.id}`, { hidden: true })).json).toMatchObject({ hidden: true, active: false });
+    const listed = (await owner("GET", "/api/agents", undefined, false)).json.agents.find((x: any) => x.id === h.created.id);
+    expect(listed).toMatchObject({ hidden: true });
+    expect((await owner("GET", `/api/agents/${h.created.id}/history`, undefined, false)).json.entries.length).toBeGreaterThan(0);
+    expect((await owner("GET", `/api/agents/${h.created.id}/policy/file`, undefined, false)).status).toBe(200);
+    expect((await owner("PATCH", `/api/agents/${h.created.id}`, { hidden: false })).json.hidden).toBe(false);
+
+    // 잔액이 남은 계정(1번, 테스트에선 40 USDC)은 끊어도 못 숨긴다
+    const first = (await owner("GET", "/api/agents", undefined, false)).json.agents.find((x: any) => x.account_index === 1);
+    await owner("POST", `/api/agents/${first.id}/disconnect`, {});
+    const r = await owner("PATCH", `/api/agents/${first.id}`, { hidden: true });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/잔액이 40/);
+    await h.client.close();
+  });
+
   it("연결을 끊으면 그 주소는 바로 401, 연결 목록에 마지막 활동이 보인다", async () => {
     const { created, call } = await connectAgent("temp");
     await call("get_policy");

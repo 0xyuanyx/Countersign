@@ -63,6 +63,7 @@ COUNTERSIGN_POLICY=apps/demo/policy.testnet.json node_modules/.bin/tsx apps/owne
 | `GET /api/agents/:id/balance` | `{agent_id, address, chain_id, token, token_symbol, usdc, native, explorer_url}` 실제 RPC 잔액 (`native`는 가스용 ETH. 결제는 HSP가 가스를 내서 0이어도 됨) |
 | `GET /api/agents/:id/policy` · `/policy/file` · `PATCH /api/agents/:id/policy` | 그 에이전트 정책 (본문은 전역 `/api/policy`와 같음, PATCH는 주인 토큰) |
 | `GET /api/agents/:id/history?limit=` | 그 에이전트 내역만 |
+| `PATCH /api/agents/:id {hidden}` | 주인 토큰. 목록에서 숨기기·다시 보이기. 숨기기는 **연결이 끊겼고 그 계정 USDC가 0일 때만** (아니면 400과 이유). 숨겨도 목록에는 `hidden:true`로 함께 내려가고, 정책·내역·결제 기록은 그대로다. `name`과 같이 보내도 된다 |
 | `POST /api/agents/:id/withdraw {amount?}` | 주인 토큰. 그 에이전트 USDC를 **주인 0번 계정으로만** 보낸다(받는 곳 고정, 빼면 전액). 한도·정지와 상관없이 된다. 실제 체인 거래 `{ok, tx_hash, explorer_url, amount, from, to, chain_id, token}`. 내역에 `kind:"withdraw"` |
 
 - 전역 경로는 `?agent=<id>`(또는 `?agentId=`)를 받는다: `/api/policy`, `/api/policy/file`, `PATCH /api/policy`, `/api/balance`, `/api/history`, `/api/requests`, `/api/tasks`. 빼면 첫 에이전트(1번 계정).
