@@ -4,6 +4,7 @@ import { mountIconAnimation } from "../icon-animation.js";
 import { ApiError, HttpOwnerApi } from "../api.js";
 import { checkPin, createPasskey, isIOS, isMobile, parsePairing, passkeySupported, setPin, store, verifyPasskey, type Pairing } from "../auth.js";
 import { esc, ic, reducedMotion, transition } from "../ui.js";
+import { readPhoto, startCamera } from "../qrscan.js";
 
 const root = () => document.getElementById("app")!;
 
@@ -230,6 +231,13 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
     let error = "";
     let busy = false;
     let stopCam: (() => void) | undefined;
+    /** 어디까지 됐는지 (카메라 해상도 · 디코더 · 읽은 프레임 · 찾은 글) */
+    let scanStatus = "";
+    const setStatus = (t: string) => {
+      scanStatus = t;
+      const el = root().querySelector("[data-scan-status]");
+      if (el) el.textContent = t;
+    };
 
     const draw = () => {
       root().innerHTML = `
@@ -251,12 +259,13 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
                 ${mode === "scan" ? `<video playsinline muted></video>` : ic.qr()}
               </div>
               <p class="muted t13" style="margin-top:16px;text-align:center;line-height:21px">${
-                busy && mode === "scan"
+                busy
                   ? "QR을 읽었어요 · 지갑 서버에 연결하는 중"
                   : mode === "scan"
-                    ? "지갑 서버 화면의 QR을 네모 안에 맞춰 주세요 · 15~30cm 떨어져서"
+                    ? "QR을 네모 안에 맞춰 주세요 · 20~30cm 떨어져서"
                     : "지갑 서버를 켜면 화면에 QR이 떠요<br>카메라로 찍으면 바로 연결돼요"
-              }</p>`
+              }</p>
+              <p class="dim t12 mono" data-scan-status style="margin-top:6px;text-align:center;min-height:16px">${esc(scanStatus)}</p>`
         }
         <p class="err-text" style="margin-top:12px;text-align:center;min-height:20px" role="alert">${esc(error)}</p>
         <div class="bottom-actions">
@@ -264,8 +273,11 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
             mode === "code"
               ? `<button class="btn btn-primary press" data-act="submit" ${busy ? "disabled" : ""}>${busy ? "확인 중…" : "연결"}</button>
                  <button class="btn btn-ghost" data-act="intro">QR로 찍기</button>`
-              : `<button class="btn btn-primary press" data-act="scan" ${mode === "scan" ? "disabled" : ""}>${busy ? "확인 중…" : mode === "scan" ? "찍는 중…" : "QR 찍기"}</button>
-                 <button class="btn btn-ghost" data-act="code">연결 코드로 입력</button>`
+              : `<button class="btn btn-primary press" data-act="scan" ${mode === "scan" ? "disabled" : ""}>${busy ? "확인 중…" : mode === "scan" ? "찾는 중…" : "QR 찍기"}</button>
+                 <div style="display:flex;gap:8px">
+                   <label class="btn btn-ghost" style="flex:1;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer">사진으로 찍어 읽기<input type="file" accept="image/*" capture="environment" data-photo hidden></label>
+                   <button class="btn btn-ghost" style="flex:1;font-size:14px" data-act="code">연결 코드로 입력</button>
+                 </div>`
           }
           <button class="btn btn-ghost t13" style="height:40px;font-size:13px;color:var(--fg3)" data-act="demo">지갑 없이 데모로 둘러보기</button>
         </div>
@@ -275,6 +287,8 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
     const attempt = async (p: Pairing | undefined) => {
       if (!p) {
         error = "연결 코드 모양이 아니에요";
+        stopCam?.();
+        mode = "intro";
         draw();
         return;
       }
@@ -301,61 +315,79 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
       }
     };
 
+    /** 읽은 글이 매칭 QR이면 연결 시도, 아니면 무엇을 읽었는지 보여 준다 */
+    const gotText = (text: string, from: "camera" | "photo"): boolean => {
+      const p = parsePairing(text);
+      if (!p) {
+        const head = text.length > 48 ? `${text.slice(0, 48)}…` : text;
+        if (from === "photo") {
+          error = `QR은 읽었는데 연결 QR이 아니에요: ${head}`;
+          draw();
+        } else setStatus(`QR은 읽었는데 연결 QR이 아니에요: ${head}`);
+        return false;
+      }
+      navigator.vibrate?.(30);
+      setStatus("");
+      void attempt(p);
+      return true;
+    };
+
     const startScan = async () => {
       mode = "scan";
       error = "";
+      scanStatus = "카메라 여는 중…";
       draw();
       const video = root().querySelector("video")!;
-      try {
-        // 매칭 QR은 주소·토큰이 들어가 촘촘하다 → 카메라를 높은 해상도로 연다
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false,
-        });
-        video.srcObject = stream;
-        await video.play();
-        let alive = true;
-        stopCam = () => {
-          alive = false;
-          stream.getTracks().forEach((t) => t.stop());
-        };
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-        const BD = (window as unknown as { BarcodeDetector?: new (o: object) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
-        const detector = BD ? new BD({ formats: ["qr_code"] }) : undefined;
-        const jsQR = detector ? undefined : (await import("jsqr")).default;
-        let scanFrame = 0;
-        const tick = async () => {
-          if (!alive) return;
-          let text: string | undefined;
-          if (video.videoWidth) {
-            if (detector) text = (await detector.detect(video).catch(() => []))[0]?.rawValue;
-            else if (jsQR) {
-              // 아이폰(BarcodeDetector 없음): 가운데 정사각형을 줄이지 않고(최대 1080) 읽는다.
-              // 480으로 줄이면 촘촘한 매칭 QR(주소·토큰)의 칸이 뭉개져 못 읽는다. 어두운 터미널용으로 반전도 시도
-              // 세 가지를 번갈아 시도: 원본 크기, 반전(어두운 터미널), 작게 줄인 것(QR이 크게 찍혀 흐릿할 때)
-              const vw = video.videoWidth;
-              const vh = video.videoHeight;
-              const side = Math.min(vw, vh);
-              const kind = scanFrame++ % 3;
-              const out = kind === 2 ? Math.min(side, 600) : Math.min(side, 1080);
-              canvas.width = out;
-              canvas.height = out;
-              ctx.drawImage(video, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, out, out);
-              text = jsQR(ctx.getImageData(0, 0, out, out).data, out, out, { inversionAttempts: kind === 1 ? "onlyInvert" : "dontInvert" })?.data;
-            }
-          }
-          const p = text ? parsePairing(text) : undefined;
-          if (p) {
-            stopCam?.();
-            navigator.vibrate?.(30);
-            void attempt(p);
-          } else setTimeout(tick, 120);
-        };
-        void tick();
-      } catch {
+      if (!navigator.mediaDevices?.getUserMedia) {
         mode = "intro";
-        error = "카메라를 열 수 없어요. 연결 코드로 입력해 주세요";
+        error = "이 브라우저는 카메라를 열 수 없어요 · 사진으로 찍어 읽거나 연결 코드로 입력해 주세요";
+        scanStatus = "";
+        return draw();
+      }
+      try {
+        stopCam = await startCamera(
+          video,
+          (t) => gotText(t, "camera"),
+          (i) => {
+            const hint = i.seconds >= 8 && !i.lastText ? " · 안 되면 더 떨어지거나 사진으로 찍어 보세요" : "";
+            setStatus(`카메라 ${i.camera} · ${i.decoder} · ${i.frames}장 확인 · ${i.lastText ? "다른 QR 읽음" : "QR 아직 못 찾음"}${hint}`);
+          },
+        );
+        setStatus("카메라 켜짐 · QR 찾는 중");
+      } catch (e) {
+        mode = "intro";
+        const name = e instanceof DOMException ? e.name : "";
+        error =
+          name === "NotAllowedError"
+            ? "카메라 권한이 꺼져 있어요 · 설정 › Safari(또는 이 앱) › 카메라를 허용하거나, 사진으로 찍어 읽어 주세요"
+            : name === "NotFoundError" || name === "OverconstrainedError"
+              ? "쓸 수 있는 카메라가 없어요 · 사진으로 찍어 읽거나 연결 코드로 입력해 주세요"
+              : `카메라를 열 수 없어요${name ? ` (${name})` : ""} · 사진으로 찍어 읽어 주세요`;
+        scanStatus = "";
+        draw();
+      }
+    };
+
+    const onPhoto = async (e: Event) => {
+      const input = e.target as HTMLInputElement;
+      if (!input.matches("[data-photo]") || !input.files?.[0]) return;
+      const file = input.files[0];
+      stopCam?.();
+      mode = "intro";
+      error = "";
+      scanStatus = "사진에서 QR 찾는 중…";
+      draw();
+      try {
+        const text = await readPhoto(file);
+        if (!text) {
+          scanStatus = "";
+          error = "사진에서 QR을 못 찾았어요 · QR이 사진 가운데에 크게, 흔들리지 않게 찍어 주세요";
+          return draw();
+        }
+        gotText(text, "photo");
+      } catch {
+        scanStatus = "";
+        error = "사진을 읽지 못했어요 · 다시 찍어 주세요";
         draw();
       }
     };
@@ -382,11 +414,13 @@ export function pairScreen(prefill?: Pairing): Promise<Pairing> {
       if (e.key === "Enter" && mode === "code") void attempt(parsePairing(root().querySelector<HTMLInputElement>("#pair-code")?.value ?? ""));
     };
     const cleanup = () => {
+      root().removeEventListener("change", onPhoto);
       root().removeEventListener("click", onClick);
       root().removeEventListener("keydown", onKey);
     };
     root().addEventListener("click", onClick);
     root().addEventListener("keydown", onKey);
+    root().addEventListener("change", onPhoto);
     draw();
     if (prefill) void attempt(prefill);
   });
