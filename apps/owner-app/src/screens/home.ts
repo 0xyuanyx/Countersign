@@ -150,7 +150,7 @@ export function home(): Screen {
     const bought = es.filter((e) => e.status === "paid" && e.receipt?.title);
     return `<section class="work-card done-card" id="task-${esc(t.id)}" aria-label="끝난 일">
       <div class="stack"><span class="t15b">${esc(t.text)}</span>
-        <span class="t13" style="color:${failed ? "var(--bad-text)" : "var(--ok)"}">${failed ? `못 끝냈어요${t.note ? ` · ${esc(t.note)}` : ""}` : `끝 · ${spent.toFixed(2)} USDC 씀`}</span></div>
+        <span class="t13" style="color:${failed ? "var(--bad-text)" : "var(--fg3)"}">${failed ? `못 끝냈어요${t.note ? ` · ${esc(t.note)}` : ""}` : `종료 · ${spent.toFixed(2)} USDC`}</span></div>
       ${t.result?.picks?.length || t.result?.weather ? resultBlock(t.result, d.history, t.id) : t.result?.summary ? `<p class="t14" style="line-height:21px">${esc(t.result.summary)}</p>` : ""}
       ${bought.length && !t.result?.picks?.length ? `<div class="bought">${bought.map((e) => `<button type="button" class="list-row press" data-receipt="${esc(e.id)}"><div class="stack"><span class="t14" style="font-weight:500">${esc(e.receipt!.title)}</span><span class="dim t12">${esc(e.receipt!.confirmation ? `확인 번호 ${e.receipt!.confirmation}` : (e.seller ?? ""))} · ${usdc(e.amount)} USDC</span></div><span class="t12 muted">상세보기</span></button>`).join("")}</div>` : ""}
       <div class="work-acts">
