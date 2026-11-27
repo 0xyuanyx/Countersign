@@ -228,9 +228,11 @@ function paintExtra(): void {
     .join("");
   const sg = el.querySelector<HTMLElement>("[data-suggest]")!;
   // 정상 칩 3개를 먼저, 공격 칩은 "공격 시험해 보기"에 시나리오마다 하나씩 접어 둔다 (데모용)
-  const normal = catalogChips.filter((c) => c.scenario === "normal").slice(0, 3);
+  // 비교해서 고르는 일(compare, 출장 비서)을 앞에, 그다음 정상 구매. 둘 다 "맡겨 보세요"에 3개까지
+  const SAFE = ["compare", "normal"];
+  const normal = [...catalogChips.filter((c) => c.scenario === "compare"), ...catalogChips.filter((c) => c.scenario === "normal")].slice(0, 3);
   const seen = new Set<string>();
-  const attacks = catalogChips.filter((c) => c.scenario !== "normal" && !seen.has(c.scenario) && seen.add(c.scenario));
+  const attacks = catalogChips.filter((c) => !SAFE.includes(c.scenario) && !seen.has(c.scenario) && seen.add(c.scenario));
   const chip = (c: CatalogChip, tag = false) =>
     `<button type="button" class="pill" data-recent-text="${esc(c.task_text)}">${esc(c.label)}${tag && c.scenario_label ? ` <span class="dim">· ${esc(c.scenario_label)}</span>` : ""}</button>`;
   sg.innerHTML = `<p class="t13 muted" style="margin-top:14px">이런 일을 맡겨 보세요</p><div class="chips" style="margin-top:8px;flex-wrap:wrap">${(normal.length ? normal : catalogChips.slice(0, 3)).map((c) => chip(c)).join("")}</div>${

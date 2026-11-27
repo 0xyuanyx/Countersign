@@ -20,6 +20,20 @@ export function offlineBanner(): string {
   return `<div class="banner-off" role="status">${ic.wifiOff()}<span>${esc(d.offline)}. 다시 닿으면 바로 새로 고쳐요</span></div>`;
 }
 
+/**
+ * 에이전트가 쓴 설명(고른 이유·비교 근거). 출처를 밝히고, 지갑이 믿는 근거가 아니라는 걸 같이 적는다.
+ * 글은 그대로 이스케이프해서 보여 준다 (에이전트·판매자가 넣은 문구라 HTML·지시문으로 쓰지 않음)
+ */
+export function agentNote(text: string | undefined, agent?: string): string {
+  const t = (text ?? "").trim().slice(0, 500);
+  if (!t) return "";
+  return `<section class="agent-note" aria-label="에이전트 설명">
+    <span class="t12 dim">에이전트 설명${agent ? ` · ${esc(agent)}` : ""}</span>
+    <p class="t14" style="margin:6px 0 0;line-height:21px;white-space:pre-wrap">${esc(t)}</p>
+    <span class="t12 dim" style="margin-top:6px;display:block">에이전트가 쓴 글이에요 · 지갑은 이 글이 아니라 청구서를 대조해요</span>
+  </section>`;
+}
+
 /** 상단 칩용 짧은 이름 */
 export function chainShort(id?: number): string {
   return id === 11155111 ? "Sepolia" : chainName(id);

@@ -198,6 +198,9 @@ export class MockOwnerApi implements OwnerApi {
       order_expires_at: now + 300,
       task_id: taskId,
       agent,
+      agent_reason: weather
+        ? "7일 예보를 파는 판매자 세 곳을 비교했어요. 다른 두 곳은 3일 예보만 있어서 여기를 골랐어요"
+        : "맡긴 일에 맞는 자료를 파는 곳 중 가장 싸고, 샘플 데이터 형식이 요청과 맞았어요",
       created_at: now,
     });
     this.hist.unshift({

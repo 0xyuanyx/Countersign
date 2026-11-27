@@ -385,3 +385,4 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .more-tasks[open] > summary svg { transform: rotate(180deg); }
 .more-tasks .work-card { margin-top: 8px; }
 .flash-once { animation: cs-flash 900ms ease-out; }
+.agent-note { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px dashed rgba(247, 247, 249, 0.16); }

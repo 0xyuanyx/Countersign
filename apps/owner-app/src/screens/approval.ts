@@ -4,6 +4,7 @@
 
 import { ApiError, type HistoryEntry, type PurchaseRequest } from "../api.js";
 import { app, openSheet, refreshSoon, strip } from "../app.js";
+import { agentNote } from "./common.js";
 import { addrHtml, busy, esc, ic, toast, usdc } from "../ui.js";
 import { unlock } from "./gates.js";
 
@@ -53,6 +54,7 @@ export function openApproval(r: PurchaseRequest): void {
       ${addrHtml(r.pay_to)}
       <div style="margin-top:4px">${strip(requestStripEntry(r))}</div>
     </div>
+    ${agentNote(r.agent_reason, r.agent)}
     <p class="dim t13" style="margin-top:12px;line-height:20px">이 주소에 처음 보내는 거라 물어봐요. 금액·체인·토큰·만료는 HSP 주문과 맞았어요</p>
     <div class="bottom-actions" style="padding-top:16px">
       <button class="btn btn-primary press" data-act="pay">${amt} USDC 결제</button>

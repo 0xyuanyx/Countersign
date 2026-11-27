@@ -29,6 +29,8 @@ export type HistoryEntry = {
   task_id?: string;
   request_id?: string;
   events?: { stage: string; at: number }[];
+  /** 에이전트가 쓴 고른 이유·비교 근거 (최대 500자). 에이전트 말이라 지갑은 검증하지 않는다 */
+  agent_reason?: string;
   /** 출금 등 실제 체인 거래일 때만 (지갑 서버가 붙여 줌) */
   explorer_url?: string;
   kind?: string;
@@ -79,6 +81,7 @@ export type PurchaseRequest = {
   created_at: number;
   decided_at?: number;
   remember?: boolean;
+  agent_reason?: string;
 };
 
 export type Task = {
@@ -124,6 +127,8 @@ export type CatalogChip = {
   scenario: "normal" | "new_seller" | "over_limit" | "payee_swap" | "amount_swap" | "chain_swap" | "injection" | string;
   scenario_label?: string;
   exceeds_per_tx?: boolean;
+  /** compare 칩: 정답 sku (비교 과제 채점용, 앱은 보여 주지 않음) */
+  expected?: string;
 };
 export type Deposit = { address: string; chain_id: number; token: string; token_symbol?: string; explorer_url?: string };
 export type AgentDetail = { agent: Agent; policy?: PolicySummary; balance?: Balance; deposit?: Deposit };
