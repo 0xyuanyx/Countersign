@@ -446,3 +446,4 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .ticket .tk-bot b { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .receipt-pay { display: flex; justify-content: space-between; margin-top: 14px; font-size: 14px; }
 .receipt-pay span:first-child { color: var(--fg3); }
+.receipt-link { display: block; margin-top: 10px; text-align: center; font-size: 13px; color: var(--fg3); text-decoration: underline; text-underline-offset: 3px; padding: 6px 0; }

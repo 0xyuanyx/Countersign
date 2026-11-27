@@ -80,8 +80,8 @@ export function openReceipt(e: HistoryEntry): void {
   openSheet(
     `<span class="t12 dim">${esc(KIND[r.kind ?? ""] ?? "산 것")} · ${esc(e.seller ?? "판매자")}가 보낸 확인서</span>
      <div style="margin-top:12px">${ticket(r, e.seller ?? "")}</div>
-     <div class="receipt-pay"><span>낸 돈</span><span>${usdc(e.amount)} USDC</span></div>
-     ${url ? `<a class="btn btn-card press" style="margin-top:12px" href="${esc(url)}" target="_blank" rel="noopener noreferrer">판매자 확인서 원본 열기</a>` : ""}
+     <div class="receipt-pay"><span>사용 금액</span><span>${usdc(e.amount)} USDC</span></div>
+     ${url ? `<a class="receipt-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(e.seller ?? "판매자")}에서 예약 내역 확인하기 ›</a>` : ""}
      <div class="bottom-actions" style="padding-top:12px"><button class="btn btn-primary press" data-act="close">닫기</button></div>`,
     (sheet, close) => sheet.querySelector('[data-act="close"]')?.addEventListener("click", () => void close()),
     { label: "예약 상세" },
