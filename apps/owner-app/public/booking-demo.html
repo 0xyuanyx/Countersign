@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>예약 내역 · 데모 사이트</title>
+<style>
+  body { margin: 0; font-family: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; background: #F4F4F1; color: #17171A; }
+  .demo { background: #FFF3D6; color: #6B4A00; font-size: 12px; padding: 8px 16px; text-align: center; }
+  header { background: #fff; padding: 14px 16px; border-bottom: 1px solid #E4E3DE; font-weight: 700; }
+  main { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-width: 520px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 14px; padding: 16px; border: 1px solid #E4E3DE; }
+  .ok { display: inline-block; font-size: 12px; font-weight: 600; color: #0B7A57; background: #DDF5EC; border-radius: 6px; padding: 3px 8px; }
+  h1 { font-size: 20px; margin: 10px 0 4px; }
+  .muted { color: #6B6A70; font-size: 13px; }
+  .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #EFEEEA; font-size: 14px; }
+  .row:last-child { border-bottom: 0; }
+  .row span:first-child { color: #6B6A70; }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+</style>
+</head>
+<body>
+<div class="demo">데모 사이트예요 · 실제 예약이 아니에요</div>
+<header id="shop">Travel Desk</header>
+<main id="m"><div class="card">예약을 찾지 못했어요</div></main>
+<script>
+  // 앱 데모 모드의 도쿄 출장 예시와 같은 값. 주소 뒤 #확인번호로 고른다
+  var B = {
+    "HSS-48213": { shop: "Hotel Sample Shinjuku", title: "Hotel Sample Shinjuku 1박", rows: [["체크인", "12/07 (월) 15:00"], ["체크아웃", "12/08 (화) 11:00"], ["객실", "싱글 1실 · 1명"], ["회의 장소까지", "150m · 도보 2분"], ["평점", "4.4 / 5"], ["이용 금액", "0.38 USDC"], ["예약한 때", "11/27 12:10"]] },
+    "CS7Q2K": { shop: "Sample Air", title: "도쿄 왕복 항공권", rows: [["가는 편", "CS101 · 12/07 10:25 인천 → 13:05 하네다"], ["오는 편", "CS102 · 12/08 15:50 하네다 → 18:35 인천"], ["승객", "1명 · 일반석"], ["수하물", "위탁 23kg 1개"], ["이용 금액", "0.42 USDC"], ["예약한 때", "11/27 12:10"]] }
+  };
+  var id = decodeURIComponent(location.hash.slice(1));
+  var b = B[id];
+  if (b) {
+    document.getElementById("shop").textContent = b.shop;
+    var m = document.getElementById("m");
+    m.textContent = "";
+    var c = document.createElement("div"); c.className = "card";
+    var ok = document.createElement("span"); ok.className = "ok"; ok.textContent = "예약 확정"; c.appendChild(ok);
+    var h = document.createElement("h1"); h.textContent = b.title; c.appendChild(h);
+    var n = document.createElement("div"); n.className = "muted"; n.textContent = "예약 번호"; c.appendChild(n);
+    var code = document.createElement("div"); code.className = "code"; code.textContent = id; c.appendChild(code);
+    m.appendChild(c);
+    var d = document.createElement("div"); d.className = "card";
+    b.rows.forEach(function (r) {
+      var row = document.createElement("div"); row.className = "row";
+      var a = document.createElement("span"); a.textContent = r[0];
+      var v = document.createElement("span"); v.textContent = r[1];
+      row.appendChild(a); row.appendChild(v); d.appendChild(row);
+    });
+    m.appendChild(d);
+  }
+</script>
+</body>
+</html>

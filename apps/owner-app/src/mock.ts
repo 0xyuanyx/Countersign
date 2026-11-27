@@ -112,6 +112,7 @@ export class MockOwnerApi implements OwnerApi {
           title: "Sample Air 도쿄 왕복",
           kind: "flight",
           confirmation: "CS7Q2K",
+          url: "/booking-demo.html#CS7Q2K",
           lines: [
             { label: "가는 편", value: "CS101 · 12/07 10:25 인천 → 13:05 하네다" },
             { label: "오는 편", value: "CS102 · 12/08 15:50 하네다 → 18:35 인천" },
@@ -126,6 +127,7 @@ export class MockOwnerApi implements OwnerApi {
           title: "Hotel Sample Shinjuku 1박",
           kind: "hotel",
           confirmation: "HSS-48213",
+          url: "/booking-demo.html#HSS-48213",
           lines: [
             { label: "체크인", value: "12/07 15:00" },
             { label: "체크아웃", value: "12/08 11:00" },

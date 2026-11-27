@@ -447,3 +447,9 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .receipt-pay { display: flex; justify-content: space-between; margin-top: 14px; font-size: 14px; }
 .receipt-pay span:first-child { color: var(--fg3); }
 .receipt-link { display: block; margin-top: 10px; text-align: center; font-size: 13px; color: var(--fg3); text-decoration: underline; text-underline-offset: 3px; padding: 6px 0; }
+/* 판매자 예약 페이지 (앱 안에서 보기) */
+.booking-view { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; animation: cs-in 240ms var(--ease) both; }
+.booking-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: calc(8px + var(--safe-top)) 12px 8px; border-bottom: 1px solid var(--line); }
+.booking-bar .stack { flex: 1; }
+.booking-view iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+button.receipt-link { width: 100%; background: none; border: 0; font: inherit; font-size: 13px; }
