@@ -2,7 +2,7 @@
 // 샘플 값은 design/README.md "2026-11-25 검토 반영"과 맞춘다: 잔액 24.80, 오늘 1.30 / 5.00, 데모 상품 상권 리포트(area-report).
 // 주소·해시는 데모용으로 만든 값이다.
 
-import type { Agent, Balance, NewAgent, Check, HistoryEntry, OwnerApi, PauseState, PolicyFileJson, PolicySummary, PurchaseRequest, Task } from "./api.js";
+import type { Agent, Balance, NewAgent, Check, HistoryEntry, OwnerApi, PauseState, PolicyFileJson, PolicySummary, PurchaseRequest, Task, TaskResult } from "./api.js";
 import { ApiError } from "./api.js";
 
 const AREA = "0x3f9A2bC40e5D71a8F6B2c09E4d1A7b3C5E81c21E";
@@ -10,6 +10,8 @@ const AREA_FAKE = "0x3f9A27d1B09aF4c6E2d8b1F0A5c3E7d29081c21E";
 const NEWS = "0x5D18aE0c3B47f92D6a1C8e05F3b9A7d24E6c0B91";
 const MAPS = "0xA07c41De9B3f58a2C6E1d0B4f97A3e5C82D16f4B";
 const WEATHER = "0x9B2e61c0F4a8D37e5B19aC02F6d8E1a7b3d047dA";
+const AIR = "0x2C81f0aB7d3E95c4A6e1D08b5F2c9A3e7B14d6E0";
+const HOTEL = "0x6E3a9D1c0B57f2A8e4C6d1F09b3A5e7C28D4f1B9";
 // Ethereum Sepolia의 Circle 테스트 USDC
 const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 
@@ -97,7 +99,42 @@ export class MockOwnerApi implements OwnerApi {
       task("task_seongsu", "성수동 상권 리포트 사 와", "0.25", "done", at(14, 38), ["ord_p2"]),
       task("task_maps", "서울역 주변 지도 타일 받아 와", "0.50", "done", at(11, 0), ["ord_p1"]),
     ];
+    // 출장 비서 데모: 끝났지만 아직 확인 안 한 일 (홈에 결과 카드로 남는다)
+    const trip = task("task_tokyo", "12/07~08 도쿄 출장 항공권·숙박 예매 (09시 이후 출발, 8일 19시 전 도착, 회의 Shinjuku Sample Tower)", "1.50", "done", now - 25, ["ord_air", "ord_hotel"]);
+    trip.updated_at = now - 15;
+    trip.result = TOKYO_RESULT;
+    this.taskList.unshift(trip);
+    for (const t of this.taskList) if (t.id !== "task_tokyo" && ["paid", "done", "failed"].includes(t.status)) t.acknowledged_at = t.updated_at;
     this.hist = [
+      {
+        ...paid("air", now - 20, "Sample Air", "도쿄 왕복 항공권 CS101·CS102", "0.42", AIR, "task_tokyo", 21),
+        receipt: {
+          title: "Sample Air 도쿄 왕복",
+          kind: "flight",
+          confirmation: "CS7Q2K",
+          lines: [
+            { label: "가는 편", value: "CS101 · 12/07 10:25 인천 → 13:05 하네다" },
+            { label: "오는 편", value: "CS102 · 12/08 15:50 하네다 → 18:35 인천" },
+            { label: "수하물", value: "위탁 23kg 1개" },
+            { label: "결제", value: "0.42 USDC" },
+          ],
+        },
+      },
+      {
+        ...paid("hotel", now - 18, "Hotel Sample Shinjuku", "Hotel Sample Shinjuku 1박", "0.38", HOTEL, "task_tokyo", 23),
+        receipt: {
+          title: "Hotel Sample Shinjuku 1박",
+          kind: "hotel",
+          confirmation: "HSS-48213",
+          lines: [
+            { label: "체크인", value: "12/07 15:00" },
+            { label: "체크아웃", value: "12/08 11:00" },
+            { label: "회의 장소까지", value: "150m · 도보 2분" },
+            { label: "평점", value: "4.4 / 5" },
+            { label: "결제", value: "0.38 USDC" },
+          ],
+        },
+      },
       paid("p5", t0 + 5, "area-report", "강남역 상권 리포트 1건", "0.1", AREA, "task_gangnam", 5),
       {
         id: "rej1",
@@ -403,6 +440,12 @@ export class MockOwnerApi implements OwnerApi {
     t.status = paused ? "paused" : t.order_refs.length ? "working" : "open";
     return this.delay({ ...t });
   }
+  async ackTask(id: string) {
+    const t = this.taskList.find((x) => x.id === id);
+    if (!t) throw new ApiError(404, "없는 일");
+    t.acknowledged_at = Math.floor(Date.now() / 1000);
+    return this.delay({ ...t });
+  }
   async cancelTask(id: string) {
     const t = this.taskList.find((x) => x.id === id);
     if (!t) throw new ApiError(404, "없는 일");
@@ -475,6 +518,43 @@ export class MockOwnerApi implements OwnerApi {
     throw new ApiError(400, "데모라 출금은 하지 않아요");
   }
 }
+
+const TOKYO_RESULT: TaskResult = {
+  summary: "도쿄 출장 항공권과 숙소를 예약했어요",
+  weather: {
+    place: "도쿄",
+    days: [
+      { date: "2026-12-07", sky: "sun", high: 12, low: 4, rain_pct: 10 },
+      { date: "2026-12-08", sky: "rain", high: 10, low: 6, rain_pct: 70 },
+    ],
+    advice: { clothing: "아침저녁 4~6도라 코트나 두꺼운 겉옷을 챙기세요", umbrella: true, note: "8일은 비 70%, 오후에 많이 와요" },
+  },
+  picks: [
+    {
+      kind: "flight",
+      label: "항공권",
+      total: 3,
+      criteria: ["09시 이후 출발", "8일 19시 전 도착", "값"],
+      chosen: { name: "Sample Air CS101", detail: "12/07 10:25 인천 → 13:05 하네다 · 오는 편 12/08 18:35 인천 도착", price: "0.42", facts: [{ label: "출발", value: "10:25" }, { label: "도착", value: "18:35" }], history_id: "air" },
+      others: [
+        { name: "DJ201", detail: "12/07 08:10 출발", price: "0.35", facts: [{ label: "출발", value: "08:10" }, { label: "도착", value: "17:50" }], reason: "08:10 출발이라 09시 이후 조건에 안 맞아요" },
+        { name: "BW301", detail: "12/08 21:45 인천 도착", price: "0.31", facts: [{ label: "출발", value: "11:40" }, { label: "도착", value: "21:45" }], reason: "8일 21:45 도착이라 19시 전 도착 조건에 안 맞아요" },
+      ],
+    },
+    {
+      kind: "hotel",
+      label: "숙박",
+      total: 4,
+      criteria: ["회의 장소까지 거리", "값(1박 0.50 이하)"],
+      chosen: { name: "Hotel Sample Shinjuku", detail: "회의 장소까지 150m · 1박", price: "0.38", facts: [{ label: "회의 장소까지", value: "150m" }], history_id: "hotel" },
+      others: [
+        { name: "Shinjuku Station Hotel", detail: "회의 장소까지 600m", price: "0.36", facts: [{ label: "회의 장소까지", value: "600m" }], reason: "값은 비슷한데 회의 장소까지 4배 멀어요" },
+        { name: "Nishi-Shinjuku Inn", detail: "회의 장소까지 1.2km", price: "0.32", facts: [{ label: "회의 장소까지", value: "1.2km" }], reason: "가장 싸지만 회의 장소까지 1.2km라 걸어서 15분이에요" },
+        { name: "Shinjuku Grand", detail: "회의 장소까지 300m", price: "0.72", facts: [{ label: "회의 장소까지", value: "300m" }], reason: "1박 0.72로 예산(0.50)을 넘어요" },
+      ],
+    },
+  ],
+};
 
 function task(id: string, text: string, max: string, status: Task["status"], t: number, orders: string[]): Task {
   return {

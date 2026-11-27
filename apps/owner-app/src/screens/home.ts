@@ -10,6 +10,31 @@ import { unlock } from "./gates.js";
 import { homeEmpty, isFresh, setupDone } from "./onboard.js";
 import { hideComposer, showComposer } from "../composer.js";
 import { MockOwnerApi } from "../mock.js";
+import { UNSUPPORTED } from "../api.js";
+import { openReceipt } from "./receipt.js";
+
+// 끝난 일 카드는 주인이 "확인"을 누를 때까지 홈에 남는다. 지갑 서버에 ack가 없으면 이 폰에만 기억
+const ACK_KEY = "cs.ackTasks";
+function ackedHere(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(ACK_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+function ackHere(id: string): void {
+  try {
+    localStorage.setItem(ACK_KEY, JSON.stringify([...ackedHere(), id].slice(-200)));
+  } catch {
+    /* 저장 못 하면 다음에 다시 보임 */
+  }
+}
+const FINISHED_KEEP_SEC = 24 * 60 * 60;
+export function finishedUnacked(tasks: Task[]): Task[] {
+  const now = Date.now() / 1000;
+  const local = ackedHere();
+  return tasks.filter((t) => (t.status === "paid" || t.status === "done" || t.status === "failed") && !t.acknowledged_at && !local.includes(t.id) && now - t.updated_at < FINISHED_KEEP_SEC);
+}
 
 const RECENT_BLOCK_SEC = 60 * 60;
 let lastBalance: number | undefined;
@@ -116,12 +141,32 @@ export function home(): Screen {
       </div>
     </section>`;
   };
+  // 끝난 일: 그 자리에 남겨 두고 확인을 눌러야 사라진다
+  const doneCard = (t: Task) => {
+    const es = d.history.filter((e) => e.task_id === t.id || t.order_refs.includes(e.order_ref));
+    const spent = es.filter((e) => e.status === "paid" && e.kind !== "withdraw").reduce((n, e) => n + Number(e.amount ?? 0), 0);
+    const failed = t.status === "failed";
+    const bought = es.filter((e) => e.status === "paid" && e.receipt?.title);
+    return `<section class="work-card done-card" id="task-${esc(t.id)}" aria-label="끝난 일">
+      <div class="stack"><span class="t15b">${esc(t.text)}</span>
+        <span class="t13" style="color:${failed ? "var(--bad-text)" : "var(--ok)"}">${failed ? `못 끝냈어요${t.note ? ` · ${esc(t.note)}` : ""}` : `끝 · ${spent.toFixed(2)} USDC 씀`}</span></div>
+      ${t.result?.summary ? `<p class="t14" style="line-height:21px">${esc(t.result.summary)}</p>` : ""}
+      ${bought.length ? `<div class="bought">${bought.map((e) => `<button type="button" class="list-row press" data-receipt="${esc(e.id)}"><div class="stack"><span class="t14" style="font-weight:500">${esc(e.receipt!.title)}</span><span class="dim t12">${esc(e.receipt!.confirmation ? `확인 번호 ${e.receipt!.confirmation}` : (e.seller ?? ""))} · ${usdc(e.amount)} USDC</span></div><span class="t12 muted">상세보기</span></button>`).join("")}</div>` : ""}
+      <div class="work-acts">
+        <a class="pill" href="#/activity" data-done-see="${esc(t.id)}">내역에서 보기</a>
+        <button type="button" class="pill pill-ok" data-task-ack="${esc(t.id)}">확인</button>
+      </div>
+    </section>`;
+  };
+  const finished = paused ? [] : finishedUnacked(d.tasks);
+  const cards = [...(paused ? [] : actives), ...finished].sort((a, b) => b.created_at - a.created_at);
+  const anyCard = (t: Task) => (finished.includes(t) ? doneCard(t) : taskCard(t));
   let workingCard = "";
-  if (actives.length && !paused) {
-    const [first, ...rest] = actives;
-    workingCard = `${taskCard(first!)}${
+  if (cards.length) {
+    const [first, ...rest] = cards;
+    workingCard = `${anyCard(first!)}${
       rest.length
-        ? `<details class="more-tasks" data-k="more-tasks"><summary class="press"><span class="muted t14">진행 중인 일 ${rest.length}개 더</span><span class="dim">${ic.chevD()}</span></summary>${rest.map(taskCard).join("")}</details>`
+        ? `<details class="more-tasks" data-k="more-tasks"><summary class="press"><span class="muted t14">맡긴 일 ${rest.length}개 더</span><span class="dim">${ic.chevD()}</span></summary>${rest.map(anyCard).join("")}</details>`
         : ""
     }`;
   }
@@ -246,6 +291,31 @@ export function home(): Screen {
             .then(() => toast(resume ? "이 일을 다시 시작했어요" : "이 일을 멈췄어요 · 다른 일은 계속해요"))
             .catch((x) => toast(x instanceof ApiError ? x.message : "바꾸지 못했어요"))
             .finally(refreshSoon);
+        }
+        const ackBtn = t.closest<HTMLElement>("[data-task-ack]");
+        if (ackBtn) {
+          const id = ackBtn.dataset.taskAck!;
+          void busy(ackBtn, "확인 중", () =>
+            app.api.ackTask(id).catch((x) => {
+              if (x instanceof ApiError && x.message === UNSUPPORTED) return ackHere(id);
+              throw x;
+            }),
+          )
+            .then(() => {
+              ackHere(id);
+              const tk = app.data.tasks.find((x) => x.id === id);
+              if (tk) tk.acknowledged_at = Math.floor(Date.now() / 1000);
+              app.render();
+            })
+            .catch((x) => toast(x instanceof ApiError ? x.message : "확인하지 못했어요"))
+            .finally(refreshSoon);
+        }
+        const seeBtn = t.closest<HTMLElement>("[data-done-see]");
+        if (seeBtn) app.focusTask = seeBtn.dataset.doneSee;
+        const rcBtn = t.closest<HTMLElement>("[data-receipt]");
+        if (rcBtn) {
+          const en = app.data.history.find((x) => x.id === rcBtn.dataset.receipt);
+          if (en) openReceipt(en);
         }
         const cancelBtn = t.closest<HTMLElement>("[data-task-cancel]");
         if (cancelBtn) {

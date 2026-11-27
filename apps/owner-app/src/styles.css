@@ -386,3 +386,18 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .more-tasks .work-card { margin-top: 8px; }
 .flash-once { animation: cs-flash 900ms ease-out; }
 .agent-note { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px dashed rgba(247, 247, 249, 0.16); }
+
+/* 산 것 (판매자 확인서) */
+.t17b { font-size: 17px; font-weight: 600; line-height: 1.35; }
+.receipt-sum { margin-top: 12px; padding: 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+.receipt-sum .pill { height: 36px; font-size: 13px; background: var(--cell); }
+.receipt-code { margin-top: 14px; padding: 14px; border-radius: 14px; background: var(--cell); display: flex; flex-direction: column; gap: 4px; }
+.receipt-code .mono { font-size: 22px; font-weight: 600; letter-spacing: 0.06em; }
+.receipt-lines { margin-top: 8px; display: flex; flex-direction: column; }
+.receipt-lines > div { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); font-size: 14px; }
+.receipt-lines > div > span:first-child { color: var(--fg3); flex: none; }
+.receipt-lines > div > span:last-child { text-align: right; }
+.done-card { border-color: rgba(0, 200, 150, 0.22); }
+.done-card .bought { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.done-card .bought .list-row { width: 100%; text-align: left; padding: 10px 0; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; }
+.work-acts .pill-ok { background: #F7F7F9; color: #0E0E10; font-weight: 600; margin-left: auto; }

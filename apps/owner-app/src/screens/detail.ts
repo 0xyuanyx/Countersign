@@ -6,6 +6,7 @@ import { store } from "../auth.js";
 import { addrHtml, dayLabel, esc, hhmm, hhmmss, ic, usdc } from "../ui.js";
 import { openApproval } from "./approval.js";
 import { agentNote, chainName } from "./common.js";
+import { openReceipt, receiptSummary } from "./receipt.js";
 
 const ORDINAL = ["첫", "두 번째", "세 번째", "네 번째", "다섯 번째", "여섯 번째"];
 const STAGE: Record<string, string> = {
@@ -43,9 +44,10 @@ export function detail(id: string): Screen {
           ? pendingBody(e)
           : rejectedBody(e, firstView);
   return {
-    html: `<div class="screen">${head}${body}${agentNote(e.agent_reason, e.agent)}${records(e)}</div>`,
+    html: `<div class="screen">${head}${receiptSummary(e)}${body}${agentNote(e.agent_reason, e.agent)}${records(e)}</div>`,
     bind: (root) => {
       root.querySelector('[data-act="back"]')?.addEventListener("click", () => history.back());
+      root.querySelector('[data-act="receipt"]')?.addEventListener("click", () => openReceipt(e));
       root.querySelector('[data-act="open-req"]')?.addEventListener("click", () => {
         const r = app.data.requests.find((x) => x.id === e.request_id);
         if (r) openApproval(r);

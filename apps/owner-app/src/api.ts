@@ -33,6 +33,10 @@ export type HistoryEntry = {
   agent_reason?: string;
   /** 출금 등 실제 체인 거래일 때만 (지갑 서버가 붙여 줌) */
   explorer_url?: string;
+  /** 판매자가 준 확인서(산 것). 판매 서버 응답에서 온 값 */
+  receipt?: Receipt;
+  /** 주인이 내역에서 숨김 (지우지는 않음) */
+  hidden?: boolean;
   kind?: string;
   to?: string;
 };
@@ -84,6 +88,20 @@ export type PurchaseRequest = {
   agent_reason?: string;
 };
 
+export type Receipt = { title: string; kind?: string; lines?: { label: string; value: string }[]; confirmation?: string; url?: string };
+
+export type PickOption = { name: string; detail?: string; price?: string; facts?: { label: string; value: string }[]; order_ref?: string; history_id?: string };
+/** 에이전트가 일을 끝내며 남긴 정리 (에이전트 말이라 지갑이 검증하지 않음) */
+export type TaskResult = {
+  summary?: string;
+  weather?: {
+    place: string;
+    days: { date: string; sky?: "sun" | "cloud" | "rain" | "snow"; high?: number; low?: number; rain_pct?: number }[];
+    advice?: { clothing?: string; umbrella?: boolean; note?: string };
+  };
+  picks?: { kind?: string; label: string; total?: number; criteria?: string[]; chosen: PickOption; others?: (PickOption & { reason?: string })[] }[];
+};
+
 export type Task = {
   id: string;
   text: string;
@@ -93,6 +111,9 @@ export type Task = {
   agent?: string;
   order_refs: string[];
   note?: string;
+  result?: TaskResult;
+  /** 주인이 끝난 일 카드를 확인한 때. 없으면 홈에 카드가 남는다 */
+  acknowledged_at?: number;
   created_at: number;
   updated_at: number;
 };
@@ -176,6 +197,8 @@ export interface OwnerApi {
   cancelTask(id: string): Promise<Task>;
   /** 이 일만 멈추기·다시 시작 (지갑 서버에 없으면 UNSUPPORTED) */
   pauseTask(id: string, paused: boolean): Promise<Task>;
+  /** 끝난 일 카드 확인 (지갑 서버에 없으면 UNSUPPORTED → 앱이 이 폰에만 기억) */
+  ackTask(id: string): Promise<Task>;
   agents(): Promise<Agent[]>;
   createAgent(name: string): Promise<NewAgent>;
   disconnectAgent(id: string): Promise<Agent>;
@@ -307,6 +330,7 @@ export class HttpOwnerApi implements OwnerApi {
   // 지갑 서버(b1414df~)의 connected는 "실제로 붙은 적 있음"이고 active가 "끊기지 않음"이다.
   // 앱은 connected = 끊기지 않음, 붙었는지는 attached()로 따로 본다
   pauseTask = (id: string, paused: boolean) => this.call<Task>("POST", `/api/tasks/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, {});
+  ackTask = (id: string) => this.call<Task>("POST", `/api/tasks/${encodeURIComponent(id)}/ack`, {});
   agents = async () =>
     (await this.call<{ agents: Agent[] }>("GET", "/api/agents")).agents.map((a) => (a.active === undefined ? a : { ...a, connected: a.active }));
   createAgent = (name: string) => this.call<NewAgent>("POST", "/api/agents", { name });
