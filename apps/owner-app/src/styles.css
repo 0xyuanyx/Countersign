@@ -401,3 +401,48 @@ textarea.field { height: auto; min-height: 96px; padding: 14px 16px; resize: non
 .done-card .bought { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .done-card .bought .list-row { width: 100%; text-align: left; padding: 10px 0; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; }
 .work-acts .pill-ok { background: #F7F7F9; color: #0E0E10; font-weight: 600; margin-left: auto; }
+/* 끝난 일 결과: 에이전트 말풍선 + 고른 것 + 탈락 후보 */
+.agent-say .who { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.agent-say .av { width: 28px; height: 28px; border-radius: 50%; background: var(--pressed); display: flex; align-items: center; justify-content: center; }
+.agent-say .bub { background: var(--cell); border-radius: 4px 16px 16px 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.agent-say .bub p { font-size: 14px; line-height: 21px; }
+.agent-say .wx { font-size: 12.5px; color: var(--fg2); }
+.pick { display: flex; flex-direction: column; gap: 6px; }
+.pick-chosen { display: flex; align-items: flex-start; gap: 10px; }
+.pick-chosen .pill { height: 32px; font-size: 12.5px; padding: 0 12px; background: var(--cell); flex: none; }
+.pick-others { border-top: 1px solid var(--line); margin-top: 4px; }
+.pick-others > summary { list-style: none; display: flex; justify-content: space-between; align-items: center; min-height: 40px; font-size: 13px; color: var(--fg2); cursor: pointer; }
+.pick-others > summary::-webkit-details-marker { display: none; }
+.pick-others[open] > summary svg { transform: rotate(180deg); }
+.pick-others .alt { padding: 10px 0; border-top: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 3px; }
+.pick-others .alt-head { display: flex; justify-content: space-between; gap: 10px; }
+.pick-others .why { font-size: 12.5px; line-height: 18px; color: var(--fg2); }
+.pick-others .why b { color: var(--bad-text); font-weight: 500; }
+.task-result { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 12px; }
+.pick { border-top: 1px solid var(--line); padding-top: 16px; }
+.agent-say { padding-bottom: 2px; }
+.cmp { display: grid; font-size: 12.5px; margin: 2px 0 8px; }
+.cmp .th { color: var(--fg3); padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.cmp .td { padding: 8px 4px; border-bottom: 1px solid var(--line-soft); color: var(--fg2); overflow-wrap: anywhere; }
+.cmp .td.sel { color: var(--fg); background: rgba(0, 200, 150, 0.07); }
+.pick-others p.why { margin: 4px 0 0; }
+/* 예약 팝업: 티켓 */
+.ticket { background: #F2F1EC; color: #141416; border-radius: 18px; overflow: hidden; }
+.ticket .tk-top { padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.ticket .dim2 { color: #55545A; }
+.ticket .tk-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.ticket .tk-route { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; margin-top: 4px; }
+.ticket .tk-route > div { display: flex; flex-direction: column; font-size: 13px; }
+.ticket .tk-route b { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.ticket .tk-route svg { margin-bottom: 14px; flex: none; }
+.ticket .tk-name { font-size: 20px; font-weight: 700; line-height: 1.25; }
+.ticket .tk-kv { display: flex; flex-direction: column; }
+.ticket .tk-kv span { font-size: 12px; color: #6B6A70; }
+.ticket .tk-kv b { font-size: 18px; font-weight: 700; }
+.ticket .tk-cut { border-top: 2px dashed #C9C7BF; margin: 0 14px; }
+.ticket .tk-bot { padding: 14px 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; font-size: 12px; }
+.ticket .tk-bot > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ticket .tk-bot span { color: #6B6A70; }
+.ticket .tk-bot b { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.receipt-pay { display: flex; justify-content: space-between; margin-top: 14px; font-size: 14px; }
+.receipt-pay span:first-child { color: var(--fg3); }

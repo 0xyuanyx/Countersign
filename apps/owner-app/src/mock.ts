@@ -502,6 +502,7 @@ export class MockOwnerApi implements OwnerApi {
   async catalog() {
     const c = (id: string, label: string, scenario: string, scenario_label: string, price: string) => ({ id, label, task_text: label, scenario, scenario_label, price });
     return this.delay([
+      { id: "tokyo-trip", label: "12/07~08 도쿄 출장 항공권·숙박 예매", task_text: "12/07~08 도쿄 출장 가. 09시 이후 출발, 8일 19시 전 도착. 항공권과 숙박 예매해 줘. 회의 장소는 Shinjuku Sample Tower야", scenario: "compare", scenario_label: "비교해서 고르기", suggested_max_amount: "1.00" },
       c("w", "내일 서울 날씨 예보 사 와", "normal", "정상", "0.10"),
       c("fx", "오늘 원·달러 환율 데이터 사 와", "normal", "정상", "0.10"),
       c("nw", "오늘 주요 뉴스 요약 사 와", "new_seller", "처음 보는 판매자", "0.10"),

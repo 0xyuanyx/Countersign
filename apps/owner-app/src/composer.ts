@@ -39,6 +39,8 @@ function loadCatalog(): void {
 }
 let el: HTMLElement | undefined;
 let max: string | undefined;
+/** 추천 칩이 준 일 전체 예산 (최대 금액 칩에 "추천"으로 더한다) */
+let suggestedMax: string | undefined;
 let state: ComposerState | undefined;
 
 function loadDraft(): string {
@@ -80,7 +82,7 @@ function build(): HTMLElement {
         <button type="button" class="send-ic off" data-act="send" aria-label="보내기">${ic.up()}</button>
       </div>
       <div class="composer-extra">
-        <div class="composer-max"><span class="t13 muted">최대 금액</span><div class="chips" data-chips></div></div>
+        <div class="composer-max"><span class="t13 muted">이 일에 쓸 최대</span><div class="chips" data-chips></div></div>
         <p class="dim t12" style="line-height:18px">이 금액을 넘으면 지갑이 서명하지 않아요 · 글로는 정책이 안 바뀌어요</p>
         <div data-suggest></div>
         <div data-recent></div>
@@ -175,6 +177,11 @@ function build(): HTMLElement {
     const rec = t.closest<HTMLElement>("[data-recent-text]");
     if (rec) {
       ta.value = rec.dataset.recentText!;
+      suggestedMax = rec.dataset.suggestMax ? usdc(rec.dataset.suggestMax) : undefined;
+      if (suggestedMax) {
+        max = suggestedMax;
+        paintExtra();
+      }
       sync();
       grow();
       ta.focus({ preventScroll: true });
@@ -192,6 +199,8 @@ function build(): HTMLElement {
         const text = ta.value.trim();
         await busy(send, "", () => app.api.createTask(text, max ?? chipsFor(state?.perTx ?? "0.5")[0] ?? "0.10"));
         ta.value = "";
+        suggestedMax = undefined;
+        max = undefined;
         sync();
         ta.blur();
         collapse();
@@ -221,10 +230,11 @@ function build(): HTMLElement {
 
 function paintExtra(): void {
   if (!el || !state) return;
-  const chips = chipsFor(state.perTx);
+  const base = chipsFor(state.perTx);
+  const chips = suggestedMax && !base.includes(suggestedMax) ? [...base, suggestedMax] : base;
   if (!max || !chips.includes(max)) max = chips[0] ?? "0.10";
   el.querySelector("[data-chips]")!.innerHTML = chips
-    .map((c) => `<button type="button" class="pill" data-max="${c}" aria-pressed="${c === max}">${c}${c === usdc(state!.perTx) ? " · 한도" : ""}</button>`)
+    .map((c) => `<button type="button" class="pill" data-max="${c}" aria-pressed="${c === max}">${c}${c === suggestedMax ? " · 추천" : c === usdc(state!.perTx) ? " · 한도" : ""}</button>`)
     .join("");
   const sg = el.querySelector<HTMLElement>("[data-suggest]")!;
   // 정상 칩 3개를 먼저, 공격 칩은 "공격 시험해 보기"에 시나리오마다 하나씩 접어 둔다 (데모용)
@@ -234,7 +244,7 @@ function paintExtra(): void {
   const seen = new Set<string>();
   const attacks = catalogChips.filter((c) => !SAFE.includes(c.scenario) && !seen.has(c.scenario) && seen.add(c.scenario));
   const chip = (c: CatalogChip, tag = false) =>
-    `<button type="button" class="pill" data-recent-text="${esc(c.task_text)}">${esc(c.label)}${tag && c.scenario_label ? ` <span class="dim">· ${esc(c.scenario_label)}</span>` : ""}</button>`;
+    `<button type="button" class="pill" data-recent-text="${esc(c.task_text)}"${c.suggested_max_amount ? ` data-suggest-max="${esc(c.suggested_max_amount)}"` : ""}>${esc(c.label)}${tag && c.scenario_label ? ` <span class="dim">· ${esc(c.scenario_label)}</span>` : ""}</button>`;
   sg.innerHTML = `<p class="t13 muted" style="margin-top:14px">이런 일을 맡겨 보세요</p><div class="chips" style="margin-top:8px;flex-wrap:wrap">${(normal.length ? normal : catalogChips.slice(0, 3)).map((c) => chip(c)).join("")}</div>${
     attacks.length
       ? `<details class="more-tasks" style="margin-top:6px"><summary><span class="t13 muted">공격 시험해 보기 · 지갑이 막는지 보기</span><span class="dim">${ic.chevD()}</span></summary><div class="chips" style="margin-top:4px;flex-wrap:wrap">${attacks.map((c) => chip(c, true)).join("")}</div></details>`

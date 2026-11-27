@@ -5,6 +5,8 @@ import type { HistoryEntry, Task } from "../api.js";
 import { app, strip, type Screen } from "../app.js";
 import { dayLabel, esc, hhmm, ic, usdc } from "../ui.js";
 import { entryTitle, offlineBanner, shortReason, tabs } from "./common.js";
+import { openReceipt } from "./receipt.js";
+import { resultBlock } from "./result.js";
 
 type Group = { key: string; at: number; title: string; task?: Task; entries: HistoryEntry[] };
 
@@ -75,6 +77,7 @@ export function activity(): Screen {
         <span class="chev">${ic.chevD()}</span>
       </summary>
       <div class="body">
+        ${g.task?.result ? `<div class="task-result">${resultBlock(g.task.result, app.data.history, g.key)}</div>` : ""}
         ${entries.map(row).join("")}
         ${waiting ? `<span class="dim t13" style="padding:4px 0">에이전트가 청구서를 받는 중</span>` : ""}
         ${!entries.length && !waiting ? `<span class="dim t13" style="padding:4px 0">결제 없음</span>` : ""}
@@ -104,6 +107,11 @@ export function activity(): Screen {
   return {
     html,
     bind: (root) => {
+      root.addEventListener("click", (ev) => {
+        const b = (ev.target as HTMLElement).closest<HTMLElement>("[data-receipt]");
+        const en = b && app.data.history.find((x) => x.id === b.dataset.receipt);
+        if (en) openReceipt(en);
+      });
       if (!focus) return;
       app.focusTask = undefined;
       const el = root.querySelector<HTMLDetailsElement>(`[data-k="${CSS.escape(focus)}"]`);

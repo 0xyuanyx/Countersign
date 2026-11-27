@@ -150,6 +150,8 @@ export type CatalogChip = {
   exceeds_per_tx?: boolean;
   /** compare 칩: 정답 sku (비교 과제 채점용, 앱은 보여 주지 않음) */
   expected?: string;
+  /** 이 일 전체에 맞는 예산 (맡기기 최대 금액 기본값) */
+  suggested_max_amount?: string;
 };
 export type Deposit = { address: string; chain_id: number; token: string; token_symbol?: string; explorer_url?: string };
 export type AgentDetail = { agent: Agent; policy?: PolicySummary; balance?: Balance; deposit?: Deposit };
